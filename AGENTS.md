@@ -47,6 +47,8 @@ Capture what matters. Decisions, context, things to remember. Skip the secrets u
 - **Text > Brain** 📝
 - After important memory/config updates in this workspace, make a git commit so the post-commit hook can auto-push them to GitHub.
 - Default to automatic commits after stable, verified updates to key workspace files (MEMORY.md, USER.md, HEARTBEAT.md, TOOLS.md, AGENTS.md, etc.). Do not wait for explicit approval every time unless the change is risky, incomplete, sensitive, or the human says not to commit yet.
+- Model routing preference: use `minimax/MiniMax-M2.5` for simple queries and lightweight tasks; escalate to `duomi/gpt-5.4` for anything moderately complex, logic-heavy, multi-step, coding/configuration-heavy, or otherwise better served by a stronger model. Git/commit/push by themselves are not automatically “complex”; judge the full task.
+- End user-facing replies with a short attribution line: `—— 来自模型：<model>`.
 
 ## Red Lines
 
