@@ -28,29 +28,29 @@ Rules:
 
 Fixed template (use this exact section order every time):
 
-📍 {city}天气简报｜{date}
+🌤️ 📍 {city}天气简报｜{date}
 
-【现在天气】
+【现在天气】🌡️
 - 天气：{condition}
 - 温度：{currentTemp}°C（体感 {feelsLike}°C）
 - 湿度：{humidity}%
 - 风况：{wind}
 
-【今天情况】
+【今天情况】📅
 - 最高 / 最低：{high}°C / {low}°C
 - 降雨：{rainText}
 - 变化：{todayChangeSummary}
 
-【相比昨天】
+【相比昨天】📊
 - 温度对比：{tempCompare}
 - 天气对比：{conditionCompare}
 - 提醒：{compareReminder}
 
-【出门建议】
+【出门建议】🎒
 - {advice1}
 - {advice2}
 
-【一句话总结】
+【一句话总结】💡
 - {oneLineSummary}
 
 Template rules:
