@@ -7,6 +7,7 @@
 - All scheduling, reminders, weather reports, and time references should use **Beijing time** unless 佳奕 explicitly says otherwise.
 - 佳奕 cares a lot about **US stocks, the US economy, and China economic news**.
 - Daily weather briefing preference: send around **08:30 Beijing time**, compare with yesterday, call out large temperature swings or obvious weather changes, remind about umbrellas when rain is expected, and use a light emoji-rich style.
+- Weather heartbeat execution state should be stored in `memory/heartbeat-state.json` to avoid duplicate same-day reports.
 
 ## Workspace / git
 

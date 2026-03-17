@@ -1,0 +1,10 @@
+{
+  "lastChecks": {
+    "weather": null
+  },
+  "weather": {
+    "location": "Beijing",
+    "lastReportDate": null,
+    "lastReportTs": null
+  }
+}

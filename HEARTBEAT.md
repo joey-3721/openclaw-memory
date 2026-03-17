@@ -15,5 +15,8 @@ Rules:
 - Suggested structure: current weather / compare with yesterday / going-out reminder / key takeaway
 - Avoid duplicate reports on the same day
 - If data is incomplete, still send a useful concise summary instead of failing silently
+- Use `memory/heartbeat-state.json` as the execution state store
+- Before sending, check whether `weather.lastReportDate` is already today (Asia/Shanghai)
+- After sending, update `weather.lastReportDate` and `weather.lastReportTs`
 
 If outside the time window, do nothing.
