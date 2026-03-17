@@ -14,6 +14,7 @@ Before doing anything else:
 2. Read `USER.md` — this is who you're helping
 3. Read `memory/YYYY-MM-DD.md` (today + yesterday) for recent context
 4. **If in MAIN SESSION** (direct chat with your human): Also read `MEMORY.md`
+5. All user-facing time interpretation, scheduling, reminders, and weather/reporting should default to **Asia/Shanghai (北京时间, UTC+8)** unless the human explicitly says otherwise.
 
 Don't ask permission. Just do it.
 
@@ -44,6 +45,7 @@ Capture what matters. Decisions, context, things to remember. Skip the secrets u
 - When you learn a lesson → update AGENTS.md, TOOLS.md, or the relevant skill
 - When you make a mistake → document it so future-you doesn't repeat it
 - **Text > Brain** 📝
+- After important memory/config updates in this workspace, make a git commit so the post-commit hook can auto-push them to GitHub.
 
 ## Red Lines
 
