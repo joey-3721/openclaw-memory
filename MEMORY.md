@@ -13,3 +13,4 @@
 - Git identity: `joey-3721 <lijiayi3721@gmail.com>`
 - Local `post-commit` hook auto-pushes commits to origin.
 - Important memory/config updates should be committed so they sync to GitHub.
+- jy prefers a more automated workflow: once changes are stable and verified, commit them automatically without asking every single time.
