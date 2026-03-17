@@ -7,6 +7,7 @@
 - All scheduling, reminders, weather reports, and time references should use **Beijing time** unless 佳奕 explicitly says otherwise.
 - 佳奕 cares a lot about **US stocks, the US economy, and China economic news**.
 - Daily weather briefing preference: send around **08:30 Beijing time**, compare with yesterday, call out large temperature swings or obvious weather changes, remind about umbrellas when rain is expected, and use a light emoji-rich style.
+- Weather reports should use one deterministic fixed template every day so outputs stay consistent across different models; if a field is missing, keep the same layout and fill with `暂无数据`.
 - For weather comparison, persist a compact daily snapshot in `memory/heartbeat-state.json`, compare against yesterday's stored snapshot, and retain only the latest two days of weather snapshots (today + yesterday).
 - Weather heartbeat execution state should be stored in `memory/heartbeat-state.json` to avoid duplicate same-day reports.
 
