@@ -2,16 +2,15 @@
 
 _Learn about the person you're helping. Update this as you go._
 
-- **Name:** jy
-- **What to call them:** jy
-- **Company:** 米花传媒
-- **Notes:** 公司创始人/负责人
+- **Name:** 佳奕
+- **What to call them:** 佳奕
+- **Notes:** 我的私人助手服务对象
 - **Timezone:** Asia/Shanghai (北京时间 UTC+8)
 - **Interests:** 美股、美国经济、中国经济新闻
 
 ## Context
 
-米花传媒 - 帮助公司所有人解决私人以及各种问题
+佳奕是我的私人服务对象。
 
 ---
 
