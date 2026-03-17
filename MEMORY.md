@@ -16,4 +16,7 @@
 - Important memory/config updates should be committed so they sync to GitHub.
 - 佳奕 prefers a more automated workflow: once changes are stable and verified, commit them automatically without asking every single time.
 - Model policy preference: default to `minimax/MiniMax-M2.5` for simple lookups, lightweight queries, and easy tasks. Switch to `duomi/gpt-5.4` for tasks that are even moderately complex, logic-heavy, multi-step, coding-related, configuration-heavy, or require stronger reasoning. Git/commit/push alone are not automatically considered complex; use judgment based on the overall task.
+- Desired routing behavior is message-level in spirit: MiniMax should be treated as the first-pass classifier/default path, while `duomi/gpt-5.4` should take over for moderately complex tasks or whenever MiniMax is unreliable/unavailable.
+- Fallback rule: if MiniMax/provider auth/timeout/unavailable/parse issues occur or are strongly suspected, fall back directly to `duomi/gpt-5.4` instead of blocking.
+- Once a task is judged complex, keep that task on `duomi/gpt-5.4` until completion for stability.
 - User-facing replies should end with a model attribution line like: `—— 来自模型：xxx`.

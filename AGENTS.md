@@ -48,6 +48,8 @@ Capture what matters. Decisions, context, things to remember. Skip the secrets u
 - After important memory/config updates in this workspace, make a git commit so the post-commit hook can auto-push them to GitHub.
 - Default to automatic commits after stable, verified updates to key workspace files (MEMORY.md, USER.md, HEARTBEAT.md, TOOLS.md, AGENTS.md, etc.). Do not wait for explicit approval every time unless the change is risky, incomplete, sensitive, or the human says not to commit yet.
 - Model routing preference: use `minimax/MiniMax-M2.5` for simple queries and lightweight tasks; escalate to `duomi/gpt-5.4` for anything moderately complex, logic-heavy, multi-step, coding/configuration-heavy, or otherwise better served by a stronger model. Git/commit/push by themselves are not automatically “complex”; judge the full task.
+- Simulate message-level routing in practice: treat MiniMax as the first-pass classifier/default executor. For any task that appears moderately complex or MiniMax-classification would likely fail/be risky, immediately switch execution to `duomi/gpt-5.4`. If MiniMax/provider auth/timeout/unavailable issues are suspected, fall back directly to `duomi/gpt-5.4`.
+- Once a task is judged complex, prefer to keep that task on `duomi/gpt-5.4` until the task is complete instead of switching back and forth mid-task.
 - End user-facing replies with a short attribution line: `—— 来自模型：<model>`.
 
 ## Red Lines
