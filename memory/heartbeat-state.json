@@ -5,6 +5,21 @@
   "weather": {
     "location": "Beijing",
     "lastReportDate": null,
-    "lastReportTs": null
+    "lastReportTs": null,
+    "snapshots": {
+      "2026-03-17": {
+        "location": "Beijing",
+        "condition": "Haze",
+        "currentTempC": 12,
+        "feelsLikeC": 13,
+        "highTempC": 11,
+        "lowTempC": 5,
+        "rain": false,
+        "rainChance": 0,
+        "windKmph": 4,
+        "humidity": 50,
+        "summary": "Haze, 12°C, feels like 13°C, 5-11°C, no rain"
+      }
+    }
   }
 }
