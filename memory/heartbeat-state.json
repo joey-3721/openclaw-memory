@@ -4,8 +4,8 @@
   },
   "weather": {
     "location": "Beijing",
-    "lastReportDate": null,
-    "lastReportTs": null,
+    "lastReportDate": "2026-03-18",
+    "lastReportTs": 1773826260,
     "snapshots": {
       "2026-03-17": {
         "location": "Beijing",
@@ -19,6 +19,19 @@
         "windKmph": 4,
         "humidity": 50,
         "summary": "Haze, 12°C, feels like 13°C, 5-11°C, no rain"
+      },
+      "2026-03-18": {
+        "location": "Beijing",
+        "condition": "Sunny",
+        "currentTempC": 4,
+        "feelsLikeC": 0,
+        "highTempC": 13,
+        "lowTempC": 4,
+        "rain": false,
+        "rainChance": 0,
+        "windKmph": 17,
+        "humidity": 11,
+        "summary": "Sunny, 4°C, feels like 0°C, 4-13°C, no rain"
       }
     }
   }
