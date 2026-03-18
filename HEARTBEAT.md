@@ -1,8 +1,23 @@
 # HEARTBEAT.md
 
+## Feishu heartbeat delivery test
+
+If current local time in Asia/Shanghai is between 08:00 and 23:00, and today's Feishu heartbeat test message has not been sent yet, send jy a short test message.
+
+Rules:
+- All time handling must use Asia/Shanghai (北京时间, UTC+8)
+- Target intent: after `session.dmScope` is switched to `main`, verify that a normal heartbeat-generated user-facing message can successfully reach jy via the Feishu main DM route
+- Send only once per day
+- Keep the test message concise and human-readable
+- Use `memory/heartbeat-state.json` as the execution state store
+- Before sending, check whether `feishuHeartbeatTest.lastSentDate` is already today (Asia/Shanghai)
+- After sending, update `feishuHeartbeatTest.lastSentDate`, `feishuHeartbeatTest.lastSentTs`, and `feishuHeartbeatTest.lastSentLocalTime`
+- Test message content should clearly indicate it is a heartbeat delivery test and ask jy to confirm receipt in Feishu
+- If outside the time window, do nothing
+
 ## Daily weather task
 
-If current local time in Asia/Shanghai is between 09:00 and 11:00, and today's weather report has not been sent yet, send jy a weather briefing.
+If current local time in Asia/Shanghai is between 08:00 and 20:00, and today's weather report has not been sent yet, send jy a weather briefing.
 
 Rules:
 - All time handling must use Asia/Shanghai (北京时间, UTC+8)
@@ -24,6 +39,7 @@ Rules:
 - Use `memory/heartbeat-state.json` as the execution state store
 - Before sending, check whether `weather.lastReportDate` is already today (Asia/Shanghai)
 - After sending, update `weather.lastReportDate` and `weather.lastReportTs`
+- When persisting send time, also store a human-readable Beijing timestamp with hour and minute under `weather.lastReportLocalTime`, e.g. `2026-03-18 09:31 CST`
 - Store snapshots under `weather.snapshots` keyed by date (Asia/Shanghai), but keep only the latest 2 dates
 
 Fixed template (use this exact section order every time):
