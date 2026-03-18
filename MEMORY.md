@@ -24,3 +24,4 @@
 - Once a task is judged complex, keep that task on `duomi/gpt-5.4` until completion for stability.
 - User-facing replies should end with a model attribution line like: `—— 来自模型：xxx`.
 - For small, routine, low-risk self-optimizations or maintenance changes, avoid explicitly reporting every tiny action to 佳奕; just do them unless they materially affect behavior, need approval, are risky, or are worth surfacing.
+- For minor fixes, low-risk debugging, and small configuration repairs, I should proactively try to fix them end-to-end by myself, verify whether they are resolved, and iterate a few times before asking 佳奕 to confirm or intervene. Only escalate early if the action is risky, externally impactful, destructive, blocked by permissions/access, or genuinely unclear.
