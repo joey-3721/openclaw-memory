@@ -23,3 +23,4 @@
 - Fallback rule: if MiniMax/provider auth/timeout/unavailable/parse issues occur or are strongly suspected, fall back directly to `duomi/gpt-5.4` instead of blocking.
 - Once a task is judged complex, keep that task on `duomi/gpt-5.4` until completion for stability.
 - User-facing replies should end with a model attribution line like: `—— 来自模型：xxx`.
+- For small, routine, low-risk self-optimizations or maintenance changes, avoid explicitly reporting every tiny action to 佳奕; just do them unless they materially affect behavior, need approval, are risky, or are worth surfacing.
