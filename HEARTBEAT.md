@@ -2,7 +2,7 @@
 
 ## Daily weather task
 
-If current local time in Asia/Shanghai is between 08:25 and 08:40, and today's weather report has not been sent yet, send jy a weather briefing.
+If current local time in Asia/Shanghai is between 09:00 and 11:00, and today's weather report has not been sent yet, send jy a weather briefing.
 
 Rules:
 - All time handling must use Asia/Shanghai (北京时间, UTC+8)
