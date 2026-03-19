@@ -5,8 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>{{ title if title else 'Media Hub' }}</title>
   <link rel="stylesheet" href="/static/style.css" />
+  <style>html { scroll-behavior: smooth; }</style>
 </head>
 <body>
+  <button class="back-to-top" id="backToTop" title="回到顶部">↑</button>
   <header class="topbar">
     <div class="brand">🎬 Media Hub</div>
     <nav>
@@ -16,5 +18,19 @@
     </nav>
   </header>
   <main class="container">{% block content %}{% endblock %}</main>
+<script>
+(function() {
+  var btn = document.getElementById('backToTop');
+  if (btn) {
+    window.addEventListener('scroll', function() {
+      btn.style.opacity = window.scrollY > 400 ? '1' : '0';
+      btn.style.pointerEvents = window.scrollY > 400 ? 'auto' : 'none';
+    });
+    btn.addEventListener('click', function() {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+  }
+})();
+</script>
 </body>
 </html>

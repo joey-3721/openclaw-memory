@@ -4,6 +4,7 @@
   <div class="hero-copy">
     <div class="eyebrow"><span class="live-dot"></span> 不知道看什么的时候</div>
     <h1>今晚看什么</h1>
+    {% if last_updated %}<div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px">🔄 本次刷新于 {{ last_updated }} UTC</div>{% endif %}
     {% if today_pick %}
     <div class="tonight-card">
       <div class="tonight-cover" style="{{ today_pick._cover_style }}">

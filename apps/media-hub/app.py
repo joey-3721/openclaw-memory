@@ -272,6 +272,7 @@ def recommendations(request: Request, sort: str = Query('score')):
         'surprise': dict(surprise) if surprise else None,
         'today_pick': dict(recs_with_reason[0]) if recs_with_reason else None,
         'sort': sort,
+        'last_updated': datetime.now().strftime('%H:%M'),
     })
 
 
