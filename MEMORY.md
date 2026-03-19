@@ -18,6 +18,14 @@
 - Local `post-commit` hook auto-pushes commits to origin.
 - Important memory/config updates should be committed so they sync to GitHub.
 - 佳奕 prefers a more automated workflow: once changes are stable and verified, commit them automatically without asking every single time.
+- Agent Reach 已安装（2026-03-19），路径：`~/.openclaw/skills/agent-reach`
+  - 当前 9/15 渠道激活（YouTube、V2EX、RSS、全网搜索、Twitter/X、Reddit、B站、微信公众号、任意网页）
+  - 未激活需进一步配置：微博、小红书、抖音、小宇宙（需要 Docker 或 ffmpeg）、LinkedIn（需要 pip install）、GitHub gh CLI
+  - npm 全局包目录：~/.npm-global（已配置）
+  - pip 安装路径：~/.local/bin（pip3 可用）
+
+## Model routing
+
 - Model policy preference: default to `minimax/MiniMax-M2.5` for simple lookups, lightweight queries, and easy tasks. Switch to `duomi/gpt-5.4` for tasks that are even moderately complex, logic-heavy, multi-step, coding-related, configuration-heavy, or require stronger reasoning. Git/commit/push alone are not automatically considered complex; use judgment based on the overall task.
 - Desired routing behavior is message-level in spirit: MiniMax should be treated as the first-pass classifier/default path, while `duomi/gpt-5.4` should take over for moderately complex tasks or whenever MiniMax is unreliable/unavailable.
 - Fallback rule: if MiniMax/provider auth/timeout/unavailable/parse issues occur or are strongly suspected, fall back directly to `duomi/gpt-5.4` instead of blocking.
