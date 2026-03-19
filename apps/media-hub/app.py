@@ -51,8 +51,14 @@ def load_profile(conn):
     }
 
 
-def make_recommendation_reason(item, profile):
-    """Generate a human-readable reason why this item was recommended."""
+def make_recommendation_reason(item, profile, high_rated=None):
+    """Generate a human-readable reason why this item was recommended.
+    
+    Args:
+        item: the candidate item dict
+        profile: user taste profile dict
+        high_rated: optional list of user's highly-rated items (dicts) for richer context
+    """
     reasons = []
     genres = split_multi(item['genres'])
     countries = split_multi(item['countries'])
@@ -63,7 +69,16 @@ def make_recommendation_reason(item, profile):
     profile_genres = {g for g, _ in profile['top_genres']}
     matched_genres = [g for g in genres if g in profile_genres]
     if matched_genres:
-        reasons.append(f"你喜欢的「{'/'.join(matched_genres[:2])}」")
+        genre_str = '/'.join(matched_genres[:2])
+        # Count how many highly-rated items share this genre
+        if high_rated:
+            genre_count = sum(1 for r in high_rated if any(g in profile_genres for g in split_multi(r.get('genres') or '')))
+            if genre_count >= 3:
+                reasons.append(f"「{genre_str}」是你最高频给高分的题材（共{genre_count}部）")
+            else:
+                reasons.append(f"你喜欢的「{genre_str}」")
+        else:
+            reasons.append(f"你喜欢的「{genre_str}」")
 
     # Country match
     profile_countries = {c for c, _ in profile['top_countries']}
@@ -71,20 +86,43 @@ def make_recommendation_reason(item, profile):
     if matched_countries:
         reasons.append(f"产地「{'/'.join(matched_countries[:2])}」与你常看的一致")
 
-    # Director match
+    # Director match with personal rating context
     if any(d in profile['top_directors'] for d in directors):
         matched_dir = next((d for d in directors if d in profile['top_directors']), None)
         if matched_dir:
-            reasons.append(f"导演{matched_dir}的作品你给分很高")
+            # Find how user rated this director's works
+            if high_rated:
+                dir_rated = [r for r in high_rated if matched_dir in split_multi(r.get('directors') or '')]
+                if dir_rated:
+                    top = max(r.get('my_rating') or 0 for r in dir_rated)
+                    reasons.append(f"导演{matched_dir}的作品你曾给 top{top} 分")
+                else:
+                    reasons.append(f"导演{matched_dir}的作品你给分很高")
+            else:
+                reasons.append(f"导演{matched_dir}的作品你给分很高")
 
     # Actor match
     matched_actors = [a for a in actors if a in profile['top_actors']]
     if len(matched_actors) >= 2:
         reasons.append(f"演员{matched_actors[0]}等是你熟悉的")
+    elif len(matched_actors) == 1:
+        reasons.append(f"有你眼熟的演员{matched_actors[0]}")
 
     # High rating on Douban
-    if item['douban_rating'] and item['douban_rating'] >= 8.5:
+    if item['douban_rating'] and item['douban_rating'] >= 9.0:
+        reasons.append(f"豆瓣 {item['douban_rating']} 分，超级口碑")
+    elif item['douban_rating'] and item['douban_rating'] >= 8.5:
         reasons.append(f"豆瓣 {item['douban_rating']} 分，口碑扎实")
+    elif item['douban_rating'] and item['douban_rating'] >= 8.0:
+        reasons.append(f"豆瓣 {item['douban_rating']} 分，值得一看")
+
+    # Year freshness for older items
+    try:
+        year = int(str(item.get('year') or 0)[:4])
+        if year and year < 2000 and item.get('douban_rating'):
+            reasons.append(f"{year}年经典老片，豆瓣仍有{item['douban_rating']}分")
+    except:
+        pass
 
     if not reasons:
         reasons.append(f"整体气质与你的观影偏好较为接近")
@@ -163,10 +201,13 @@ def home(request: Request):
     counts = dict(conn.execute('SELECT status, COUNT(*) FROM douban_watch_history GROUP BY status').fetchall())
     profile = load_profile(conn)
     rec_rows = recommendation_candidates(conn, limit=6)
+    high_rated = [dict(r) for r in conn.execute(
+        'SELECT * FROM douban_watch_history WHERE status="collect" AND my_rating >= 4'
+    ).fetchall()]
     recs = []
     for r in rec_rows:
         rec = dict(r)
-        rec['_reason'] = make_recommendation_reason(r, profile)
+        rec['_reason'] = make_recommendation_reason(r, profile, high_rated)
         rec['_cover_style'] = cover_style(r)
         rec['_cover_url'] = cover_url(r)
         rec['_stars'] = rating_stars(rec.get('douban_rating'))
@@ -235,11 +276,14 @@ def recommendations(request: Request, sort: str = Query('score')):
     conn = get_conn()
     profile = load_profile(conn)
     recs = recommendation_candidates(conn, limit=60)
+    high_rated = [dict(r) for r in conn.execute(
+        'SELECT * FROM douban_watch_history WHERE status="collect" AND my_rating >= 4'
+    ).fetchall()]
     # Attach reasons and scores
     recs_with_reason = []
     for r in recs:
         rec = dict(r)
-        rec['_reason'] = make_recommendation_reason(r, profile)
+        rec['_reason'] = make_recommendation_reason(r, profile, high_rated)
         rec['_cover_style'] = cover_style(r)
         rec['_cover_url'] = cover_url(r)
         rec['_stars'] = rating_stars(rec.get('douban_rating'))
@@ -265,12 +309,13 @@ def recommendations(request: Request, sort: str = Query('score')):
         recs_with_reason.sort(key=lambda x: x['_score'], reverse=True)
 
     recs_with_reason = recs_with_reason[:24]
-    surprise = random.choice(recs_with_reason[:10]) if recs_with_reason else None
+    # tonight pick: random from top-10 (true daily surprise, distinct from ranked list)
+    tonight_pick = random.choice(recs_with_reason[:10]) if len(recs_with_reason) >= 10 else (recs_with_reason[0] if recs_with_reason else None)
     return templates.TemplateResponse('recommendations.html', {
         'request': request,
         'recs': recs_with_reason,
-        'surprise': dict(surprise) if surprise else None,
-        'today_pick': dict(recs_with_reason[0]) if recs_with_reason else None,
+        'surprise': dict(tonight_pick) if tonight_pick else None,
+        'today_pick': dict(tonight_pick) if tonight_pick else None,
         'sort': sort,
         'last_updated': datetime.now().strftime('%H:%M'),
     })
@@ -284,6 +329,9 @@ def surprise_me():
     recs = recommendation_candidates(conn, limit=30)
     if not recs:
         raise HTTPException(404, 'No recommendations available')
+    high_rated = [dict(r) for r in conn.execute(
+        'SELECT * FROM douban_watch_history WHERE status="collect" AND my_rating >= 4'
+    ).fetchall()]
     recs_with_score = []
     for r in recs:
         rec = dict(r)
@@ -294,7 +342,7 @@ def surprise_me():
             sum(genre_counter[g] for g in split_multi(rec['genres'])) * 0.35 +
             sum(country_counter[c] for c in split_multi(rec['countries'])) * 0.25
         )
-        rec['_reason'] = make_recommendation_reason(r, profile)
+        rec['_reason'] = make_recommendation_reason(r, profile, high_rated)
         rec['_cover_style'] = cover_style(r)
         rec['_cover_url'] = cover_url(r)
         recs_with_score.append(rec)

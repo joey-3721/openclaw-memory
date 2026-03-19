@@ -342,6 +342,28 @@ body::before {
   height: 200px;
   overflow: hidden;
 }
+.cover-fallback-title {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255,255,255,0.22);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  text-align: center;
+  padding: 8px;
+  line-height: 1.4;
+  pointer-events: none;
+}
+.cover-img-failed {
+  /* When image fails, parent gradient remains visible as fallback */
+}
+.rec-detail-row {
+  border-top: 1px solid rgba(255,255,255,0.06);
+}
+
 .rec-cover:hover img { transform: scale(1.04); }
 .rec-cover img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.3s ease; }
 .rec-cover-overlay {

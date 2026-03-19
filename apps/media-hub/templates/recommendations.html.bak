@@ -8,7 +8,7 @@
     {% if today_pick %}
     <div class="tonight-card">
       <div class="tonight-cover" style="{{ today_pick._cover_style }}">
-        {% if today_pick._cover_url %}<img src="{{ today_pick._cover_url }}" alt="{{ today_pick.title }}" onerror="this.style.display='none'; this.parentElement.classList.add('cover-img-failed')">{% else %}<div class="cover-fallback-title">{{ today_pick.title[:8] }}</div>{% endif %}
+        {% if today_pick._cover_url %}<img src="{{ today_pick._cover_url }}" alt="{{ today_pick.title }}" onerror="this.style.display='none'">{% endif %}
         {% if today_pick.status == 'collect' %}<div class="cover-watched-overlay"><span>已看</span></div>{% endif %}
         <div class="tonight-overlay">
           <span class="tonight-title">{{ today_pick.title }}</span>
@@ -27,7 +27,6 @@
           <a class="btn primary" href="{{ today_pick.url }}" target="_blank">豆瓣详情</a>
           <button class="btn accent watch-btn" data-id="{{ today_pick.subject_id }}" data-action="watch">✅ 我看过了</button>
           <button class="btn rewatch-btn" data-id="{{ today_pick.subject_id }}" data-action="rewatch">🔁 又看一次</button>
-          <button class="btn" id="shuffle-tonight" title="换一个推荐">🎲 换一部</button>
         </div>
       </div>
     </div>
@@ -53,7 +52,7 @@
   {% for item in recs %}
   <article class="rec-card {% if item.status=='collect' %}watched{% endif %}" data-subject="{{ item.subject_id }}" data-score="{{ item._score|default(0) }}" data-rating="{{ item.douban_rating|default(0) }}" data-year="{{ item.year|default(0) }}">
     <div class="rec-cover" style="{{ item._cover_style }}">
-      {% if item._cover_url %}<img src="{{ item._cover_url }}" alt="{{ item.title }}" loading="lazy" onerror="this.style.display='none'; this.parentElement.classList.add('cover-img-failed')">{% else %}<div class="cover-fallback-title">{{ item.title[:8] }}</div>{% endif %}
+      {% if item._cover_url %}<img src="{{ item._cover_url }}" alt="{{ item.title }}" loading="lazy" onerror="this.style.display='none'">{% endif %}
       {% if item.status == 'collect' %}<div class="cover-watched-overlay"><span>已看</span></div>{% endif %}
       <div class="rec-cover-overlay">
         <span class="rec-badge">{{ item.kind or 'unknown' }}</span>
@@ -86,14 +85,8 @@
       {% if item.directors or item.actors %}
       <p class="rec-credits">{{ item.directors[:30] }}{% if item.directors and item.actors %} · {% endif %}{{ item.actors[:40] }}</p>
       {% endif %}
-      <div class="rec-detail-row" id="detail-{{ item.subject_id }}" style="display:none;margin-top:8px;padding:10px;background:rgba(255,255,255,0.04);border-radius:8px;font-size:12px;color:var(--text-secondary);line-height:1.7;">
-        {% if item.genres %}<div style="margin-bottom:4px">🏷️ {{ item.genres }}</div>{% endif %}
-        {% if item.directors %}<div style="margin-bottom:4px">🎬 导演：{{ item.directors }}</div>{% endif %}
-        {% if item.actors %}<div style="margin-bottom:4px">🎭 演员：{{ item.actors }}</div>{% endif %}
-      </div>
       <div class="rec-actions">
-        <button class="btn small expand-btn" data-id="{{ item.subject_id }}" title="展开详情">▾ 详情</button>
-        <a class="btn small" href="{{ item.url }}" target="_blank">豆瓣</a>
+        <a class="btn small" href="{{ item.url }}" target="_blank">详情</a>
         <button class="btn small primary watch-btn" data-id="{{ item.subject_id }}" data-action="watch" {% if item.status=='collect' %}disabled{% endif %}>
           {% if item.status == 'collect' %}已看 ✓{% else %}看过{% endif %}
         </button>
@@ -145,35 +138,6 @@ document.addEventListener('DOMContentLoaded', function() {
     card.style.animationDelay = (i * 40) + 'ms';
   });
 
-  // Expand / collapse detail rows
-  document.querySelectorAll('.expand-btn').forEach(function(btn) {
-    btn.addEventListener('click', function() {
-      var id = this.dataset.id;
-      var detail = document.getElementById('detail-' + id);
-      var isOpen = detail.style.display !== 'none';
-      detail.style.display = isOpen ? 'none' : 'block';
-      this.textContent = isOpen ? '▾ 详情' : '▴ 收起';
-    });
-  });
-
-  // Shuffle tonight pick (uses /api/surprise which returns a random rec)
-  var shuffleBtn = document.getElementById('shuffle-tonight');
-  if (shuffleBtn) {
-    shuffleBtn.addEventListener('click', function() {
-      fetch('/api/surprise')
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-          if (!data.subject_id) return;
-          // Refresh the page to show new pick (simple approach)
-          window.location.reload();
-        })
-        .catch(function(e) {
-          // Fallback: just do a page reload to get a new random pick
-          window.location.reload();
-        });
-    });
-  }
-
   // Watch / Rewatch buttons
   document.querySelectorAll('.watch-btn, .rewatch-btn').forEach(function(btn) {
     btn.addEventListener('click', function() {
@@ -187,6 +151,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (action === 'watch') {
               btn.textContent = '已标记看过 ✓';
               btn.disabled = true;
+              // Add overlay to card cover
               var card = document.querySelector('.rec-card[data-subject="' + id + '"]');
               if (card) {
                 var cover = card.querySelector('.rec-cover');
@@ -230,6 +195,7 @@ document.addEventListener('DOMContentLoaded', function() {
       var newRating = currentRating >= 5 ? 1 : currentRating + 1;
       var display = '★'.repeat(newRating) + '☆'.repeat(5 - newRating);
       this.textContent = display;
+      // Persist via API
       fetch('/api/edit/' + id, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
