@@ -83,6 +83,9 @@
       {% if item.watch_count and item.watch_count > 1 %}
       <div class="media-watch-count">🔁 看了 {{ item.watch_count }} 次</div>
       {% endif %}
+      <div class="media-my-stars" data-id="{{ item.subject_id }}" title="点击评分" style="cursor:pointer;color:#ffd166;font-size:14px;letter-spacing:2px;margin-bottom:4px">
+        {% if item.my_rating %}{{ '★' * item.my_rating }}{{ '☆' * (5 - item.my_rating) }}{% else %}☆☆☆☆☆{% endif %}
+      </div>
       {% if item.comment %}
       <p class="media-comment">"{{ item.comment[:60] }}"</p>
       {% endif %}
@@ -138,6 +141,21 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+  // Interactive star rating in library
+  document.querySelectorAll('.media-my-stars').forEach(function(stars) {
+    stars.addEventListener('click', function() {
+      var id = this.dataset.id;
+      var currentRating = (this.textContent.trim().match(/★/g) || []).length;
+      var newRating = currentRating >= 5 ? 1 : currentRating + 1;
+      this.textContent = '★'.repeat(newRating) + '☆'.repeat(5 - newRating);
+      fetch('/api/edit/' + id, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ my_rating: newRating })
+      });
+    });
+  });
+
   document.querySelectorAll('.watch-btn, .rewatch-btn').forEach(function(btn) {
     btn.addEventListener('click', function() {
       var id = this.dataset.id;
@@ -146,11 +164,23 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(function(r) { return r.json(); })
         .then(function(data) {
           if (data.ok) {
+            var card = document.querySelector('.media-card[data-subject="' + id + '"]');
             if (action === 'watch') {
               btn.textContent = '已标记 ✓';
               btn.disabled = true;
+              btn.classList.add('primary');
+              if (card && !card.classList.contains('watched')) {
+                card.classList.add('watched');
+                var cover = card.querySelector('.media-cover');
+                if (cover && !cover.querySelector('.cover-watched-overlay')) {
+                  var overlay = document.createElement('div');
+                  overlay.className = 'cover-watched-overlay';
+                  overlay.innerHTML = '<span>已看</span>';
+                  cover.appendChild(overlay);
+                }
+              }
             } else {
-              btn.textContent = '已记录 ' + data.watch_count + '次';
+              btn.textContent = '再看 ' + data.watch_count + '次';
             }
           }
         });

@@ -716,6 +716,10 @@ html, body {
   margin-top: -8px;
 }
 
+.tonight-stars { font-size: 16px; color: var(--gold); letter-spacing: 2px; text-shadow: 0 0 10px rgba(255,200,80,0.4); }
+.rec-my-stars { transition: transform 0.1s; }
+.rec-my-stars:hover { transform: scale(1.15); }
+
 /* ---- RESPONSIVE ---- */
 @media (max-width: 768px) {
   .hero { padding: 40px 24px 32px; }
@@ -723,11 +727,14 @@ html, body {
   .rec-grid { grid-template-columns: 1fr 1fr; padding: 0 24px 32px; gap: 14px; }
   .media-grid { grid-template-columns: 1fr 1fr; padding: 0 24px 32px; gap: 14px; }
   .filter-bar { padding: 12px 24px; }
+  .sort-controls { overflow-x: auto; flex-wrap: nowrap; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .sort-controls::-webkit-scrollbar { display: none; }
   .two-col { grid-template-columns: 1fr; padding: 0 24px 32px; }
   .tonight-card { flex-direction: column; }
   .tonight-cover { width: 100%; height: 220px; }
   .tonight-info { padding: 16px; }
-  .section-header { padding: 0 24px 16px; }
+  .section-header { padding: 0 24px 16px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .section-header::-webkit-scrollbar { display: none; }
 }
 @media (max-width: 480px) {
   .rec-grid, .media-grid { grid-template-columns: 1fr; }

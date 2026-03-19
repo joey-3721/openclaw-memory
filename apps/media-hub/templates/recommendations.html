@@ -16,6 +16,8 @@
       </div>
       <div class="tonight-info">
         <div class="rating-badge-lg">{{ today_pick.douban_rating or '-' }}</div>
+        {% if today_pick._stars %}<div class="tonight-stars">{{ today_pick._stars }} <span style="font-size:12px;color:var(--text-secondary)">豆瓣</span></div>{% endif %}
+        {% if today_pick._first_genre %}<span class="rec-genre-chip" style="font-size:11px;padding:3px 10px">{{ today_pick._first_genre }}</span>{% endif %}
         <p class="reason-text">{{ today_pick._reason }}</p>
         {% if today_pick.directors or today_pick.actors %}
         <p class="tonight-credits">🎬 {{ today_pick.directors[:40] }}{% if today_pick.directors and today_pick.actors %} · {% endif %}{{ today_pick.actors[:50] }}</p>
@@ -68,6 +70,9 @@
         {% if item._stars %}
         <span class="rec-stars" title="豆瓣评分 {{ item.douban_rating }}">{{ item._stars }}</span>
         {% endif %}
+        <span class="rec-my-stars" data-id="{{ item.subject_id }}" title="点击评分">
+          {% if item.my_rating %}{{ '★' * item.my_rating }}{{ '☆' * (5 - item.my_rating) }}{% else %}☆☆☆☆☆{% endif %}
+        </span>
       </div>
       <div class="rec-reason-wrap">
         <span class="rec-reason-icon">💡</span>
@@ -167,6 +172,28 @@ document.addEventListener('DOMContentLoaded', function() {
           }
         })
         .catch(function(e) { console.error(e); });
+    });
+  });
+
+  // Interactive star rating
+  document.querySelectorAll('.rec-my-stars').forEach(function(stars) {
+    stars.style.cursor = 'pointer';
+    stars.style.color = '#ffd166';
+    stars.style.letterSpacing = '1px';
+    stars.style.fontSize = '13px';
+    stars.addEventListener('click', function() {
+      var id = this.dataset.id;
+      var current = this.textContent.trim();
+      var currentRating = (current.match(/★/g) || []).length;
+      var newRating = currentRating >= 5 ? 1 : currentRating + 1;
+      var display = '★'.repeat(newRating) + '☆'.repeat(5 - newRating);
+      this.textContent = display;
+      // Persist via API
+      fetch('/api/edit/' + id, {
+        method: 'POST',,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ my_rating: newRating })
+      }).then(function(r) { return r.json(); });
     });
   });
 
