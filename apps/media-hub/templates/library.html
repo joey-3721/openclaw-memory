@@ -141,6 +141,11 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+  // Staggered media-card entry animation
+  document.querySelectorAll('.media-card').forEach(function(card, i) {
+    card.style.animationDelay = (i * 35) + 'ms';
+  });
+
   // Interactive star rating in library
   document.querySelectorAll('.media-my-stars').forEach(function(stars) {
     stars.addEventListener('click', function() {

@@ -113,6 +113,11 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+  // Staggered card entry animation
+  document.querySelectorAll('.rec-card, .stat').forEach(function(el, i) {
+    el.style.animationDelay = (i * 45) + 'ms';
+  });
+
   // Watch / Rewatch buttons in tonight card and recent list
   document.querySelectorAll('.watch-btn, .rewatch-btn').forEach(function(btn) {
     btn.addEventListener('click', function() {
