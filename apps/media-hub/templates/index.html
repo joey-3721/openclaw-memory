@@ -33,6 +33,38 @@
   </div>
 </section>
 
+{% if surprise %}
+<section class="hero small" id="tonight">
+  <div class="hero-copy">
+    <div class="eyebrow"><span class="live-dot"></span> 今晚的随机Pick</div>
+    <div class="tonight-card" style="margin-top:16px">
+      <div class="tonight-cover" style="{{ surprise._cover_style }}">
+        {% if surprise._cover_url %}<img src="{{ surprise._cover_url }}" alt="{{ surprise.title }}" onerror="this.style.display='none'; this.parentElement.classList.add('cover-img-failed')">{% else %}<div class="cover-fallback-title">{{ surprise.title[:8] }}</div>{% endif %}
+        <div class="tonight-overlay">
+          <span class="tonight-title">{{ surprise.title }}</span>
+          <span class="tonight-meta">{{ surprise.year }} · {{ surprise.kind }} · 豆瓣 {{ surprise.douban_rating or '-' }}</span>
+        </div>
+      </div>
+      <div class="tonight-info">
+        <div class="rating-badge-lg">{{ surprise.douban_rating or '-' }}</div>
+        {% if surprise._stars %}<div class="tonight-stars">{{ surprise._stars }} <span style="font-size:12px;color:var(--text-secondary)">豆瓣</span></div>{% endif %}
+        {% if surprise._first_genre %}<span class="rec-genre-chip" style="font-size:11px;padding:3px 10px">{{ surprise._first_genre }}</span>{% endif %}
+        <p class="reason-text">{{ surprise._reason }}</p>
+        {% if surprise.directors or surprise.actors %}
+        <p class="tonight-credits">🎬 {{ surprise.directors[:40] }}{% if surprise.directors and surprise.actors %} · {% endif %}{{ surprise.actors[:50] }}</p>
+        {% endif %}
+        <div class="tonight-actions">
+          <a class="btn primary" href="{{ surprise.url }}" target="_blank">豆瓣详情</a>
+          <button class="btn accent watch-btn" data-id="{{ surprise.subject_id }}" data-action="watch">✅ 我看过了</button>
+          <button class="btn rewatch-btn" data-id="{{ surprise.subject_id }}" data-action="rewatch">🔁 又看一次</button>
+          <a class="btn" href="/recommendations?sort=random">🎲 换一部</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+{% endif %}
+
 {% if recs %}
 <section class="panel">
   <div class="panel-header">
@@ -41,9 +73,10 @@
   </div>
   <div class="rec-grid">
     {% for item in recs %}
-    <article class="rec-card compact">
+    <article class="rec-card compact {% if item.status=='collect' %}watched{% endif %}">
       <div class="rec-cover" style="{{ item._cover_style if item._cover_style else 'background: linear-gradient(135deg,#243060,#10182e)' }}">
         {% if item._cover_url %}<img src="{{ item._cover_url }}" alt="{{ item.title }}" loading="lazy" onerror="this.style.display='none'; this.parentElement.classList.add('cover-img-failed')">{% else %}<div class="cover-fallback-title">{{ item.title[:8] }}</div>{% endif %}
+        {% if item.status == 'collect' %}<div class="cover-watched-overlay"><span>已看</span></div>{% endif %}
         <div class="rec-cover-overlay">
           <span class="rec-badge">{{ item.kind or 'unknown' }}</span>
           <div class="rec-rating-badge">{{ item.douban_rating or '-' }}</div>
@@ -65,9 +98,18 @@
         {% if item.directors or item.actors %}
         <p class="rec-credits">{{ item.directors[:30] }}{% if item.directors and item.actors %} · {% endif %}{{ item.actors[:40] }}</p>
         {% endif %}
+        <div class="rec-detail-row" id="detail-{{ item.subject_id }}" style="display:none;margin-top:8px;padding:10px;background:rgba(255,255,255,0.04);border-radius:8px;font-size:12px;color:var(--text-secondary);line-height:1.7;">
+          {% if item.year or item.countries %}<div style="margin-bottom:4px">📅 {{ item.year }}{% if item.year and item.countries %} · {% endif %}{{ item.countries }}</div>{% endif %}
+          {% if item.genres %}<div style="margin-bottom:4px">🏷️ {{ item.genres }}</div>{% endif %}
+          {% if item.directors %}<div style="margin-bottom:4px">🎬 导演：{{ item.directors }}</div>{% endif %}
+          {% if item.actors %}<div style="margin-bottom:4px">🎭 演员：{{ item.actors }}</div>{% endif %}
+          {% if item._stars %}<div style="margin-bottom:4px">⭐ 豆瓣评分：{{ item._stars }}（{{ item.douban_rating }}）</div>{% endif %}
+        </div>
         <div class="rec-actions">
-          <a class="btn small" href="{{ item.url }}" target="_blank">豆瓣详情</a>
-          <a class="btn small" href="/recommendations">更多推荐</a>
+          <button class="btn small expand-btn" data-id="{{ item.subject_id }}" title="展开详情">▾ 详情</button>
+          <a class="btn small" href="{{ item.url }}" target="_blank">豆瓣</a>
+          <button class="btn small watch-btn" data-id="{{ item.subject_id }}" data-action="watch" {% if item.status=='collect' %}disabled{% endif %}>
+            {% if item.status == 'collect' %}已看 ✓{% else %}看过{% endif %}</button>
         </div>
       </div>
     </article>
@@ -135,6 +177,18 @@ document.addEventListener('DOMContentLoaded', function() {
             }
           }
         }).catch(function(e) { console.error(e); });
+    });
+  });
+
+  // Expand/collapse detail rows on index.html compact cards
+  document.querySelectorAll('.expand-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var id = this.dataset.id;
+      var detailRow = document.getElementById('detail-' + id);
+      if (!detailRow) return;
+      var isOpen = detailRow.style.display !== 'none';
+      detailRow.style.display = isOpen ? 'none' : 'block';
+      this.textContent = isOpen ? '▾ 详情' : '▴ 收起';
     });
   });
 });

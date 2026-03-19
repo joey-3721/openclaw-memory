@@ -219,13 +219,28 @@ def home(request: Request):
         item = dict(r)
         item['_cover_style'] = cover_style(r)
         item['_cover_url'] = cover_url(r)
+        item['_stars'] = rating_stars(item.get('douban_rating'))
         recent.append(item)
+    # Tonight pick: random from top-10 (true daily surprise)
+    recs_all = recommendation_candidates(conn, limit=30)
+    recs_with_reason = []
+    for r in recs_all:
+        rec = dict(r)
+        rec['_reason'] = make_recommendation_reason(r, profile, high_rated)
+        rec['_cover_style'] = cover_style(r)
+        rec['_cover_url'] = cover_url(r)
+        rec['_stars'] = rating_stars(rec.get('douban_rating'))
+        rec['_first_genre'] = first_genre(rec)
+        rec['_score'] = rec.get('_score', 0)
+        recs_with_reason.append(rec)
+    tonight_pick = random.choice(recs_with_reason[:10]) if len(recs_with_reason) >= 10 else (recs_with_reason[0] if recs_with_reason else None)
     return templates.TemplateResponse('index.html', {
         'request': request,
         'counts': counts,
         'profile': profile,
         'recs': recs,
         'recent': recent,
+        'surprise': dict(tonight_pick) if tonight_pick else None,
     })
 
 
