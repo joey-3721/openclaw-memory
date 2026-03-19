@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="panel compact">
+  <h1>影视库</h1>
+  <form class="filters" method="get">
+    <input type="text" name="q" value="{{ q }}" placeholder="搜标题 / 类型 / 国家 / 导演 / 演员" />
+    <select name="status">
+      <option value="all" {% if status=='all' %}selected{% endif %}>全部状态</option>
+      <option value="collect" {% if status=='collect' %}selected{% endif %}>看过</option>
+      <option value="wish" {% if status=='wish' %}selected{% endif %}>想看</option>
+      <option value="do" {% if status=='do' %}selected{% endif %}>在看</option>
+    </select>
+    <select name="kind">
+      <option value="all" {% if kind=='all' %}selected{% endif %}>全部类型</option>
+      <option value="movie" {% if kind=='movie' %}selected{% endif %}>电影</option>
+      <option value="tv" {% if kind=='tv' %}selected{% endif %}>电视剧</option>
+      <option value="variety" {% if kind=='variety' %}selected{% endif %}>综艺</option>
+      <option value="documentary" {% if kind=='documentary' %}selected{% endif %}>纪录片</option>
+    </select>
+    <button class="btn primary" type="submit">筛选</button>
+  </form>
+</section>
+<section class="card-grid">
+  {% for item in items %}
+  <article class="media-card dense">
+    <div class="media-card-body">
+      <div class="row-between">
+        <span class="badge">{{ item.status }}</span>
+        <span class="score">{{ item.my_rating or '-' }}</span>
+      </div>
+      <h3>{{ item.title }}</h3>
+      <p class="muted">{{ item.kind or 'unknown' }} · 豆瓣 {{ item.douban_rating or '暂无' }}</p>
+      <p class="muted">{{ item.genres or '暂无类型' }}</p>
+      <p class="muted">{{ item.countries or '暂无国家' }}</p>
+      <p class="summary">{{ (item.summary or item.intro or '暂无简介')[:100] }}...</p>
+      <a href="{{ item.url }}" target="_blank">豆瓣详情</a>
+    </div>
+  </article>
+  {% endfor %}
+</section>
+{% endblock %}

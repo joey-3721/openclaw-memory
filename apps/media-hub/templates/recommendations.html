@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="hero small">
+  <div>
+    <div class="eyebrow">不知道看什么的时候</div>
+    <h1>推荐清单</h1>
+    {% if surprise %}
+    <p>今晚可以直接试试：<strong>{{ surprise.title }}</strong></p>
+    {% endif %}
+  </div>
+</section>
+<section class="card-grid">
+  {% for item in recs %}
+  <article class="media-card">
+    <div class="media-card-body">
+      <div class="row-between">
+        <span class="badge">{{ item.kind or 'unknown' }}</span>
+        <span class="score">{{ item.douban_rating or '-' }}</span>
+      </div>
+      <h3>{{ item.title }}</h3>
+      <p class="muted">{{ item.genres or '暂无类型' }}</p>
+      <p class="muted">{{ item.countries or '暂无国家' }}</p>
+      <p class="summary">{{ (item.summary or item.intro or '暂无简介')[:120] }}...</p>
+      <a href="{{ item.url }}" target="_blank">豆瓣详情</a>
+    </div>
+  </article>
+  {% endfor %}
+</section>
+{% endblock %}

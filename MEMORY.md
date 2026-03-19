@@ -27,9 +27,17 @@
   - 数据库文件：`/home/node/.openclaw/workspace-user1/douban/douban_media.db`
   - Skill 路径：`/home/node/.openclaw/skills/douban-library-sync/SKILL.md`
   - 一键同步脚本：`/home/node/.openclaw/skills/douban-library-sync/scripts/sync_douban.py`
-  - 当前已抓取并补全 283 条豆瓣“看过”记录
+  - 当前已抓取并补全 283 条豆瓣“看过”记录，并已同步 `wish` 17 条
   - 后续只要佳奕提到“豆瓣相关/豆瓣推荐/同步豆瓣/豆瓣库”，应优先使用这套本地库与 skill
   - 如果 Douban Cookie 失效或缺失，要主动向佳奕索要新的 Cookie，再执行同步或补全
+- NAS Media Hub 已建立（2026-03-19）
+  - 代码目录：`/home/node/.openclaw/workspace-user1/apps/media-hub`
+  - 当前部署方式：Docker
+  - 镜像名：`media-hub:latest`
+  - 容器名：`media-hub-test`
+  - 访问端口：`8765`
+  - 部署/更新 Skill：`/home/node/.openclaw/skills/media-hub-nas-deploy/SKILL.md`
+  - 后续只要佳奕让我改 Media Hub 页面，我应默认执行：改代码 → 重建镜像 → 重启容器 → 验证 → git commit → git push
 
 ## Model routing
 

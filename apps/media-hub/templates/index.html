@@ -1,0 +1,69 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="hero">
+  <div>
+    <div class="eyebrow">你的私人影音中心</div>
+    <h1>好看一点的豆瓣影视库</h1>
+    <p>支持手机查看、口味画像、每日推荐和“不知道看什么”模式。</p>
+    <div class="actions">
+      <a class="btn primary" href="/recommendations">看今日推荐</a>
+      <a class="btn" href="/library">逛影视库</a>
+    </div>
+  </div>
+</section>
+
+<section class="stats-grid">
+  <div class="card stat"><span>看过</span><strong>{{ counts.get('collect', 0) }}</strong></div>
+  <div class="card stat"><span>想看</span><strong>{{ counts.get('wish', 0) }}</strong></div>
+  <div class="card stat"><span>高分样本</span><strong>{{ profile.high_rated_count }}</strong></div>
+  <div class="card stat"><span>已评分</span><strong>{{ profile.rated_count }}</strong></div>
+</section>
+
+<section class="panel">
+  <div class="panel-header"><h2>今日推荐</h2><a href="/recommendations">查看更多</a></div>
+  <div class="card-grid">
+    {% for item in recs %}
+    <article class="media-card">
+      <div class="media-card-body">
+        <div class="badge">{{ item.kind or 'unknown' }}</div>
+        <h3>{{ item.title }}</h3>
+        <p class="muted">{{ item.countries or '暂无国家信息' }}</p>
+        <p class="muted">豆瓣 {{ item.douban_rating or '暂无' }}</p>
+        <p class="summary">{{ (item.summary or item.intro or '暂无简介')[:120] }}...</p>
+        <a href="{{ item.url }}" target="_blank">豆瓣详情</a>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="two-col">
+  <div class="panel">
+    <div class="panel-header"><h2>口味画像</h2></div>
+    <div class="chips">
+      {% for name, count in profile.top_genres %}
+      <span class="chip">{{ name }} · {{ count }}</span>
+      {% endfor %}
+    </div>
+    <div class="chips secondary">
+      {% for name, count in profile.top_countries %}
+      <span class="chip">{{ name }} · {{ count }}</span>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="panel">
+    <div class="panel-header"><h2>最近看过</h2><a href="/library?status=collect">查看全部</a></div>
+    <div class="list">
+      {% for item in recent %}
+      <a class="list-item" href="{{ item.url }}" target="_blank">
+        <div>
+          <strong>{{ item.title }}</strong>
+          <div class="muted">{{ item.watched_date or '未知时间' }} · {{ item.kind or 'unknown' }}</div>
+        </div>
+        <span class="score">{{ item.my_rating or '-' }}</span>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endblock %}
