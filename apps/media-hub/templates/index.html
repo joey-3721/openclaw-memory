@@ -52,10 +52,13 @@
       <div class="rec-body">
         <h3 class="rec-title">{{ item.title }}</h3>
         <p class="rec-meta">{{ item.year }} · {{ (item.genres or '').split('/')[0] }}</p>
-        <p class="rec-reason">{{ item._reason }}</p>
+        <div class="rec-reason-wrap">
+          <span class="rec-reason-icon">💡</span>
+          <p class="rec-reason">{{ item._reason }}</p>
+        </div>
         <div class="rec-actions">
-          <a class="btn small" href="{{ item.url }}" target="_blank">详情</a>
-          <a class="btn small primary" href="/recommendations">推荐</a>
+          <a class="btn small" href="{{ item.url }}" target="_blank">豆瓣详情</a>
+          <a class="btn small" href="/recommendations">更多推荐</a>
         </div>
       </div>
     </article>

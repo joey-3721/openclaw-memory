@@ -31,10 +31,14 @@
 
 ### 剩余可做项
 - 继续抓取collect列表剩余2条封面（鱿鱼游戏2/3暂无可用封面）
-- 按看过时间筛选/排序
-- 随机推荐（surprise me）功能完善
-- 首页增加"随机看一部"按钮
 - 金融模块入口（待后续）
+
+### 第五轮（16:00 UTC）新增功能
+- `/api/surprise` 端点：从top30推荐中随机pick一条完整推荐（含reason/cover/score）
+- 影视库支持4种排序：最近看过/豆瓣评分/年份/标题（URL参数 `?sort=date|rating|year|title`）
+- 筛选栏所有链接统一传递sort参数
+- 首页actions新增 **🎲 随机一部** 按钮（accent蓝色高亮样式），跳转 `/recommendations?sort=random`
+- Docker重建并部署（容器：media-hub-test，端口8765）
 
 ## 原则
 - 能自己做的先做，不要等佳奕确认

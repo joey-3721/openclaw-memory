@@ -79,7 +79,15 @@ html, body {
   gap: 8px;
 }
 .stat-label { font-size: 12px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1.5px; }
-.stat-num { font-size: 42px; font-weight: 900; color: var(--text-primary); line-height: 1; }
+.stat-num {
+  font-size: 42px;
+  font-weight: 900;
+  color: var(--text-primary);
+  line-height: 1;
+  text-shadow: 0 0 30px rgba(108,143,255,0.3);
+  transition: text-shadow 0.3s;
+}
+.stat:hover .stat-num { text-shadow: 0 0 40px rgba(108,143,255,0.5); }
 
 /* ---- SECTION HEADER ---- */
 .section-header {
@@ -255,14 +263,14 @@ html, body {
   content: '';
   position: absolute;
   inset: 0;
-  background: rgba(9,13,25,0.35);
+  background: rgba(9,13,25,0.30);
   pointer-events: none;
 }
 
 .cover-watched-overlay {
   position: absolute;
   inset: 0;
-  background: rgba(82,217,164,0.3);
+  background: rgba(82,217,164,0.25);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -274,9 +282,10 @@ html, body {
   color: #061a0f;
   font-weight: 900;
   font-size: 13px;
-  padding: 4px 12px;
+  padding: 5px 14px;
   border-radius: 50px;
   letter-spacing: 1px;
+  box-shadow: 0 2px 12px rgba(82,217,164,0.5);
 }
 
 .rec-cover {
@@ -356,8 +365,39 @@ html, body {
   line-height: 1.65;
   flex: 1;
   backdrop-filter: blur(4px);
+  position: relative;
+  overflow: hidden;
+}
+.rec-reason::after {
+  content: '';
+  position: absolute;
+  top: 0; left: -100%;
+  width: 60%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,209,102,0.12), transparent);
+  animation: reason-shimmer 3s ease-in-out infinite;
+}
+@keyframes reason-shimmer {
+  0% { left: -100%; }
+  60%, 100% { left: 150%; }
 }
 .rec-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.rec-actions .btn {
+  transition: all 0.18s;
+}
+.rec-actions .btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 14px rgba(0,0,0,0.4);
+}
+.rec-actions .btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.rec-actions .btn.primary:hover {
+  background: #5a7ae0;
+  box-shadow: 0 4px 20px var(--accent-glow);
+}
 
 /* ---- MEDIA GRID (Library) ---- */
 .media-grid {
@@ -444,11 +484,33 @@ html, body {
   gap: 32px;
   align-items: flex-start;
   margin-top: 28px;
-  background: rgba(255,255,255,0.03);
-  border: 1px solid var(--border);
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(108,143,255,0.25);
   border-radius: 24px;
   overflow: hidden;
   max-width: 860px;
+  position: relative;
+  box-shadow: 0 0 40px rgba(108,143,255,0.08), 0 8px 32px rgba(0,0,0,0.4);
+}
+.tonight-card::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: 25px;
+  padding: 1px;
+  background: linear-gradient(135deg, rgba(108,143,255,0.5), rgba(96,213,255,0.3), rgba(255,126,179,0.2), rgba(108,143,255,0.5));
+  background-size: 300% 300%;
+  animation: border-shimmer 4s ease infinite;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  z-index: 0;
+}
+@keyframes border-shimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
 }
 .tonight-cover {
   position: relative;
@@ -456,9 +518,11 @@ html, body {
   height: 320px;
   flex-shrink: 0;
   overflow: hidden;
+  border-radius: 0;
+  z-index: 1;
 }
-.tonight-cover:hover img { transform: scale(1.03); }
-.tonight-cover img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.3s ease; }
+.tonight-cover:hover img { transform: scale(1.06); }
+.tonight-cover img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.4s ease; }
 .tonight-overlay {
   position: absolute;
   inset: 0;
@@ -470,7 +534,15 @@ html, body {
 }
 .tonight-title { font-size: 18px; font-weight: 800; line-height: 1.2; margin-bottom: 6px; }
 .tonight-meta { font-size: 12px; color: var(--text-secondary); }
-.tonight-info { padding: 24px 24px 24px 0; flex: 1; display: flex; flex-direction: column; gap: 16px; }
+.tonight-info {
+  padding: 24px 24px 24px 8px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  z-index: 1;
+  position: relative;
+}
 .rating-badge-lg {
   display: inline-flex;
   align-items: center;
@@ -484,8 +556,23 @@ html, body {
   font-size: 30px;
   box-shadow: 0 8px 28px rgba(255,190,80,0.45);
 }
-.reason-text { font-size: 14px; color: #fff4cf; line-height: 1.8; max-width: 520px; }
+.reason-text { font-size: 14px; color: #ffe8a0; line-height: 1.8; max-width: 520px; }
 .tonight-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: auto; }
+
+/* Tonight CTA button - most prominent */
+.tonight-actions .btn.accent {
+  background: rgba(96,213,255,0.12);
+  border-color: rgba(96,213,255,0.6);
+  color: #7eddff;
+  font-weight: 700;
+  box-shadow: 0 0 16px rgba(96,213,255,0.15);
+  transition: all 0.2s;
+}
+.tonight-actions .btn.accent:hover {
+  background: rgba(96,213,255,0.22);
+  box-shadow: 0 0 28px rgba(96,213,255,0.3);
+  transform: translateY(-1px);
+}
 
 /* ---- MODAL ---- */
 .modal {
