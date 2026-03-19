@@ -23,6 +23,13 @@
   - 未激活需进一步配置：微博、小红书、抖音、小宇宙（需要 Docker 或 ffmpeg）、LinkedIn（需要 pip install）、GitHub gh CLI
   - npm 全局包目录：~/.npm-global（已配置）
   - pip 安装路径：~/.local/bin（pip3 可用）
+- 豆瓣影视库维护方案已建立（2026-03-19）
+  - 数据库文件：`/home/node/.openclaw/workspace-user1/douban_media.db`
+  - Skill 路径：`/home/node/.openclaw/skills/douban-library-sync/SKILL.md`
+  - 一键同步脚本：`/home/node/.openclaw/skills/douban-library-sync/scripts/sync_douban.py`
+  - 当前已抓取并补全 283 条豆瓣“看过”记录
+  - 后续只要佳奕提到“豆瓣相关/豆瓣推荐/同步豆瓣/豆瓣库”，应优先使用这套本地库与 skill
+  - 如果 Douban Cookie 失效或缺失，要主动向佳奕索要新的 Cookie，再执行同步或补全
 
 ## Model routing
 
