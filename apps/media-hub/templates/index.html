@@ -43,7 +43,7 @@
     {% for item in recs %}
     <article class="rec-card compact">
       <div class="rec-cover" style="{{ item._cover_style if item._cover_style else 'background: linear-gradient(135deg,#243060,#10182e)' }}">
-        {% if item._cover_url %}<img src="{{ item._cover_url }}" alt="{{ item.title }}" loading="lazy" onerror="this.style.display='none'">{% endif %}
+        {% if item._cover_url %}<img src="{{ item._cover_url }}" alt="{{ item.title }}" loading="lazy" onerror="this.style.display='none'; this.parentElement.classList.add('cover-img-failed')">{% else %}<div class="cover-fallback-title">{{ item.title[:8] }}</div>{% endif %}
         <div class="rec-cover-overlay">
           <span class="rec-badge">{{ item.kind or 'unknown' }}</span>
           <div class="rec-rating-badge">{{ item.douban_rating or '-' }}</div>

@@ -47,7 +47,7 @@
   {% for item in items %}
   <article class="media-card" data-subject="{{ item.subject_id }}">
     <div class="media-cover" style="{{ item._cover_style if item._cover_style else 'background:linear-gradient(135deg,#1e2d55,#0c1225)' }}">
-      {% if item._cover_url %}<img src="{{ item._cover_url }}" alt="{{ item.title }}" loading="lazy" onerror="this.style.display='none'">{% endif %}
+      {% if item._cover_url %}<img src="{{ item._cover_url }}" alt="{{ item.title }}" loading="lazy" onerror="this.style.display='none'; this.parentElement.classList.add('cover-img-failed')">{% else %}<div class="cover-fallback-title">{{ item.title[:8] }}</div>{% endif %}
       <div class="media-cover-info">
         <span class="media-badge">{{ item.kind or '?' }}</span>
         {% if item._stars %}
