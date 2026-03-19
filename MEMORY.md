@@ -24,7 +24,7 @@
   - npm 全局包目录：~/.npm-global（已配置）
   - pip 安装路径：~/.local/bin（pip3 可用）
 - 豆瓣影视库维护方案已建立（2026-03-19）
-  - 数据库文件：`/home/node/.openclaw/workspace-user1/douban_media.db`
+  - 数据库文件：`/home/node/.openclaw/workspace-user1/douban/douban_media.db`
   - Skill 路径：`/home/node/.openclaw/skills/douban-library-sync/SKILL.md`
   - 一键同步脚本：`/home/node/.openclaw/skills/douban-library-sync/scripts/sync_douban.py`
   - 当前已抓取并补全 283 条豆瓣“看过”记录
