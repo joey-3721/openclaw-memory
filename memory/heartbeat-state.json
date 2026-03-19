@@ -1,26 +1,13 @@
 {
   "lastChecks": {
-    "weather": 1709265400
+    "weather": 1773878920
   },
   "weather": {
     "location": "Beijing",
-    "lastReportDate": "2026-03-18",
-    "lastReportTs": 1709265400,
-    "lastReportLocalTime": "2026-03-18 12:37 CST",
+    "lastReportDate": "2026-03-19",
+    "lastReportTs": 1773878920,
+    "lastReportLocalTime": "2026-03-19 08:08 CST",
     "snapshots": {
-      "2026-03-17": {
-        "location": "Beijing",
-        "condition": "Haze",
-        "currentTempC": 12,
-        "feelsLikeC": 13,
-        "highTempC": 11,
-        "lowTempC": 5,
-        "rain": false,
-        "rainChance": 0,
-        "windKmph": 4,
-        "humidity": 50,
-        "summary": "Haze, 12°C, feels like 13°C, 5-11°C, no rain"
-      },
       "2026-03-18": {
         "location": "Beijing",
         "condition": "Sunny",
@@ -33,6 +20,19 @@
         "windKmph": 18,
         "humidity": 9,
         "summary": "Sunny, 10°C, feels like 8°C, 4-13°C, no rain"
+      },
+      "2026-03-19": {
+        "location": "Beijing",
+        "condition": "Sunny",
+        "currentTempC": 0,
+        "feelsLikeC": -1,
+        "highTempC": 16,
+        "lowTempC": 4,
+        "rain": false,
+        "rainChance": 0,
+        "windKmph": 4,
+        "humidity": 74,
+        "summary": "Sunny, 0°C, feels like -1°C, 4-16°C, no rain"
       }
     }
   }
