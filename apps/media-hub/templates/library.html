@@ -10,19 +10,27 @@
 <section class="filter-bar">
   <div class="filter-group">
     <span class="filter-label">状态</span>
-    <a class="filter-chip {% if status=='all' %}active{% endif %}" href="?status=all&kind={{ kind }}&q={{ q }}">全部</a>
-    <a class="filter-chip {% if status=='collect' %}active{% endif %}" href="?status=collect&kind={{ kind }}&q={{ q }}">看过</a>
-    <a class="filter-chip {% if status=='wish' %}active{% endif %}" href="?status=wish&kind={{ kind }}&q={{ q }}">想看</a>
+    <a class="filter-chip {% if status=='all' %}active{% endif %}" href="?status=all&kind={{ kind }}&q={{ q }}&sort={{ sort }}">全部</a>
+    <a class="filter-chip {% if status=='collect' %}active{% endif %}" href="?status=collect&kind={{ kind }}&q={{ q }}&sort={{ sort }}">看过</a>
+    <a class="filter-chip {% if status=='wish' %}active{% endif %}" href="?status=wish&kind={{ kind }}&q={{ q }}&sort={{ sort }}">想看</a>
   </div>
   <div class="filter-group">
     <span class="filter-label">类型</span>
-    <a class="filter-chip {% if kind=='all' %}active{% endif %}" href="?status={{ status }}&kind=all&q={{ q }}">全部</a>
-    <a class="filter-chip {% if kind=='movie' %}active{% endif %}" href="?status={{ status }}&kind=movie&q={{ q }}">电影</a>
-    <a class="filter-chip {% if kind=='tv' %}active{% endif %}" href="?status={{ status }}&kind=tv&q={{ q }}">剧集</a>
+    <a class="filter-chip {% if kind=='all' %}active{% endif %}" href="?status={{ status }}&kind=all&q={{ q }}&sort={{ sort }}">全部</a>
+    <a class="filter-chip {% if kind=='movie' %}active{% endif %}" href="?status={{ status }}&kind=movie&q={{ q }}&sort={{ sort }}">电影</a>
+    <a class="filter-chip {% if kind=='tv' %}active{% endif %}" href="?status={{ status }}&kind=tv&q={{ q }}&sort={{ sort }}">剧集</a>
+  </div>
+  <div class="filter-group">
+    <span class="filter-label">排序</span>
+    <a class="filter-chip {% if sort=='date' %}active{% endif %}" href="?status={{ status }}&kind={{ kind }}&q={{ q }}&sort=date">最近看过</a>
+    <a class="filter-chip {% if sort=='rating' %}active{% endif %}" href="?status={{ status }}&kind={{ kind }}&q={{ q }}&sort=rating">豆瓣评分</a>
+    <a class="filter-chip {% if sort=='year' %}active{% endif %}" href="?status={{ status }}&kind={{ kind }}&q={{ q }}&sort=year">年份</a>
+    <a class="filter-chip {% if sort=='title' %}active{% endif %}" href="?status={{ status }}&kind={{ kind }}&q={{ q }}&sort=title">标题</a>
   </div>
   <form class="search-form" method="get">
     <input type="hidden" name="status" value="{{ status }}">
     <input type="hidden" name="kind" value="{{ kind }}">
+    <input type="hidden" name="sort" value="{{ sort }}">
     <input type="text" name="q" value="{{ q }}" placeholder="搜索标题、题材、国家、演员...">
     <button type="submit" class="btn small">🔍</button>
   </form>

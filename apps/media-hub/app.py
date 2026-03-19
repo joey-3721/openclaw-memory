@@ -170,7 +170,7 @@ def home(request: Request):
 
 
 @app.get('/library', response_class=HTMLResponse)
-def library(request: Request, status: str = Query('collect'), kind: str = Query('all'), q: str = Query('')):
+def library(request: Request, status: str = Query('collect'), kind: str = Query('all'), q: str = Query(''), sort: str = Query('date')):
     conn = get_conn()
     sql = 'SELECT * FROM douban_watch_history WHERE 1=1'
     params = []
@@ -184,7 +184,14 @@ def library(request: Request, status: str = Query('collect'), kind: str = Query(
         sql += ' AND (title LIKE ? OR genres LIKE ? OR countries LIKE ? OR actors LIKE ? OR directors LIKE ?)'
         like = f'%{q}%'
         params += [like]*5
-    sql += ' ORDER BY watched_date DESC, douban_rating DESC LIMIT 200'
+    if sort == 'rating':
+        sql += ' ORDER BY douban_rating DESC, watched_date DESC LIMIT 200'
+    elif sort == 'year':
+        sql += ' ORDER BY year DESC, watched_date DESC LIMIT 200'
+    elif sort == 'title':
+        sql += ' ORDER BY title ASC LIMIT 200'
+    else:
+        sql += ' ORDER BY watched_date DESC, douban_rating DESC LIMIT 200'
     rows = conn.execute(sql, params).fetchall()
     items = []
     for r in rows:
@@ -198,6 +205,7 @@ def library(request: Request, status: str = Query('collect'), kind: str = Query(
         'status': status,
         'kind': kind,
         'q': q,
+        'sort': sort,
     })
 
 
@@ -242,6 +250,34 @@ def recommendations(request: Request, sort: str = Query('score')):
         'today_pick': dict(recs_with_reason[0]) if recs_with_reason else None,
         'sort': sort,
     })
+
+
+@app.get('/api/surprise', response_class=JSONResponse)
+def surprise_me():
+    """Return a random recommendation from the top candidates."""
+    conn = get_conn()
+    profile = load_profile(conn)
+    recs = recommendation_candidates(conn, limit=30)
+    if not recs:
+        raise HTTPException(404, 'No recommendations available')
+    recs_with_score = []
+    for r in recs:
+        rec = dict(r)
+        genre_counter = Counter(g for g, _ in profile['top_genres'])
+        country_counter = Counter(c for c, _ in profile['top_countries'])
+        rec['_score'] = (
+            (rec['douban_rating'] or 0) * 0.8 +
+            sum(genre_counter[g] for g in split_multi(rec['genres'])) * 0.35 +
+            sum(country_counter[c] for c in split_multi(rec['countries'])) * 0.25
+        )
+        rec['_reason'] = make_recommendation_reason(r, profile)
+        rec['_cover_style'] = cover_style(r)
+        rec['_cover_url'] = cover_url(r)
+        recs_with_score.append(rec)
+    picked = random.choice(recs_with_score[:20]) if recs_with_score else None
+    if not picked:
+        raise HTTPException(404, 'No recommendations available')
+    return dict(picked)
 
 
 @app.get('/api/item/{subject_id}', response_class=JSONResponse)
