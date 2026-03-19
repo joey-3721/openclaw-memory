@@ -18,6 +18,17 @@
     </nav>
   </header>
   <main class="container">{% block content %}{% endblock %}</main>
+  {% if site_stats %}
+  <footer class="site-footer">
+    <div class="footer-stats">
+      <div class="footer-stat"><span>影视库</span><strong>{{ site_stats.total }}</strong>部</div>
+      <div class="footer-stat"><span>已看</span><strong>{{ site_stats.watched }}</strong>部</div>
+      <div class="footer-stat"><span>想看</span><strong>{{ site_stats.wish }}</strong>部</div>
+      {% if site_stats.avg_rating %}<div class="footer-stat"><span>均分</span><strong>{{ site_stats.avg_rating }}</strong></div>{% endif %}
+    </div>
+    <span class="footer-brand">🎬 Media Hub</span>
+  </footer>
+  {% endif %}
 <script>
 (function() {
   var btn = document.getElementById('backToTop');

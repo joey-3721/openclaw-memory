@@ -931,4 +931,94 @@ body::before {
   letter-spacing: 0.3px;
 }
 
+/* ── Round 19: Polish ── */
+
+/* Text selection — gold cinematic highlight */
+::selection {
+  background: rgba(255, 209, 102, 0.28);
+  color: #fff;
+}
+::-moz-selection {
+  background: rgba(255, 209, 102, 0.28);
+  color: #fff;
+}
+
+/* Keyboard focus — visible focus ring (not browser default blue) */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+a:focus-visible, button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+/* Sort/filter bar — fade edges hint at horizontal scroll */
+.sort-controls {
+  position: relative;
+}
+.sort-controls::before,
+.sort-controls::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 32px;
+  z-index: 5;
+  pointer-events: none;
+}
+.sort-controls::before {
+  left: 0;
+  background: linear-gradient(to right, var(--bg-card), transparent);
+  border-radius: 8px 0 0 8px;
+}
+.sort-controls::after {
+  right: 0;
+  background: linear-gradient(to left, var(--bg-card), transparent);
+  border-radius: 0 8px 8px 0;
+}
+
+/* Footer */
+.site-footer {
+  border-top: 1px solid var(--border);
+  padding: 20px 40px;
+  margin-top: 48px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: var(--text-muted);
+  font-size: 12px;
+  gap: 12px;
+}
+.site-footer .footer-stats {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+.site-footer .footer-stat {
+  display: flex;
+  gap: 6px;
+}
+.site-footer .footer-stat span:first-child {
+  color: var(--text-secondary);
+}
+.site-footer .footer-stat strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+.site-footer .footer-brand {
+  color: var(--accent);
+  font-size: 13px;
+}
+
+/* prefers-reduced-motion: disable gratuitous animations */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 

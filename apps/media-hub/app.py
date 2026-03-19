@@ -24,6 +24,22 @@ def get_conn():
     return conn
 
 
+def get_site_stats():
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute('SELECT COUNT(*) FROM douban_watch_history')
+    total = c.fetchone()[0]
+    c.execute('SELECT COUNT(*) FROM douban_watch_history WHERE status="collect"')
+    watched = c.fetchone()[0]
+    c.execute('SELECT COUNT(*) FROM douban_watch_history WHERE status="wish"')
+    wish = c.fetchone()[0]
+    c.execute('SELECT ROUND(AVG(douban_rating),1) FROM douban_watch_history WHERE status="collect" AND douban_rating IS NOT NULL')
+    row = c.fetchone()
+    avg_rating = row[0] if row else None
+    conn.close()
+    return {'total': total, 'watched': watched, 'wish': wish, 'avg_rating': avg_rating}
+
+
 def split_multi(v):
     return [x.strip() for x in (v or '').split('/') if x.strip()]
 
@@ -241,6 +257,7 @@ def home(request: Request):
         'recs': recs,
         'recent': recent,
         'surprise': dict(tonight_pick) if tonight_pick else None,
+        'site_stats': get_site_stats(),
     })
 
 
@@ -283,6 +300,7 @@ def library(request: Request, status: str = Query('collect'), kind: str = Query(
         'kind': kind,
         'q': q,
         'sort': sort,
+        'site_stats': get_site_stats(),
     })
 
 
@@ -333,6 +351,7 @@ def recommendations(request: Request, sort: str = Query('score')):
         'today_pick': dict(tonight_pick) if tonight_pick else None,
         'sort': sort,
         'last_updated': datetime.now().strftime('%H:%M'),
+        'site_stats': get_site_stats(),
     })
 
 
