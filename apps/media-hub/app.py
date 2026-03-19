@@ -1,11 +1,13 @@
-from fastapi import FastAPI, Request, Query
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, Request, Query, HTTPException
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 import sqlite3
 from pathlib import Path
 from collections import Counter
 import random
+import hashlib
+from datetime import datetime
 
 BASE_DIR = Path(__file__).resolve().parent
 import os
@@ -34,15 +36,63 @@ def load_profile(conn):
     for r in high:
         genre_counter.update(split_multi(r['genres']))
         country_counter.update(split_multi(r['countries']))
+    directors = Counter()
+    actors = Counter()
+    for r in high[:30]:
+        directors.update(split_multi(r['directors']))
+        actors.update(split_multi(r['actors']))
     return {
         'rated_count': len(rows),
         'high_rated_count': len(high),
         'top_genres': genre_counter.most_common(8),
         'top_countries': country_counter.most_common(6),
+        'top_directors': [d for d, _ in directors.most_common(5)],
+        'top_actors': [a for a, _ in actors.most_common(8)],
     }
 
 
-def recommendation_candidates(conn):
+def make_recommendation_reason(item, profile):
+    """Generate a human-readable reason why this item was recommended."""
+    reasons = []
+    genres = split_multi(item['genres'])
+    countries = split_multi(item['countries'])
+    directors = split_multi(item['directors'])
+    actors = split_multi(item['actors'])
+
+    # Genre match
+    profile_genres = {g for g, _ in profile['top_genres']}
+    matched_genres = [g for g in genres if g in profile_genres]
+    if matched_genres:
+        reasons.append(f"你喜欢的「{'/'.join(matched_genres[:2])}」")
+
+    # Country match
+    profile_countries = {c for c, _ in profile['top_countries']}
+    matched_countries = [c for c in countries if c in profile_countries]
+    if matched_countries:
+        reasons.append(f"产地「{'/'.join(matched_countries[:2])}」与你常看的一致")
+
+    # Director match
+    if any(d in profile['top_directors'] for d in directors):
+        matched_dir = next((d for d in directors if d in profile['top_directors']), None)
+        if matched_dir:
+            reasons.append(f"导演{matched_dir}的作品你给分很高")
+
+    # Actor match
+    matched_actors = [a for a in actors if a in profile['top_actors']]
+    if len(matched_actors) >= 2:
+        reasons.append(f"演员{matched_actors[0]}等是你熟悉的")
+
+    # High rating on Douban
+    if item['douban_rating'] and item['douban_rating'] >= 8.5:
+        reasons.append(f"豆瓣 {item['douban_rating']} 分，口碑扎实")
+
+    if not reasons:
+        reasons.append(f"整体气质与你的观影偏好较为接近")
+
+    return '；'.join(reasons) + '。'
+
+
+def recommendation_candidates(conn, limit=30):
     rows = conn.execute('SELECT * FROM douban_watch_history').fetchall()
     high = [r for r in rows if r['status'] == 'collect' and r['my_rating'] is not None and r['my_rating'] >= 4]
     wish = [r for r in rows if r['status'] == 'wish']
@@ -53,6 +103,16 @@ def recommendation_candidates(conn):
         kind_counter.update([r['kind'] or 'unknown'])
     ranked = []
     for r in wish:
+        # Skip if release date is in the future
+        release_year = None
+        if r['release_dates']:
+            try:
+                release_year = int(str(r['release_dates'])[:4])
+            except:
+                pass
+        if release_year and release_year > 2026:
+            continue
+
         score = (r['douban_rating'] or 0) * 0.8
         score += sum(genre_counter[g] for g in split_multi(r['genres'])) * 0.35
         score += sum(country_counter[c] for c in split_multi(r['countries'])) * 0.25
@@ -61,7 +121,21 @@ def recommendation_candidates(conn):
             score += 1.0
         ranked.append((score, r))
     ranked.sort(key=lambda x: x[0], reverse=True)
-    return [r for _, r in ranked]
+    return [r for _, r in ranked[:limit]]
+
+
+def cover_style(item):
+    """Generate a deterministic gradient style for items without a cover image."""
+    title = item['title'] or '?'
+    hue = hash(title) % 360
+    return f"background: linear-gradient(135deg, hsl({hue},55%,22%), hsl({(hue+40)%360},50%,15%));"
+
+
+def cover_url(item):
+    """Return cover URL or a styled placeholder."""
+    if item.get('cover_url'):
+        return item['cover_url']
+    return None  # Use CSS gradient fallback from cover_style()
 
 
 @app.get('/', response_class=HTMLResponse)
@@ -69,7 +143,7 @@ def home(request: Request):
     conn = get_conn()
     counts = dict(conn.execute('SELECT status, COUNT(*) FROM douban_watch_history GROUP BY status').fetchall())
     profile = load_profile(conn)
-    recs = recommendation_candidates(conn)[:6]
+    recs = recommendation_candidates(conn, limit=6)
     recent = conn.execute('SELECT * FROM douban_watch_history WHERE status="collect" ORDER BY watched_date DESC LIMIT 8').fetchall()
     return templates.TemplateResponse('index.html', {
         'request': request,
@@ -109,10 +183,100 @@ def library(request: Request, status: str = Query('collect'), kind: str = Query(
 @app.get('/recommendations', response_class=HTMLResponse)
 def recommendations(request: Request):
     conn = get_conn()
-    recs = recommendation_candidates(conn)
-    surprise = random.choice(recs[:10]) if recs else None
+    profile = load_profile(conn)
+    recs = recommendation_candidates(conn, limit=24)
+    # Attach reasons
+    recs_with_reason = []
+    for r in recs:
+        rec = dict(r)
+        rec['_reason'] = make_recommendation_reason(r, profile)
+        rec['_cover_style'] = cover_style(r)
+        rec['_cover_url'] = cover_url(r)
+        recs_with_reason.append(rec)
+    surprise = random.choice(recs_with_reason[:10]) if recs_with_reason else None
     return templates.TemplateResponse('recommendations.html', {
         'request': request,
-        'recs': recs[:24],
-        'surprise': surprise,
+        'recs': recs_with_reason,
+        'surprise': dict(surprise) if surprise else None,
+        'today_pick': dict(recs_with_reason[0]) if recs_with_reason else None,
     })
+
+
+@app.get('/api/item/{subject_id}', response_class=JSONResponse)
+def get_item(subject_id: str):
+    conn = get_conn()
+    item = conn.execute('SELECT * FROM douban_watch_history WHERE subject_id=?', (subject_id,)).fetchone()
+    if not item:
+        raise HTTPException(404, 'Item not found')
+    return dict(item)
+
+
+@app.post('/api/watch/{subject_id}', response_class=JSONResponse)
+def mark_watched(subject_id: str):
+    """Mark an item as watched, or re-watch if already watched."""
+    conn = get_conn()
+    item = conn.execute('SELECT * FROM douban_watch_history WHERE subject_id=?', (subject_id,)).fetchone()
+    if not item:
+        raise HTTPException(404, 'Item not found')
+    now = datetime.now().strftime('%Y-%m-%d')
+    conn.execute(
+        'UPDATE douban_watch_history SET status="collect", watched_date=? WHERE subject_id=?',
+        (now, subject_id)
+    )
+    conn.commit()
+    return {'ok': True, 'subject_id': subject_id, 'watched_date': now}
+
+
+@app.post('/api/rewatch/{subject_id}', response_class=JSONResponse)
+def add_rewatch(subject_id: str):
+    """Record another watch of an item (increments watch_count, adds timestamp)."""
+    conn = get_conn()
+    item = conn.execute('SELECT * FROM douban_watch_history WHERE subject_id=?', (subject_id,)).fetchone()
+    if not item:
+        raise HTTPException(404, 'Item not found')
+    now = datetime.now().strftime('%Y-%m-%d')
+    current_count = (item['watch_count'] or 1)
+    conn.execute(
+        'UPDATE douban_watch_history SET status="collect", watched_date=?, watch_count=? WHERE subject_id=?',
+        (now, current_count + 1, subject_id)
+    )
+    conn.commit()
+    return {'ok': True, 'subject_id': subject_id, 'watched_date': now, 'watch_count': current_count + 1}
+
+
+@app.put('/api/rate/{subject_id}', response_class=JSONResponse)
+def update_rating(subject_id: str, my_rating: int = None, comment: str = None, watched_date: str = None):
+    """Update personal rating, comment, and watched date for an item."""
+    conn = get_conn()
+    item = conn.execute('SELECT * FROM douban_watch_history WHERE subject_id=?', (subject_id,)).fetchone()
+    if not item:
+        raise HTTPException(404, 'Item not found')
+    if my_rating is not None:
+        conn.execute('UPDATE douban_watch_history SET my_rating=? WHERE subject_id=?', (my_rating, subject_id))
+    if comment is not None:
+        conn.execute('UPDATE douban_watch_history SET comment=? WHERE subject_id=?', (comment, subject_id))
+    if watched_date is not None:
+        conn.execute('UPDATE douban_watch_history SET watched_date=? WHERE subject_id=?', (watched_date, subject_id))
+    conn.commit()
+    updated = conn.execute('SELECT * FROM douban_watch_history WHERE subject_id=?', (subject_id,)).fetchone()
+    return dict(updated)
+
+
+@app.post('/api/edit/{subject_id}', response_class=JSONResponse)
+def edit_item(subject_id: str, my_rating: int = None, comment: str = None, watched_date: str = None, watch_count: int = None):
+    """Edit an item: rating, comment, watched date, watch count."""
+    conn = get_conn()
+    item = conn.execute('SELECT * FROM douban_watch_history WHERE subject_id=?', (subject_id,)).fetchone()
+    if not item:
+        raise HTTPException(404, 'Item not found')
+    if my_rating is not None:
+        conn.execute('UPDATE douban_watch_history SET my_rating=? WHERE subject_id=?', (my_rating, subject_id))
+    if comment is not None:
+        conn.execute('UPDATE douban_watch_history SET comment=? WHERE subject_id=?', (comment, subject_id))
+    if watched_date is not None:
+        conn.execute('UPDATE douban_watch_history SET watched_date=? WHERE subject_id=?', (watched_date, subject_id))
+    if watch_count is not None:
+        conn.execute('UPDATE douban_watch_history SET watch_count=? WHERE subject_id=?', (watch_count, subject_id))
+    conn.commit()
+    updated = conn.execute('SELECT * FROM douban_watch_history WHERE subject_id=?', (subject_id,)).fetchone()
+    return dict(updated)

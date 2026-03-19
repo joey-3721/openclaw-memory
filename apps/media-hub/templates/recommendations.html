@@ -1,29 +1,151 @@
 {% extends 'base.html' %}
 {% block content %}
-<section class="hero small">
-  <div>
+<section class="hero small" id="tonight">
+  <div class="hero-copy">
     <div class="eyebrow">不知道看什么的时候</div>
-    <h1>推荐清单</h1>
-    {% if surprise %}
-    <p>今晚可以直接试试：<strong>{{ surprise.title }}</strong></p>
+    <h1>今晚看什么</h1>
+    {% if today_pick %}
+    <div class="tonight-card">
+      <div class="tonight-cover" style="{{ today_pick._cover_style }}">
+        {% if today_pick._cover_url %}<img src="{{ today_pick._cover_url }}" alt="{{ today_pick.title }}">{% endif %}
+        <div class="tonight-overlay">
+          <span class="tonight-title">{{ today_pick.title }}</span>
+          <span class="tonight-meta">{{ today_pick.year }} · {{ today_pick.kind }} · 豆瓣 {{ today_pick.douban_rating or '-' }}</span>
+        </div>
+      </div>
+      <div class="tonight-info">
+        <div class="rating-badge-lg">{{ today_pick.douban_rating or '-' }}</div>
+        <p class="reason-text">{{ today_pick._reason }}</p>
+        <div class="tonight-actions">
+          <a class="btn primary" href="{{ today_pick.url }}" target="_blank">豆瓣详情</a>
+          <button class="btn accent watch-btn" data-id="{{ today_pick.subject_id }}" data-action="watch">✅ 我看过了</button>
+          <button class="btn rewatch-btn" data-id="{{ today_pick.subject_id }}" data-action="rewatch">🔁 又看一次</button>
+        </div>
+      </div>
+    </div>
     {% endif %}
   </div>
 </section>
-<section class="card-grid">
+
+<section class="section-header">
+  <h2>全部推荐</h2>
+  <span class="count">{{ recs|length }} 部</span>
+</section>
+
+<div class="rec-grid">
   {% for item in recs %}
-  <article class="media-card">
-    <div class="media-card-body">
-      <div class="row-between">
-        <span class="badge">{{ item.kind or 'unknown' }}</span>
-        <span class="score">{{ item.douban_rating or '-' }}</span>
+  <article class="rec-card" data-subject="{{ item.subject_id }}">
+    <div class="rec-cover" style="{{ item._cover_style }}">
+      {% if item._cover_url %}<img src="{{ item._cover_url }}" alt="{{ item.title }}" loading="lazy">{% endif %}
+      <div class="rec-cover-overlay">
+        <span class="rec-badge">{{ item.kind or 'unknown' }}</span>
+        <span class="rec-rating">{{ item.douban_rating or '-' }}</span>
       </div>
-      <h3>{{ item.title }}</h3>
-      <p class="muted">{{ item.genres or '暂无类型' }}</p>
-      <p class="muted">{{ item.countries or '暂无国家' }}</p>
-      <p class="summary">{{ (item.summary or item.intro or '暂无简介')[:120] }}...</p>
-      <a href="{{ item.url }}" target="_blank">豆瓣详情</a>
+    </div>
+    <div class="rec-body">
+      <h3 class="rec-title">{{ item.title }}</h3>
+      <p class="rec-meta">{{ item.year }} · {{ (item.genres or '').split('/')[0] }}</p>
+      <p class="rec-reason">{{ item._reason }}</p>
+      <div class="rec-actions">
+        <a class="btn small" href="{{ item.url }}" target="_blank">详情</a>
+        <button class="btn small primary watch-btn" data-id="{{ item.subject_id }}" data-action="watch">看过</button>
+        <button class="btn small rewatch-btn" data-id="{{ item.subject_id }}" data-action="rewatch">再看</button>
+        <button class="btn small edit-btn" data-id="{{ item.subject_id }}">✏️</button>
+      </div>
     </div>
   </article>
   {% endfor %}
-</section>
+</div>
+
+<!-- Edit Modal -->
+<div class="modal" id="editModal" style="display:none">
+  <div class="modal-content">
+    <h3>编辑条目</h3>
+    <input type="hidden" id="edit-subject-id">
+    <div class="form-group">
+      <label>我的评分 (1-5)</label>
+      <input type="number" id="edit-rating" min="1" max="5" placeholder="1-5">
+    </div>
+    <div class="form-group">
+      <label>观看日期</label>
+      <input type="date" id="edit-date">
+    </div>
+    <div class="form-group">
+      <label>观看次数</label>
+      <input type="number" id="edit-count" min="1" value="1">
+    </div>
+    <div class="form-group">
+      <label>我的评语</label>
+      <textarea id="edit-comment" rows="3" placeholder="写点什么..."></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn primary" id="save-edit">保存</button>
+      <button class="btn" id="cancel-edit">取消</button>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Watch / Rewatch buttons
+  document.querySelectorAll('.watch-btn, .rewatch-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var id = this.dataset.id;
+      var action = this.dataset.action;
+      var endpoint = '/api/' + action + '/' + id;
+      fetch(endpoint, { method: 'POST' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data.ok) {
+            btn.textContent = action === 'watch' ? '已标记看过 ✓' : '已记录 ✓';
+            btn.disabled = true;
+          }
+        })
+        .catch(function(e) { console.error(e); });
+    });
+  });
+
+  // Edit button opens modal
+  document.querySelectorAll('.edit-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var id = this.dataset.id;
+      document.getElementById('edit-subject-id').value = id;
+      document.getElementById('editModal').style.display = 'flex';
+      // Fetch current data
+      fetch('/api/item/' + id)
+        .then(function(r) { return r.json(); })
+        .then(function(item) {
+          document.getElementById('edit-rating').value = item.my_rating || '';
+          document.getElementById('edit-date').value = item.watched_date || '';
+          document.getElementById('edit-count').value = item.watch_count || 1;
+          document.getElementById('edit-comment').value = item.comment || '';
+        });
+    });
+  });
+
+  document.getElementById('cancel-edit').addEventListener('click', function() {
+    document.getElementById('editModal').style.display = 'none';
+  });
+
+  document.getElementById('save-edit').addEventListener('click', function() {
+    var id = document.getElementById('edit-subject-id').value;
+    var payload = {
+      my_rating: parseInt(document.getElementById('edit-rating').value) || null,
+      watched_date: document.getElementById('edit-date').value || null,
+      watch_count: parseInt(document.getElementById('edit-count').value) || 1,
+      comment: document.getElementById('edit-comment').value || null,
+    };
+    fetch('/api/edit/' + id, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+      .then(function(r) { return r.json(); })
+      .then(function() {
+        document.getElementById('editModal').style.display = 'none';
+        location.reload();
+      });
+  });
+});
+</script>
 {% endblock %}

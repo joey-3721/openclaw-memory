@@ -1,41 +1,165 @@
 {% extends 'base.html' %}
 {% block content %}
-<section class="panel compact">
-  <h1>影视库</h1>
-  <form class="filters" method="get">
-    <input type="text" name="q" value="{{ q }}" placeholder="搜标题 / 类型 / 国家 / 导演 / 演员" />
-    <select name="status">
-      <option value="all" {% if status=='all' %}selected{% endif %}>全部状态</option>
-      <option value="collect" {% if status=='collect' %}selected{% endif %}>看过</option>
-      <option value="wish" {% if status=='wish' %}selected{% endif %}>想看</option>
-      <option value="do" {% if status=='do' %}selected{% endif %}>在看</option>
-    </select>
-    <select name="kind">
-      <option value="all" {% if kind=='all' %}selected{% endif %}>全部类型</option>
-      <option value="movie" {% if kind=='movie' %}selected{% endif %}>电影</option>
-      <option value="tv" {% if kind=='tv' %}selected{% endif %}>电视剧</option>
-      <option value="variety" {% if kind=='variety' %}selected{% endif %}>综艺</option>
-      <option value="documentary" {% if kind=='documentary' %}selected{% endif %}>纪录片</option>
-    </select>
-    <button class="btn primary" type="submit">筛选</button>
+<section class="hero small">
+  <div class="hero-copy">
+    <h1>影视库</h1>
+    <p>共 {{ items|length }} 条记录</p>
+  </div>
+</section>
+
+<section class="filter-bar">
+  <div class="filter-group">
+    <span class="filter-label">状态</span>
+    <a class="filter-chip {% if status=='all' %}active{% endif %}" href="?status=all&kind={{ kind }}&q={{ q }}">全部</a>
+    <a class="filter-chip {% if status=='collect' %}active{% endif %}" href="?status=collect&kind={{ kind }}&q={{ q }}">看过</a>
+    <a class="filter-chip {% if status=='wish' %}active{% endif %}" href="?status=wish&kind={{ kind }}&q={{ q }}">想看</a>
+  </div>
+  <div class="filter-group">
+    <span class="filter-label">类型</span>
+    <a class="filter-chip {% if kind=='all' %}active{% endif %}" href="?status={{ status }}&kind=all&q={{ q }}">全部</a>
+    <a class="filter-chip {% if kind=='movie' %}active{% endif %}" href="?status={{ status }}&kind=movie&q={{ q }}">电影</a>
+    <a class="filter-chip {% if kind=='tv' %}active{% endif %}" href="?status={{ status }}&kind=tv&q={{ q }}">剧集</a>
+  </div>
+  <form class="search-form" method="get">
+    <input type="hidden" name="status" value="{{ status }}">
+    <input type="hidden" name="kind" value="{{ kind }}">
+    <input type="text" name="q" value="{{ q }}" placeholder="搜索标题、题材、国家、演员...">
+    <button type="submit" class="btn small">🔍</button>
   </form>
 </section>
-<section class="card-grid">
+
+<div class="media-grid">
   {% for item in items %}
-  <article class="media-card dense">
-    <div class="media-card-body">
-      <div class="row-between">
-        <span class="badge">{{ item.status }}</span>
-        <span class="score">{{ item.my_rating or '-' }}</span>
+  <article class="media-card" data-subject="{{ item.subject_id }}">
+    <div class="media-cover" style="{{ item._cover_style if item._cover_style else 'background:linear-gradient(135deg,#1e2d55,#0c1225)' }}">
+      {% if item._cover_url %}<img src="{{ item._cover_url }}" alt="{{ item.title }}" loading="lazy">{% endif %}
+      <div class="media-cover-info">
+        <span class="media-badge">{{ item.kind or '?' }}</span>
+        {% if item.my_rating %}
+        <span class="media-my-rating">{{ item.my_rating }}★</span>
+        {% else %}
+        <span class="media-douban-rating">豆瓣 {{ item.douban_rating or '-' }}</span>
+        {% endif %}
       </div>
-      <h3>{{ item.title }}</h3>
-      <p class="muted">{{ item.kind or 'unknown' }} · 豆瓣 {{ item.douban_rating or '暂无' }}</p>
-      <p class="muted">{{ item.genres or '暂无类型' }}</p>
-      <p class="muted">{{ item.countries or '暂无国家' }}</p>
-      <p class="summary">{{ (item.summary or item.intro or '暂无简介')[:100] }}...</p>
-      <a href="{{ item.url }}" target="_blank">豆瓣详情</a>
+    </div>
+    <div class="media-info">
+      <h3 class="media-title">{{ item.title }}</h3>
+      <div class="media-meta">
+        <span>{{ item.year }}</span>
+        <span>·</span>
+        <span>{{ (item.genres or '').split('/')[0] }}</span>
+        {% if item.watched_date %}
+        <span>·</span>
+        <span>{{ item.watched_date }}</span>
+        {% endif %}
+      </div>
+      {% if item.my_rating %}
+      <div class="media-rating-bar">
+        <div class="media-rating-fill" style="width:{{ (item.my_rating / 5 * 100) }}%"></div>
+      </div>
+      {% endif %}
+      {% if item.comment %}
+      <p class="media-comment">"{{ item.comment[:60] }}"</p>
+      {% endif %}
+      <div class="media-actions">
+        <a class="btn small" href="{{ item.url }}" target="_blank">豆瓣</a>
+        <button class="btn small watch-btn {% if item.status=='collect' %}primary{% endif %}" data-id="{{ item.subject_id }}" data-action="watch">
+          {% if item.status == 'collect' %}已看{% else %}看过{% endif %}
+        </button>
+        <button class="btn small rewatch-btn" data-id="{{ item.subject_id }}" data-action="rewatch">再看</button>
+        <button class="btn small edit-btn" data-id="{{ item.subject_id }}">✏️</button>
+      </div>
     </div>
   </article>
   {% endfor %}
-</section>
+</div>
+
+<!-- Edit Modal -->
+<div class="modal" id="editModal" style="display:none">
+  <div class="modal-content">
+    <h3>编辑条目</h3>
+    <input type="hidden" id="edit-subject-id">
+    <div class="form-group">
+      <label>我的评分 (1-5)</label>
+      <input type="number" id="edit-rating" min="1" max="5" placeholder="1-5">
+    </div>
+    <div class="form-group">
+      <label>观看日期</label>
+      <input type="date" id="edit-date">
+    </div>
+    <div class="form-group">
+      <label>观看次数</label>
+      <input type="number" id="edit-count" min="1" value="1">
+    </div>
+    <div class="form-group">
+      <label>我的评语</label>
+      <textarea id="edit-comment" rows="3" placeholder="写点什么..."></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn primary" id="save-edit">保存</button>
+      <button class="btn" id="cancel-edit">取消</button>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('.watch-btn, .rewatch-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var id = this.dataset.id;
+      var action = this.dataset.action;
+      fetch('/api/' + action + '/' + id, { method: 'POST' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data.ok) {
+            if (action === 'watch') {
+              btn.textContent = '已标记 ✓';
+              btn.disabled = true;
+            } else {
+              btn.textContent = '已记录 ' + data.watch_count + '次';
+            }
+          }
+        });
+    });
+  });
+
+  document.querySelectorAll('.edit-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var id = this.dataset.id;
+      document.getElementById('edit-subject-id').value = id;
+      document.getElementById('editModal').style.display = 'flex';
+      fetch('/api/item/' + id)
+        .then(function(r) { return r.json(); })
+        .then(function(item) {
+          document.getElementById('edit-rating').value = item.my_rating || '';
+          document.getElementById('edit-date').value = item.watched_date || '';
+          document.getElementById('edit-count').value = item.watch_count || 1;
+          document.getElementById('edit-comment').value = item.comment || '';
+        });
+    });
+  });
+
+  document.getElementById('cancel-edit').addEventListener('click', function() {
+    document.getElementById('editModal').style.display = 'none';
+  });
+
+  document.getElementById('save-edit').addEventListener('click', function() {
+    var id = document.getElementById('edit-subject-id').value;
+    var payload = {
+      my_rating: parseInt(document.getElementById('edit-rating').value) || null,
+      watched_date: document.getElementById('edit-date').value || null,
+      watch_count: parseInt(document.getElementById('edit-count').value) || 1,
+      comment: document.getElementById('edit-comment').value || null,
+    };
+    fetch('/api/edit/' + id, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).then(function() {
+      document.getElementById('editModal').style.display = 'none';
+      location.reload();
+    });
+  });
+});
+</script>
 {% endblock %}
