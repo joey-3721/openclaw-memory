@@ -217,6 +217,8 @@ def library(request: Request, status: str = Query('collect'), kind: str = Query(
         item = dict(r)
         item['_cover_style'] = cover_style(r)
         item['_cover_url'] = cover_url(r)
+        item['_stars'] = rating_stars(item.get('douban_rating'))
+        item['_first_genre'] = first_genre(item)
         items.append(item)
     return templates.TemplateResponse('library.html', {
         'request': request,
