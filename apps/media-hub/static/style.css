@@ -703,6 +703,22 @@ html, body {
   margin-bottom: 6px;
 }
 
+/* ---- REC WATCH COUNT BADGE ---- */
+.rec-watch-count-badge {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  background: rgba(82,217,164,0.85);
+  color: #061a0f;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 50px;
+  z-index: 6;
+  backdrop-filter: blur(4px);
+  box-shadow: 0 2px 8px rgba(82,217,164,0.3);
+}
+
 /* ---- REC CREDITS ---- */
 .rec-credits {
   font-size: 11px;

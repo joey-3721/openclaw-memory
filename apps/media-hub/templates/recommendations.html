@@ -7,7 +7,7 @@
     {% if today_pick %}
     <div class="tonight-card">
       <div class="tonight-cover" style="{{ today_pick._cover_style }}">
-        {% if today_pick._cover_url %}<img src="{{ today_pick._cover_url }}" alt="{{ today_pick.title }}">{% endif %}
+        {% if today_pick._cover_url %}<img src="{{ today_pick._cover_url }}" alt="{{ today_pick.title }}" onerror="this.style.display='none'">{% endif %}
         {% if today_pick.status == 'collect' %}<div class="cover-watched-overlay"><span>已看</span></div>{% endif %}
         <div class="tonight-overlay">
           <span class="tonight-title">{{ today_pick.title }}</span>
@@ -51,12 +51,15 @@
   {% for item in recs %}
   <article class="rec-card {% if item.status=='collect' %}watched{% endif %}" data-subject="{{ item.subject_id }}" data-score="{{ item._score|default(0) }}" data-rating="{{ item.douban_rating|default(0) }}" data-year="{{ item.year|default(0) }}">
     <div class="rec-cover" style="{{ item._cover_style }}">
-      {% if item._cover_url %}<img src="{{ item._cover_url }}" alt="{{ item.title }}" loading="lazy">{% endif %}
+      {% if item._cover_url %}<img src="{{ item._cover_url }}" alt="{{ item.title }}" loading="lazy" onerror="this.style.display='none'">{% endif %}
       {% if item.status == 'collect' %}<div class="cover-watched-overlay"><span>已看</span></div>{% endif %}
       <div class="rec-cover-overlay">
         <span class="rec-badge">{{ item.kind or 'unknown' }}</span>
         <div class="rec-rating-badge">{{ item.douban_rating or '-' }}</div>
       </div>
+      {% if item.watch_count and item.watch_count > 1 %}
+      <div class="rec-watch-count-badge">🔁 {{ item.watch_count }}次</div>
+      {% endif %}
     </div>
     <div class="rec-body">
       <div class="rec-title-row">
@@ -160,13 +163,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 card.classList.add('watched');
               }
             } else {
-              btn.textContent = '再看一次 ✓';
-              var badge = card.querySelector('.watch-count');
-              if (!badge) {
-                badge = document.createElement('span');
-                badge.className = 'watch-count';
-                badge.style.cssText = 'font-size:11px;color:var(--green);margin-left:4px;';
-                btn.appendChild(badge);
+              btn.textContent = '再看 ' + data.watch_count + '次 ✓';
+              var card2 = document.querySelector('.rec-card[data-subject="' + id + '"]');
+              var badge = card2 ? card2.querySelector('.rec-watch-count-badge') : null;
+              if (badge) {
+                badge.textContent = '🔁 ' + data.watch_count + '次';
+              } else if (card2) {
+                var newBadge = document.createElement('div');
+                newBadge.className = 'rec-watch-count-badge';
+                newBadge.textContent = '🔁 ' + data.watch_count + '次';
+                card2.querySelector('.rec-cover').appendChild(newBadge);
               }
             }
           }

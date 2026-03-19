@@ -43,7 +43,7 @@
     {% for item in recs %}
     <article class="rec-card compact">
       <div class="rec-cover" style="{{ item._cover_style if item._cover_style else 'background: linear-gradient(135deg,#243060,#10182e)' }}">
-        {% if item._cover_url %}<img src="{{ item._cover_url }}" alt="{{ item.title }}" loading="lazy">{% endif %}
+        {% if item._cover_url %}<img src="{{ item._cover_url }}" alt="{{ item.title }}" loading="lazy" onerror="this.style.display='none'">{% endif %}
         <div class="rec-cover-overlay">
           <span class="rec-badge">{{ item.kind or 'unknown' }}</span>
           <div class="rec-rating-badge">{{ item.douban_rating or '-' }}</div>
@@ -110,4 +110,28 @@
     </div>
   </div>
 </section>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Watch / Rewatch buttons in tonight card and recent list
+  document.querySelectorAll('.watch-btn, .rewatch-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var id = this.dataset.id;
+      var action = this.dataset.action;
+      fetch('/api/' + action + '/' + id, { method: 'POST' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data.ok) {
+            if (action === 'watch') {
+              btn.textContent = '已看 ✓';
+              btn.disabled = true;
+            } else {
+              btn.textContent = '再看 ' + data.watch_count + '次 ✓';
+            }
+          }
+        }).catch(function(e) { console.error(e); });
+    });
+  });
+});
+</script>
 {% endblock %}
