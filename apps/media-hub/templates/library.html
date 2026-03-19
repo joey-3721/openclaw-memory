@@ -104,6 +104,10 @@
       <label>我的评语</label>
       <textarea id="edit-comment" rows="3" placeholder="写点什么..."></textarea>
     </div>
+    <div class="form-group">
+      <label>封面图 URL（手动覆盖）</label>
+      <input type="url" id="edit-cover-url" placeholder="https://img9.doubanio.com/view/photo/s_ratio_poster/...">
+    </div>
     <div class="modal-actions">
       <button class="btn primary" id="save-edit">保存</button>
       <button class="btn" id="cancel-edit">取消</button>
@@ -144,6 +148,7 @@ document.addEventListener('DOMContentLoaded', function() {
           document.getElementById('edit-date').value = item.watched_date || '';
           document.getElementById('edit-count').value = item.watch_count || 1;
           document.getElementById('edit-comment').value = item.comment || '';
+          document.getElementById('edit-cover-url').value = item.cover_url || '';
         });
     });
   });
@@ -162,6 +167,7 @@ document.addEventListener('DOMContentLoaded', function() {
       watched_date: document.getElementById('edit-date').value || null,
       watch_count: parseInt(document.getElementById('edit-count').value) || 1,
       comment: document.getElementById('edit-comment').value || null,
+      cover_url: document.getElementById('edit-cover-url').value || null,
     };
     fetch('/api/edit/' + id, {
       method: 'POST',
