@@ -132,10 +132,12 @@ def cover_style(item):
 
 
 def cover_url(item):
-    """Return cover URL or a styled placeholder."""
-    if item.get('cover_url'):
-        return item['cover_url']
-    return None  # Use CSS gradient fallback from cover_style()
+    """Return cover URL or None. Works for sqlite3.Row and dict."""
+    try:
+        value = item['cover_url']
+    except Exception:
+        value = item.get('cover_url') if hasattr(item, 'get') else None
+    return value or None
 
 
 @app.get('/', response_class=HTMLResponse)
@@ -143,8 +145,21 @@ def home(request: Request):
     conn = get_conn()
     counts = dict(conn.execute('SELECT status, COUNT(*) FROM douban_watch_history GROUP BY status').fetchall())
     profile = load_profile(conn)
-    recs = recommendation_candidates(conn, limit=6)
-    recent = conn.execute('SELECT * FROM douban_watch_history WHERE status="collect" ORDER BY watched_date DESC LIMIT 8').fetchall()
+    rec_rows = recommendation_candidates(conn, limit=6)
+    recs = []
+    for r in rec_rows:
+        rec = dict(r)
+        rec['_reason'] = make_recommendation_reason(r, profile)
+        rec['_cover_style'] = cover_style(r)
+        rec['_cover_url'] = cover_url(r)
+        recs.append(rec)
+    recent_rows = conn.execute('SELECT * FROM douban_watch_history WHERE status="collect" ORDER BY watched_date DESC LIMIT 8').fetchall()
+    recent = []
+    for r in recent_rows:
+        item = dict(r)
+        item['_cover_style'] = cover_style(r)
+        item['_cover_url'] = cover_url(r)
+        recent.append(item)
     return templates.TemplateResponse('index.html', {
         'request': request,
         'counts': counts,
@@ -170,7 +185,13 @@ def library(request: Request, status: str = Query('collect'), kind: str = Query(
         like = f'%{q}%'
         params += [like]*5
     sql += ' ORDER BY watched_date DESC, douban_rating DESC LIMIT 200'
-    items = conn.execute(sql, params).fetchall()
+    rows = conn.execute(sql, params).fetchall()
+    items = []
+    for r in rows:
+        item = dict(r)
+        item['_cover_style'] = cover_style(r)
+        item['_cover_url'] = cover_url(r)
+        items.append(item)
     return templates.TemplateResponse('library.html', {
         'request': request,
         'items': items,
