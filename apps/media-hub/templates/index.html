@@ -56,6 +56,9 @@
           <span class="rec-reason-icon">💡</span>
           <p class="rec-reason">{{ item._reason }}</p>
         </div>
+        {% if item.directors or item.actors %}
+        <p class="rec-credits">{{ item.directors[:30] }}{% if item.directors and item.actors %} · {% endif %}{{ item.actors[:40] }}</p>
+        {% endif %}
         <div class="rec-actions">
           <a class="btn small" href="{{ item.url }}" target="_blank">豆瓣详情</a>
           <a class="btn small" href="/recommendations">更多推荐</a>

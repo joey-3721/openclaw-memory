@@ -66,6 +66,9 @@
         <div class="media-rating-fill" style="width:{{ (item.my_rating / 5 * 100) }}%"></div>
       </div>
       {% endif %}
+      {% if item.watch_count and item.watch_count > 1 %}
+      <div class="media-watch-count">🔁 看了 {{ item.watch_count }} 次</div>
+      {% endif %}
       {% if item.comment %}
       <p class="media-comment">"{{ item.comment[:60] }}"</p>
       {% endif %}
@@ -78,6 +81,14 @@
         <button class="btn small edit-btn" data-id="{{ item.subject_id }}">✏️</button>
       </div>
     </div>
+  {% if not items %}
+  <div class="empty-state">
+    <div class="empty-icon">🎬</div>
+    <p>没有找到符合条件的条目</p>
+    <a class="btn primary" href="/library">重置筛选</a>
+  </div>
+  {% endif %}
+  {% for item in items %}
   </article>
   {% endfor %}
 </div>
