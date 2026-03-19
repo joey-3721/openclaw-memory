@@ -219,12 +219,14 @@ def mark_watched(subject_id: str):
     if not item:
         raise HTTPException(404, 'Item not found')
     now = datetime.now().strftime('%Y-%m-%d')
+    current_count = (item['watch_count'] or 1)
+    # If user is marking as watched via this button, record it as a watch action
     conn.execute(
-        'UPDATE douban_watch_history SET status="collect", watched_date=? WHERE subject_id=?',
-        (now, subject_id)
+        'UPDATE douban_watch_history SET status="collect", watched_date=?, watch_count=? WHERE subject_id=?',
+        (now, max(current_count, 1), subject_id)
     )
     conn.commit()
-    return {'ok': True, 'subject_id': subject_id, 'watched_date': now}
+    return {'ok': True, 'subject_id': subject_id, 'watched_date': now, 'watch_count': max(current_count, 1)}
 
 
 @app.post('/api/rewatch/{subject_id}', response_class=JSONResponse)
@@ -246,15 +248,15 @@ def add_rewatch(subject_id: str):
 
 @app.put('/api/rate/{subject_id}', response_class=JSONResponse)
 def update_rating(subject_id: str, my_rating: int = None, comment: str = None, watched_date: str = None):
-    """Update personal rating, comment, and watched date for an item."""
+    """Update personal rating, comment, and watched date for an item. Marks source as user-edited."""
     conn = get_conn()
     item = conn.execute('SELECT * FROM douban_watch_history WHERE subject_id=?', (subject_id,)).fetchone()
     if not item:
         raise HTTPException(404, 'Item not found')
     if my_rating is not None:
-        conn.execute('UPDATE douban_watch_history SET my_rating=? WHERE subject_id=?', (my_rating, subject_id))
+        conn.execute('UPDATE douban_watch_history SET my_rating=?, rating_source="user" WHERE subject_id=?', (my_rating, subject_id))
     if comment is not None:
-        conn.execute('UPDATE douban_watch_history SET comment=? WHERE subject_id=?', (comment, subject_id))
+        conn.execute('UPDATE douban_watch_history SET comment=?, comment_source="user" WHERE subject_id=?', (comment, subject_id))
     if watched_date is not None:
         conn.execute('UPDATE douban_watch_history SET watched_date=? WHERE subject_id=?', (watched_date, subject_id))
     conn.commit()
@@ -264,15 +266,15 @@ def update_rating(subject_id: str, my_rating: int = None, comment: str = None, w
 
 @app.post('/api/edit/{subject_id}', response_class=JSONResponse)
 def edit_item(subject_id: str, my_rating: int = None, comment: str = None, watched_date: str = None, watch_count: int = None):
-    """Edit an item: rating, comment, watched date, watch count."""
+    """Edit an item: rating, comment, watched date, watch count. Marks source as user-edited."""
     conn = get_conn()
     item = conn.execute('SELECT * FROM douban_watch_history WHERE subject_id=?', (subject_id,)).fetchone()
     if not item:
         raise HTTPException(404, 'Item not found')
     if my_rating is not None:
-        conn.execute('UPDATE douban_watch_history SET my_rating=? WHERE subject_id=?', (my_rating, subject_id))
+        conn.execute('UPDATE douban_watch_history SET my_rating=?, rating_source="user" WHERE subject_id=?', (my_rating, subject_id))
     if comment is not None:
-        conn.execute('UPDATE douban_watch_history SET comment=? WHERE subject_id=?', (comment, subject_id))
+        conn.execute('UPDATE douban_watch_history SET comment=?, comment_source="user" WHERE subject_id=?', (comment, subject_id))
     if watched_date is not None:
         conn.execute('UPDATE douban_watch_history SET watched_date=? WHERE subject_id=?', (watched_date, subject_id))
     if watch_count is not None:
