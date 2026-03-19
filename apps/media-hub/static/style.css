@@ -147,7 +147,7 @@ html, body {
 }
 .btn:hover { background: rgba(255,255,255,0.10); border-color: rgba(255,255,255,0.15); }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-.btn.primary:hover { background: #5a7ae0; box-shadow: 0 4px 20px var(--accent-glow); }
+.btn.primary:hover { background: #5a7ae0; box-shadow: 0 4px 20px var(--accent-glow); transform: translateY(-2px); }
 .btn.accent { border-color: rgba(96,213,255,0.4); background: rgba(96,213,255,0.08); color: #7eddff; }
 .btn.small { padding: 7px 14px; font-size: 12px; border-radius: 50px; }
 .btn[disabled] { opacity: 0.5; cursor: not-allowed; }
@@ -662,8 +662,12 @@ html, body {
   color: var(--text-primary);
   outline: none;
   font-family: inherit;
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
-.form-group input:focus, .form-group textarea:focus { border-color: var(--accent); }
+.form-group input:focus, .form-group textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(108,143,255,0.18);
+}
 .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 24px; }
 
 /* ---- TWO COLUMN ---- */

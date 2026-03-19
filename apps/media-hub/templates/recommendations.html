@@ -190,7 +190,7 @@ document.addEventListener('DOMContentLoaded', function() {
       this.textContent = display;
       // Persist via API
       fetch('/api/edit/' + id, {
-        method: 'POST',,
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ my_rating: newRating })
       }).then(function(r) { return r.json(); });
