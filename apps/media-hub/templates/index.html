@@ -40,6 +40,7 @@
     <div class="tonight-card" style="margin-top:16px">
       <div class="tonight-cover" style="{{ surprise._cover_style }}">
         {% if surprise._cover_url %}<img src="{{ surprise._cover_url }}" alt="{{ surprise.title }}" onerror="this.style.display='none'; this.parentElement.classList.add('cover-img-failed')">{% else %}<div class="cover-fallback-title">{{ surprise.title[:8] }}</div>{% endif %}
+        {% if surprise.status == 'collect' %}<div class="cover-watched-overlay"><span>已看</span></div>{% endif %}
         <div class="tonight-overlay">
           <span class="tonight-title">{{ surprise.title }}</span>
           <span class="tonight-meta">{{ surprise.year }} · {{ surprise.kind }} · 豆瓣 {{ surprise.douban_rating or '-' }}</span>

@@ -40,10 +40,10 @@
   <div class="sort-controls">
     <span class="filter-label">排序</span>
     <div class="sort-chips">
-      <button class="sort-btn {% if sort=='score' %}active{% endif %}" data-sort="score">匹配度</button>
-      <button class="sort-btn {% if sort=='rating' %}active{% endif %}" data-sort="rating">豆瓣评分</button>
-      <button class="sort-btn {% if sort=='year' %}active{% endif %}" data-sort="year">最近年份</button>
-      <button class="sort-btn {% if sort=='random' %}active{% endif %}" data-sort="random">🎲 随机</button>
+      <a class="sort-btn {% if sort=='score' %}active{% endif %}" href="/recommendations?sort=score" data-sort="score">匹配度</a>
+      <a class="sort-btn {% if sort=='rating' %}active{% endif %}" href="/recommendations?sort=rating" data-sort="rating">豆瓣评分</a>
+      <a class="sort-btn {% if sort=='year' %}active{% endif %}" href="/recommendations?sort=year" data-sort="year">最近年份</a>
+      <a class="sort-btn {% if sort=='random' %}active{% endif %}" href="/recommendations?sort=random" data-sort="random">🎲 随机</a>
     </div>
     <span class="count">{{ recs|length }} 部</span>
   </div>
@@ -243,17 +243,6 @@ document.addEventListener('DOMContentLoaded', function() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ my_rating: newRating })
       }).then(function(r) { return r.json(); });
-    });
-  });
-
-  // Sort functionality
-  var currentSort = '{{ sort|default("score") }}';
-  document.querySelectorAll('.sort-btn').forEach(function(btn) {
-    btn.addEventListener('click', function() {
-      var sort = this.dataset.sort;
-      var url = new URL(window.location);
-      url.searchParams.set('sort', sort);
-      window.location = url.toString();
     });
   });
 

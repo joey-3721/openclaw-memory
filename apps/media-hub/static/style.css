@@ -1021,4 +1021,19 @@ a:focus-visible, button:focus-visible {
   }
 }
 
+/* Sort chips as links (href fallback) */
+.sort-btn {
+  display: inline-block;
+  text-decoration: none;
+  color: inherit;
+}
+.sort-btn:hover {
+  text-decoration: none;
+}
+
+/* Library expand detail row */
+.lib-detail-row {
+  border-top: 1px solid rgba(255,255,255,0.06);
+}
+
 

@@ -48,6 +48,7 @@
   <article class="media-card" data-subject="{{ item.subject_id }}">
     <div class="media-cover" style="{{ item._cover_style if item._cover_style else 'background:linear-gradient(135deg,#1e2d55,#0c1225)' }}">
       {% if item._cover_url %}<img src="{{ item._cover_url }}" alt="{{ item.title }}" loading="lazy" onerror="this.style.display='none'; this.parentElement.classList.add('cover-img-failed')">{% else %}<div class="cover-fallback-title">{{ item.title[:8] }}</div>{% endif %}
+      {% if item.status == 'collect' %}<div class="cover-watched-overlay"><span>已看</span></div>{% endif %}
       <div class="media-cover-info">
         <span class="media-badge">{{ item.kind or '?' }}</span>
         {% if item._stars %}
@@ -99,6 +100,15 @@
         </button>
         <button class="btn small rewatch-btn" data-id="{{ item.subject_id }}" data-action="rewatch">再看</button>
         <button class="btn small edit-btn" data-id="{{ item.subject_id }}">✏️</button>
+        <button class="btn small expand-lib-btn" data-id="{{ item.subject_id }}" title="展开详情">▾ 详情</button>
+      </div>
+      <div class="lib-detail-row" id="lib-detail-{{ item.subject_id }}" style="display:none;margin-top:8px;padding:10px;background:rgba(255,255,255,0.04);border-radius:8px;font-size:12px;color:var(--text-secondary);line-height:1.7;">
+        {% if item.countries %}<div style="margin-bottom:4px">🌏 {{ item.countries }}</div>{% endif %}
+        {% if item.genres %}<div style="margin-bottom:4px">🏷️ {{ item.genres }}</div>{% endif %}
+        {% if item.directors %}<div style="margin-bottom:4px">🎬 导演：{{ item.directors }}</div>{% endif %}
+        {% if item.actors %}<div style="margin-bottom:4px">🎭 演员：{{ item.actors }}</div>{% endif %}
+        {% if item.douban_rating %}<div style="margin-bottom:4px">⭐ 豆瓣评分：{{ item._stars }}（{{ item.douban_rating }}）</div>{% endif %}
+        {% if item.comment %}<div style="margin-top:4px">💬 {{ item.comment }}</div>{% endif %}
       </div>
     </div>
   </article>
@@ -206,6 +216,17 @@ document.addEventListener('DOMContentLoaded', function() {
           document.getElementById('edit-comment').value = item.comment || '';
           document.getElementById('edit-cover-url').value = item.cover_url || '';
         });
+    });
+  });
+
+  document.querySelectorAll('.expand-lib-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var id = this.dataset.id;
+      var detailRow = document.getElementById('lib-detail-' + id);
+      if (!detailRow) return;
+      var isOpen = detailRow.style.display !== 'none';
+      detailRow.style.display = isOpen ? 'none' : 'block';
+      this.textContent = isOpen ? '▾ 详情' : '▴ 收起';
     });
   });
 
