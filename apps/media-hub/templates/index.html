@@ -50,8 +50,14 @@
         </div>
       </div>
       <div class="rec-body">
-        <h3 class="rec-title">{{ item.title }}</h3>
-        <p class="rec-meta">{{ item.year }} · {{ (item.genres or '').split('/')[0] }}</p>
+        <div class="rec-title-row">
+          <h3 class="rec-title">{{ item.title }}</h3>
+          {% if item._first_genre %}<span class="rec-genre-chip">{{ item._first_genre }}</span>{% endif %}
+        </div>
+        <div class="rec-meta-row">
+          <span class="rec-year">{{ item.year }}</span>
+          {% if item._stars %}<span class="rec-stars">{{ item._stars }}</span>{% endif %}
+        </div>
         <div class="rec-reason-wrap">
           <span class="rec-reason-icon">💡</span>
           <p class="rec-reason">{{ item._reason }}</p>

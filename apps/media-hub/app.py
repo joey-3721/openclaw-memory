@@ -140,6 +140,23 @@ def cover_url(item):
     return value or None
 
 
+def rating_stars(rating):
+    """Convert a 10-point Douban rating (0-10) to a 5-star display string."""
+    if not rating:
+        return ''
+    stars = round(rating / 2)  # Convert 10-point to 5-star
+    full = min(5, max(0, stars))
+    return '★' * full + '☆' * (5 - full)
+
+
+def first_genre(item):
+    """Return the first genre from a slash-separated genres string."""
+    genres = (item.get('genres') or '').strip()
+    if not genres:
+        return ''
+    return genres.split('/')[0].strip()
+
+
 @app.get('/', response_class=HTMLResponse)
 def home(request: Request):
     conn = get_conn()
@@ -152,6 +169,8 @@ def home(request: Request):
         rec['_reason'] = make_recommendation_reason(r, profile)
         rec['_cover_style'] = cover_style(r)
         rec['_cover_url'] = cover_url(r)
+        rec['_stars'] = rating_stars(rec.get('douban_rating'))
+        rec['_first_genre'] = first_genre(rec)
         recs.append(rec)
     recent_rows = conn.execute('SELECT * FROM douban_watch_history WHERE status="collect" ORDER BY watched_date DESC LIMIT 8').fetchall()
     recent = []
@@ -221,6 +240,8 @@ def recommendations(request: Request, sort: str = Query('score')):
         rec['_reason'] = make_recommendation_reason(r, profile)
         rec['_cover_style'] = cover_style(r)
         rec['_cover_url'] = cover_url(r)
+        rec['_stars'] = rating_stars(rec.get('douban_rating'))
+        rec['_first_genre'] = first_genre(rec)
         # Compute match score
         genre_counter = Counter(g for g, _ in profile['top_genres'])
         country_counter = Counter(c for c, _ in profile['top_countries'])
