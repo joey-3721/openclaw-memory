@@ -8,6 +8,7 @@
     <div class="tonight-card">
       <div class="tonight-cover" style="{{ today_pick._cover_style }}">
         {% if today_pick._cover_url %}<img src="{{ today_pick._cover_url }}" alt="{{ today_pick.title }}">{% endif %}
+        {% if today_pick.status == 'collect' %}<div class="cover-watched-overlay"><span>已看</span></div>{% endif %}
         <div class="tonight-overlay">
           <span class="tonight-title">{{ today_pick.title }}</span>
           <span class="tonight-meta">{{ today_pick.year }} · {{ today_pick.kind }} · 豆瓣 {{ today_pick.douban_rating or '-' }}</span>
@@ -29,26 +30,41 @@
 
 <section class="section-header">
   <h2>全部推荐</h2>
-  <span class="count">{{ recs|length }} 部</span>
+  <div class="sort-controls">
+    <span class="filter-label">排序</span>
+    <div class="sort-chips">
+      <button class="sort-btn {% if sort=='score' %}active{% endif %}" data-sort="score">匹配度</button>
+      <button class="sort-btn {% if sort=='rating' %}active{% endif %}" data-sort="rating">豆瓣评分</button>
+      <button class="sort-btn {% if sort=='year' %}active{% endif %}" data-sort="year">最近年份</button>
+      <button class="sort-btn {% if sort=='random' %}active{% endif %}" data-sort="random">🎲 随机</button>
+    </div>
+    <span class="count">{{ recs|length }} 部</span>
+  </div>
 </section>
 
-<div class="rec-grid">
+<div class="rec-grid" id="recGrid">
   {% for item in recs %}
-  <article class="rec-card" data-subject="{{ item.subject_id }}">
+  <article class="rec-card {% if item.status=='collect' %}watched{% endif %}" data-subject="{{ item.subject_id }}" data-score="{{ item._score|default(0) }}" data-rating="{{ item.douban_rating|default(0) }}" data-year="{{ item.year|default(0) }}">
     <div class="rec-cover" style="{{ item._cover_style }}">
       {% if item._cover_url %}<img src="{{ item._cover_url }}" alt="{{ item.title }}" loading="lazy">{% endif %}
+      {% if item.status == 'collect' %}<div class="cover-watched-overlay"><span>已看</span></div>{% endif %}
       <div class="rec-cover-overlay">
         <span class="rec-badge">{{ item.kind or 'unknown' }}</span>
-        <span class="rec-rating">{{ item.douban_rating or '-' }}</span>
+        <div class="rec-rating-badge">{{ item.douban_rating or '-' }}</div>
       </div>
     </div>
     <div class="rec-body">
       <h3 class="rec-title">{{ item.title }}</h3>
       <p class="rec-meta">{{ item.year }} · {{ (item.genres or '').split('/')[0] }}</p>
-      <p class="rec-reason">{{ item._reason }}</p>
+      <div class="rec-reason-wrap">
+        <span class="rec-reason-icon">💡</span>
+        <p class="rec-reason">{{ item._reason }}</p>
+      </div>
       <div class="rec-actions">
         <a class="btn small" href="{{ item.url }}" target="_blank">详情</a>
-        <button class="btn small primary watch-btn" data-id="{{ item.subject_id }}" data-action="watch">看过</button>
+        <button class="btn small primary watch-btn" data-id="{{ item.subject_id }}" data-action="watch" {% if item.status=='collect' %}disabled{% endif %}>
+          {% if item.status == 'collect' %}已看 ✓{% else %}看过{% endif %}
+        </button>
         <button class="btn small rewatch-btn" data-id="{{ item.subject_id }}" data-action="rewatch">再看</button>
         <button class="btn small edit-btn" data-id="{{ item.subject_id }}">✏️</button>
       </div>
@@ -97,11 +113,45 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(function(r) { return r.json(); })
         .then(function(data) {
           if (data.ok) {
-            btn.textContent = action === 'watch' ? '已标记看过 ✓' : '已记录 ✓';
-            btn.disabled = true;
+            if (action === 'watch') {
+              btn.textContent = '已标记看过 ✓';
+              btn.disabled = true;
+              // Add overlay to card cover
+              var card = document.querySelector('.rec-card[data-subject="' + id + '"]');
+              if (card) {
+                var cover = card.querySelector('.rec-cover');
+                if (cover && !cover.querySelector('.cover-watched-overlay')) {
+                  var overlay = document.createElement('div');
+                  overlay.className = 'cover-watched-overlay';
+                  overlay.innerHTML = '<span>已看</span>';
+                  cover.appendChild(overlay);
+                }
+                card.classList.add('watched');
+              }
+            } else {
+              btn.textContent = '再看一次 ✓';
+              var badge = card.querySelector('.watch-count');
+              if (!badge) {
+                badge = document.createElement('span');
+                badge.className = 'watch-count';
+                badge.style.cssText = 'font-size:11px;color:var(--green);margin-left:4px;';
+                btn.appendChild(badge);
+              }
+            }
           }
         })
         .catch(function(e) { console.error(e); });
+    });
+  });
+
+  // Sort functionality
+  var currentSort = '{{ sort|default("score") }}';
+  document.querySelectorAll('.sort-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var sort = this.dataset.sort;
+      var url = new URL(window.location);
+      url.searchParams.set('sort', sort);
+      window.location = url.toString();
     });
   });
 
@@ -111,7 +161,6 @@ document.addEventListener('DOMContentLoaded', function() {
       var id = this.dataset.id;
       document.getElementById('edit-subject-id').value = id;
       document.getElementById('editModal').style.display = 'flex';
-      // Fetch current data
       fetch('/api/item/' + id)
         .then(function(r) { return r.json(); })
         .then(function(item) {

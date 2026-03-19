@@ -202,24 +202,45 @@ def library(request: Request, status: str = Query('collect'), kind: str = Query(
 
 
 @app.get('/recommendations', response_class=HTMLResponse)
-def recommendations(request: Request):
+def recommendations(request: Request, sort: str = Query('score')):
     conn = get_conn()
     profile = load_profile(conn)
-    recs = recommendation_candidates(conn, limit=24)
-    # Attach reasons
+    recs = recommendation_candidates(conn, limit=60)
+    # Attach reasons and scores
     recs_with_reason = []
     for r in recs:
         rec = dict(r)
         rec['_reason'] = make_recommendation_reason(r, profile)
         rec['_cover_style'] = cover_style(r)
         rec['_cover_url'] = cover_url(r)
+        # Compute match score
+        genre_counter = Counter(g for g, _ in profile['top_genres'])
+        country_counter = Counter(c for c, _ in profile['top_countries'])
+        rec['_score'] = (
+            (rec['douban_rating'] or 0) * 0.8 +
+            sum(genre_counter[g] for g in split_multi(rec['genres'])) * 0.35 +
+            sum(country_counter[c] for c in split_multi(rec['countries'])) * 0.25
+        )
         recs_with_reason.append(rec)
+
+    # Sort
+    if sort == 'rating':
+        recs_with_reason.sort(key=lambda x: x.get('douban_rating') or 0, reverse=True)
+    elif sort == 'year':
+        recs_with_reason.sort(key=lambda x: x.get('year') or 0, reverse=True)
+    elif sort == 'random':
+        random.shuffle(recs_with_reason)
+    else:
+        recs_with_reason.sort(key=lambda x: x['_score'], reverse=True)
+
+    recs_with_reason = recs_with_reason[:24]
     surprise = random.choice(recs_with_reason[:10]) if recs_with_reason else None
     return templates.TemplateResponse('recommendations.html', {
         'request': request,
         'recs': recs_with_reason,
         'surprise': dict(surprise) if surprise else None,
         'today_pick': dict(recs_with_reason[0]) if recs_with_reason else None,
+        'sort': sort,
     })
 
 
