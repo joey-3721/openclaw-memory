@@ -36,14 +36,13 @@
     <a class="filter-chip {% if region=='CN' %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort={{ sort }}&region=CN&year={{ year }}">🇨🇳 中国</a>
     <a class="filter-chip {% if region=='TH' %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort={{ sort }}&region=TH&year={{ year }}">🇹🇭 泰国</a>
   </div>
-  {# 年份 #}
-  <div class="filter-group">
-    <span class="filter-label">年份</span>
-    <a class="filter-chip {% if not year %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort={{ sort }}&region={{ region }}&year=">全部</a>
-    <a class="filter-chip {% if year=='2025' %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort={{ sort }}&region={{ region }}&year=2025">2025</a>
-    <a class="filter-chip {% if year=='2024' %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort={{ sort }}&region={{ region }}&year=2024">2024</a>
-    <a class="filter-chip {% if year=='2023' %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort={{ sort }}&region={{ region }}&year=2023">2023</a>
-    <a class="filter-chip {% if year=='2020' %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort={{ sort }}&region={{ region }}&year=2020">2020s</a>
+  {# 题材 #}
+  <div class="filter-group"> 
+    <span class="filter-label">题材</span>
+    <a class="filter-chip {% if not genre %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort={{ sort }}&region={{ region }}&year={{ year }}&genre=">全部</a>
+    {% for g in genre_options %}
+    <a class="filter-chip {% if genre==g %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort={{ sort }}&region={{ region }}&year={{ year }}&genre={{ g }}">{{ g }}</a>
+    {% endfor %}
   </div>
   {# 搜索框 #}
   <form class="search-form" method="get">
@@ -51,7 +50,9 @@
     <input type="hidden" name="sort" value="{{ sort }}">
     <input type="hidden" name="region" value="{{ region }}">
     <input type="hidden" name="year" value="{{ year }}">
+    <input type="hidden" name="genre" value="{{ genre }}">
     <input type="text" name="q" value="{{ q }}" placeholder="搜索标题...">
+    <input type="number" name="year" value="{{ year }}" placeholder="年份，如 2024" min="1900" max="2100" style="width:140px">
     <button type="submit" class="btn small">🔍</button>
   </form>
 </section>
@@ -105,9 +106,9 @@
 
 {% if total_pages > 1 %}
 <nav class="pagination-bar" style="display:flex;justify-content:center;align-items:center;gap:12px;padding:20px 0 8px;">
-  <a class="btn{% if page <= 1 %} disabled{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort={{ sort }}&region={{ region }}&year={{ year }}&page={{ page-1 }}">‹ 上一页</a>
+  <a class="btn{% if page <= 1 %} disabled{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort={{ sort }}&region={{ region }}&year={{ year }}&genre={{ genre }}&page={{ page-1 }}">‹ 上一页</a>
   <span style="color:var(--text-secondary);font-size:14px;">第 {{ page }} / {{ total_pages }} 页 &nbsp;共 {{ total_results }} 条</span>
-  <a class="btn{% if page >= total_pages %} disabled{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort={{ sort }}&region={{ region }}&year={{ year }}&page={{ page+1 }}">下一页 ›</a>
+  <a class="btn{% if page >= total_pages %} disabled{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort={{ sort }}&region={{ region }}&year={{ year }}&genre={{ genre }}&page={{ page+1 }}">下一页 ›</a>
 </nav>
 {% endif %}
 

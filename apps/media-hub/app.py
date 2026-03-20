@@ -311,8 +311,20 @@ def match_local_status_batch(conn, items: list) -> list:
     return item
 
 
+def tmdb_genre_map(kind: str):
+    if kind == 'movie':
+        return {
+            '动画': '16', '奇幻': '14', '科幻': '878', '悬疑': '9648', '爱情': '10749',
+            '喜剧': '35', '动作': '28', '历史': '36', '战争': '10752', '犯罪': '80', '纪录片': '99'
+        }
+    return {
+        '动漫': '16', '科幻玄幻': '10765', '悬疑': '9648', '犯罪': '80', '喜剧': '35',
+        '动作': '10759', '家庭': '10751', '综艺': '10764|10767', '真人秀': '10764', '脱口秀': '10767'
+    }
+
+
 def tmdb_discover(kind: str = 'movie', query: str = '', sort: str = 'popularity',
-                   region: str = '', year: str = '', page: int = 1, limit: int = 20):
+                   region: str = '', year: str = '', genre: str = '', page: int = 1, limit: int = 20):
     key = read_tmdb_key()
     if not key:
         return {'items': [], 'total_pages': 0, 'total_results': 0, 'page': page}
@@ -351,6 +363,10 @@ def tmdb_discover(kind: str = 'movie', query: str = '', sort: str = 'popularity'
                 params['primary_release_year'] = year
             else:
                 params['first_air_date_year'] = year
+        if genre:
+            genre_id = tmdb_genre_map(kind).get(genre)
+            if genre_id:
+                params['with_genres'] = genre_id
         params.update(cfg['discover_params'])
 
     r = requests.get(f'https://api.themoviedb.org/3{path}', params=params, timeout=20)
@@ -738,11 +754,12 @@ def discover(request: Request,
              sort: str   = Query('popularity'),
              region: str = Query(''),
              year: str   = Query(''),
+             genre: str  = Query(''),
              page: int   = Query(1)):
     tmdb_status = tmdb_probe()
     source = 'tmdb' if tmdb_status.get('ok') else 'local'
     if source == 'tmdb':
-        result = tmdb_discover(kind=kind, query=q, sort=sort, region=region, year=year, page=page, limit=20)
+        result = tmdb_discover(kind=kind, query=q, sort=sort, region=region, year=year, genre=genre, page=page, limit=20)
         # Batch match all TMDB items against local DB for watch status
         conn = get_conn()
         items = match_local_status_batch(conn, result['items'])
@@ -790,6 +807,8 @@ def discover(request: Request,
         'sort': sort,
         'region': region,
         'year': year,
+        'genre': genre,
+        'genre_options': list(tmdb_genre_map(kind).keys()),
         'page': page,
         'total_pages': total_pages,
         'total_results': total_results,
