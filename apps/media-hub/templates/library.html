@@ -177,6 +177,7 @@
 </div>
 
 <script>
+var pendingDeleteId = null;
 function attachCardEvents() {
   document.querySelectorAll('.watch-btn, .rewatch-btn').forEach(function(btn) {
     if (btn._hasClick) return;
@@ -294,7 +295,6 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   // Delete modal
-  var pendingDeleteId = null;
   document.getElementById('delete-modal-close').addEventListener('click', function() { document.getElementById('deleteModal').style.display = 'none'; pendingDeleteId = null; });
   document.getElementById('cancel-delete-btn').addEventListener('click', function() {
     document.getElementById('deleteModal').style.display = 'none';
