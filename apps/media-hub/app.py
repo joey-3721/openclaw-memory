@@ -50,27 +50,31 @@ def ensure_schema(conn):
         conn.execute("ALTER TABLE douban_watch_history ADD COLUMN tmdb_id TEXT")
         # Backfill: extract existing tmdb:* subject_ids
         conn.execute("UPDATE douban_watch_history SET tmdb_id = substr(subject_id, 6) WHERE subject_id LIKE 'tmdb:%'")
-    conn.execute("""CREATE TABLE IF NOT EXISTS recommendation_cache (
-        cache_key TEXT PRIMARY KEY,
-        tmdb_id TEXT,
-        subject_id TEXT,
-        title TEXT,
-        kind TEXT,
-        year INTEGER,
-        url TEXT,
-        intro TEXT,
-        summary TEXT,
-        tmdb_rating REAL,
-        tmdb_vote_count INTEGER,
-        genres TEXT,
-        countries TEXT,
-        poster_url TEXT,
-        cover_url TEXT,
-        score REAL,
-        reason TEXT,
-        rank_order INTEGER,
-        generated_at TEXT
-    )""")
+    cache_cols = {row[1] for row in conn.execute("PRAGMA table_info(recommendation_cache)").fetchall()} if 'recommendation_cache' in {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()} else set()
+    if not cache_cols or 'rank_order' not in cache_cols:
+        conn.execute('DROP TABLE IF EXISTS recommendation_cache')
+        conn.execute("""CREATE TABLE recommendation_cache (
+            cache_key TEXT,
+            rank_order INTEGER,
+            tmdb_id TEXT,
+            subject_id TEXT,
+            title TEXT,
+            kind TEXT,
+            year INTEGER,
+            url TEXT,
+            intro TEXT,
+            summary TEXT,
+            tmdb_rating REAL,
+            tmdb_vote_count INTEGER,
+            genres TEXT,
+            countries TEXT,
+            poster_url TEXT,
+            cover_url TEXT,
+            score REAL,
+            reason TEXT,
+            generated_at TEXT,
+            PRIMARY KEY (cache_key, rank_order)
+        )""")
     conn.commit()
 
 
