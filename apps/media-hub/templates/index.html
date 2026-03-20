@@ -82,6 +82,9 @@
           <span class="rec-badge">{{ item.kind or 'unknown' }}</span>
           <div class="rec-rating-badge">{{ item.douban_rating or '-' }}</div>
         </div>
+        {% if item.watch_count and item.watch_count > 1 %}
+        <div class="rec-watch-count-badge">🔁 {{ item.watch_count }}次</div>
+        {% endif %}
       </div>
       <div class="rec-body">
         <div class="rec-title-row">
@@ -91,6 +94,9 @@
         <div class="rec-meta-row">
           <span class="rec-year">{{ item.year }}</span>
           {% if item._stars %}<span class="rec-stars">{{ item._stars }}</span>{% endif %}
+          <span class="rec-my-stars" data-id="{{ item.subject_id }}" title="点击评分">
+            {% if item.my_rating %}{{ '★' * item.my_rating }}{{ '☆' * (5 - item.my_rating) }}{% else %}☆☆☆☆☆{% endif %}
+          </span>
         </div>
         <div class="rec-reason-wrap">
           <span class="rec-reason-icon">💡</span>
@@ -111,6 +117,8 @@
           <a class="btn small" href="{{ item.url }}" target="_blank">豆瓣</a>
           <button class="btn small watch-btn" data-id="{{ item.subject_id }}" data-action="watch" {% if item.status=='collect' %}disabled{% endif %}>
             {% if item.status == 'collect' %}已看 ✓{% else %}看过{% endif %}</button>
+          <button class="btn small rewatch-btn" data-id="{{ item.subject_id }}" data-action="rewatch">再看</button>
+          <button class="btn small edit-btn" data-id="{{ item.subject_id }}">✏️</button>
         </div>
       </div>
     </article>
@@ -161,7 +169,7 @@ document.addEventListener('DOMContentLoaded', function() {
     el.style.animationDelay = (i * 45) + 'ms';
   });
 
-  // Watch / Rewatch buttons in tonight card and recent list
+  // Watch / Rewatch buttons in tonight card and compact cards
   document.querySelectorAll('.watch-btn, .rewatch-btn').forEach(function(btn) {
     btn.addEventListener('click', function() {
       var id = this.dataset.id;
@@ -173,8 +181,33 @@ document.addEventListener('DOMContentLoaded', function() {
             if (action === 'watch') {
               btn.textContent = '已看 ✓';
               btn.disabled = true;
+              // Update compact card state
+              var card = document.querySelector('.rec-card[data-subject="' + id + '"]');
+              if (card) {
+                card.classList.add('watched');
+                var cover = card.querySelector('.rec-cover');
+                if (cover && !cover.querySelector('.cover-watched-overlay')) {
+                  var overlay = document.createElement('div');
+                  overlay.className = 'cover-watched-overlay';
+                  overlay.innerHTML = '<span>已看</span>';
+                  cover.appendChild(overlay);
+                }
+              }
             } else {
               btn.textContent = '再看 ' + data.watch_count + '次 ✓';
+              // Update watch count badge on compact card
+              var card2 = document.querySelector('.rec-card[data-subject="' + id + '"]');
+              if (card2) {
+                var badge = card2.querySelector('.rec-watch-count-badge');
+                if (badge) {
+                  badge.textContent = '🔁 ' + data.watch_count + '次';
+                } else {
+                  var newBadge = document.createElement('div');
+                  newBadge.className = 'rec-watch-count-badge';
+                  newBadge.textContent = '🔁 ' + data.watch_count + '次';
+                  card2.querySelector('.rec-cover').appendChild(newBadge);
+                }
+              }
             }
           }
         }).catch(function(e) { console.error(e); });
@@ -192,6 +225,105 @@ document.addEventListener('DOMContentLoaded', function() {
       this.textContent = isOpen ? '▾ 详情' : '▴ 收起';
     });
   });
+
+  // Interactive star rating in compact cards
+  document.querySelectorAll('.rec-my-stars').forEach(function(stars) {
+    stars.style.cursor = 'pointer';
+    stars.style.color = '#ffd166';
+    stars.style.letterSpacing = '1px';
+    stars.style.fontSize = '13px';
+    stars.addEventListener('click', function() {
+      var id = this.dataset.id;
+      var currentRating = (this.textContent.trim().match(/★/g) || []).length;
+      var newRating = currentRating >= 5 ? 1 : currentRating + 1;
+      this.textContent = '★'.repeat(newRating) + '☆'.repeat(5 - newRating);
+      this.classList.remove('star-pop-anim');
+      void this.offsetWidth;
+      this.classList.add('star-pop-anim');
+      setTimeout(function() { if (stars) stars.classList.remove('star-pop-anim'); }, 350);
+      fetch('/api/edit/' + id, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ my_rating: newRating })
+      });
+    });
+  });
+
+  // Edit button (compact cards) - reuse edit modal
+  document.querySelectorAll('.edit-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var id = this.dataset.id;
+      document.getElementById('edit-subject-id').value = id;
+      document.getElementById('editModal').style.display = 'flex';
+      fetch('/api/item/' + id)
+        .then(function(r) { return r.json(); })
+        .then(function(item) {
+          document.getElementById('edit-rating').value = item.my_rating || '';
+          document.getElementById('edit-date').value = item.watched_date || '';
+          document.getElementById('edit-count').value = item.watch_count || 1;
+          document.getElementById('edit-comment').value = item.comment || '';
+          document.getElementById('edit-cover-url').value = item.cover_url || '';
+        });
+    });
+  });
+
+  document.getElementById('cancel-edit').addEventListener('click', function() {
+    document.getElementById('editModal').style.display = 'none';
+  });
+  document.getElementById('modal-close-btn').addEventListener('click', function() {
+    document.getElementById('editModal').style.display = 'none';
+  });
+  document.getElementById('save-edit').addEventListener('click', function() {
+    var id = document.getElementById('edit-subject-id').value;
+    var payload = {
+      my_rating: parseInt(document.getElementById('edit-rating').value) || null,
+      watched_date: document.getElementById('edit-date').value || null,
+      watch_count: parseInt(document.getElementById('edit-count').value) || 1,
+      comment: document.getElementById('edit-comment').value || null,
+      cover_url: document.getElementById('edit-cover-url').value || null,
+    };
+    fetch('/api/edit/' + id, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).then(function() {
+      document.getElementById('editModal').style.display = 'none';
+      location.reload();
+    });
+  });
 });
 </script>
+
+<!-- Edit Modal -->
+<div class="modal" id="editModal" style="display:none">
+  <div class="modal-content">
+    <button class="modal-close" id="modal-close-btn">✕</button>
+    <h3>编辑条目</h3>
+    <input type="hidden" id="edit-subject-id">
+    <div class="form-group">
+      <label>我的评分 (1-5)</label>
+      <input type="number" id="edit-rating" min="1" max="5" placeholder="1-5">
+    </div>
+    <div class="form-group">
+      <label>观看日期</label>
+      <input type="date" id="edit-date">
+    </div>
+    <div class="form-group">
+      <label>观看次数</label>
+      <input type="number" id="edit-count" min="1" value="1">
+    </div>
+    <div class="form-group">
+      <label>我的评语</label>
+      <textarea id="edit-comment" rows="3" placeholder="写点什么..."></textarea>
+    </div>
+    <div class="form-group">
+      <label>封面图 URL（手动覆盖）</label>
+      <input type="url" id="edit-cover-url" placeholder="https://img9.doubanio.com/view/photo/s_ratio_poster/...">
+    </div>
+    <div class="modal-actions">
+      <button class="btn primary" id="save-edit">保存</button>
+      <button class="btn" id="cancel-edit">取消</button>
+    </div>
+  </div>
+</div>
 {% endblock %}
