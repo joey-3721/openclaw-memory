@@ -3,12 +3,23 @@
 <section class="page-intro compact muted">
   <div>
     <h1>豆瓣发现</h1>
-    <p>先做一个可用的一版：支持电影 / 电视剧 / 综艺分类筛选、搜索、加入待看片库。后面再接真实豆瓣热门接口。</p>
+    <p>先把分类、搜索、加入待看片库和 Cookie 管理打通；真实豆瓣热门源正在接入中。</p>
   </div>
   <div class="page-intro-stats">
     <div class="intro-stat"><span>当前结果</span><strong>{{ items|length }}</strong></div>
     <div class="intro-stat"><span>分类</span><strong>{% if kind=='movie' %}电影{% elif kind=='tv' %}电视剧{% else %}综艺{% endif %}</strong></div>
   </div>
+</section>
+
+<section class="panel" style="max-width:1200px;margin:0 auto 20px;">
+  <div class="panel-header">
+    <div>
+      <h2>Douban Cookie</h2>
+      <div class="section-sub">当前状态：{% if douban_probe.ok %}✅ {{ douban_probe.message }}{% else %}⚠️ {{ douban_probe.message }}{% endif %}</div>
+    </div>
+    <button class="btn" id="open-cookie-modal">更新 Cookie</button>
+  </div>
+  <p style="color:var(--text-secondary);font-size:13px;line-height:1.7;">这版先把 Cookie 输入和状态探测做上。真实豆瓣热门与搜索源下一步会继续接进来；现在页面主体先用本地库做发现页底座，确保分类、筛选、加入待看流程已经可用。</p>
 </section>
 
 <section class="filter-bar">
@@ -71,6 +82,21 @@
   {% endif %}
 </div>
 
+<div class="modal" id="cookieModal" style="display:none">
+  <div class="modal-content">
+    <button class="modal-close" id="cookie-modal-close">✕</button>
+    <h3>更新 Douban Cookie</h3>
+    <div class="form-group">
+      <label>Cookie 内容</label>
+      <textarea id="douban-cookie-input" rows="6" placeholder="把浏览器里的 Douban Cookie 粘到这里"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn primary" id="save-cookie-btn">保存并探测</button>
+      <button class="btn" id="cancel-cookie-btn">取消</button>
+    </div>
+  </div>
+</div>
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
   document.querySelectorAll('.add-watchlist-btn').forEach(function(btn) {
@@ -83,6 +109,24 @@ document.addEventListener('DOMContentLoaded', function() {
           btn.classList.add('primary');
           if (window.showToast) showToast('已加入待看片库 🎬', 'success');
         });
+    });
+  });
+
+  var modal = document.getElementById('cookieModal');
+  document.getElementById('open-cookie-modal').addEventListener('click', function() {
+    modal.style.display = 'flex';
+  });
+  document.getElementById('cookie-modal-close').addEventListener('click', function() { modal.style.display = 'none'; });
+  document.getElementById('cancel-cookie-btn').addEventListener('click', function() { modal.style.display = 'none'; });
+  document.getElementById('save-cookie-btn').addEventListener('click', function() {
+    var cookie = document.getElementById('douban-cookie-input').value.trim();
+    fetch('/api/douban-cookie', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cookie: cookie })
+    }).then(function(r) { return r.json(); }).then(function(data) {
+      if (window.showToast) showToast(data.message || 'Cookie 已保存', data.ok ? 'success' : 'warn');
+      setTimeout(function() { location.reload(); }, 600);
     });
   });
 });

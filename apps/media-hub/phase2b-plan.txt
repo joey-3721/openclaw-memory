@@ -1,0 +1,5 @@
+Implement real Douban discovery source + cookie management.
+1. Add cookie config env/file support.
+2. Try regular Douban public endpoints/pages with cookie.
+3. If blocked, expose cookie form and show status.
+4. Wire /discover to source=remote/local fallback.

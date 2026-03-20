@@ -10,11 +10,16 @@ import hashlib
 from datetime import datetime, timedelta
 import os
 import re
+import json
 import requests
+import urllib.request
+from urllib.parse import quote
 
 BASE_DIR = Path(__file__).resolve().parent
 DB_PATH = Path(os.getenv('MEDIA_HUB_DB', str(BASE_DIR / 'douban_media.db')))
 COVERS_DIR = Path(os.getenv('MEDIA_HUB_COVERS_DIR', str(BASE_DIR / 'static' / 'covers')))
+CONFIG_DIR = Path(os.getenv('MEDIA_HUB_CONFIG_DIR', str(BASE_DIR / 'config')))
+COOKIE_PATH = CONFIG_DIR / 'douban_cookie.json'
 COVERS_DIR.mkdir(parents=True, exist_ok=True)
 
 app = FastAPI(title='Media Hub')
@@ -37,6 +42,42 @@ def ensure_schema(conn):
     if 'feedback_updated_at' not in cols:
         conn.execute('ALTER TABLE douban_watch_history ADD COLUMN feedback_updated_at TEXT')
     conn.commit()
+
+
+def read_douban_cookie():
+    try:
+        return json.loads(COOKIE_PATH.read_text()).get('cookie', '').strip()
+    except Exception:
+        return ''
+
+
+def write_douban_cookie(cookie: str):
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    COOKIE_PATH.write_text(json.dumps({'cookie': cookie.strip()}, ensure_ascii=False, indent=2))
+
+
+def douban_probe(cookie: str | None = None):
+    cookie = (cookie or read_douban_cookie()).strip()
+    if not cookie:
+        return {'ok': False, 'configured': False, 'message': '未配置 Douban Cookie'}
+    req = urllib.request.Request(
+        'https://movie.douban.com/subject/1292052/',
+        headers={
+            'User-Agent': 'Mozilla/5.0',
+            'Referer': 'https://movie.douban.com/',
+            'Cookie': cookie,
+        },
+    )
+    try:
+        html = urllib.request.urlopen(req, timeout=15).read().decode('utf-8', 'ignore')
+        blocked = '禁止访问' in html or '异常请求' in html
+        return {
+            'ok': not blocked,
+            'configured': True,
+            'message': 'Cookie 可用' if not blocked else 'Cookie 已配置，但 Douban 当前拒绝访问',
+        }
+    except Exception as e:
+        return {'ok': False, 'configured': True, 'message': f'探测失败：{e}'}
 
 
 def get_site_stats():
@@ -394,6 +435,16 @@ def build_library_items(conn, status='all', kind='all', q='', sort='date', limit
     return items
 
 
+@app.post('/api/douban-cookie', response_class=JSONResponse)
+async def save_douban_cookie(request: Request):
+    payload = await request.json()
+    cookie = (payload.get('cookie') or '').strip()
+    if not cookie:
+        raise HTTPException(400, 'cookie is required')
+    write_douban_cookie(cookie)
+    return douban_probe(cookie)
+
+
 @app.get('/discover', response_class=HTMLResponse)
 def discover(request: Request, kind: str = Query('movie'), q: str = Query(''), sort: str = Query('hot')):
     conn = get_conn()
@@ -430,6 +481,7 @@ def discover(request: Request, kind: str = Query('movie'), q: str = Query(''), s
         'kind': kind,
         'q': q,
         'sort': sort,
+        'douban_probe': douban_probe(),
         'site_stats': get_site_stats(),
     })
 
