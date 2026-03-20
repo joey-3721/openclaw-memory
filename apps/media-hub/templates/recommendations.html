@@ -18,8 +18,8 @@
               <h2 class="tonight-title">{{ today_pick.title }}</h2>
               {% if today_pick._first_genre %}<span class="rec-genre-chip" style="font-size:11px;padding:3px 10px">{{ today_pick._first_genre }}</span>{% endif %}
             </div>
-            <div class="tonight-meta">{{ today_pick.year }} · {{ today_pick.kind }} · 豆瓣 {{ today_pick.douban_rating or '-' }}</div>
-            {% if today_pick._stars %}<div class="tonight-stars">{{ today_pick._stars }} <span style="font-size:12px;color:var(--text-secondary)">豆瓣</span></div>{% endif %}
+            <div class="tonight-meta">{{ today_pick.year }} · {{ today_pick.kind }} · TMDB {{ today_pick.douban_rating or '-' }}</div>
+            {% if today_pick._stars %}<div class="tonight-stars">{{ today_pick._stars }} <span style="font-size:12px;color:var(--text-secondary)">TMDB</span></div>{% endif %}
           </div>
           <div class="rating-badge-lg">{{ today_pick.douban_rating or '-' }}</div>
         </div>
@@ -49,7 +49,7 @@
     <span class="filter-label">排序</span>
     <div class="sort-chips">
       <a class="sort-btn {% if sort=='score' %}active{% endif %}" href="/recommendations?sort=score" data-sort="score">匹配度</a>
-      <a class="sort-btn {% if sort=='rating' %}active{% endif %}" href="/recommendations?sort=rating" data-sort="rating">豆瓣评分</a>
+      <a class="sort-btn {% if sort=='rating' %}active{% endif %}" href="/recommendations?sort=rating" data-sort="rating">TMDB 口碑</a>
       <a class="sort-btn {% if sort=='year' %}active{% endif %}" href="/recommendations?sort=year" data-sort="year">最近年份</a>
       <a class="sort-btn {% if sort=='random' %}active{% endif %}" href="/recommendations?sort=random" data-sort="random">🎲 随机</a>
     </div>
@@ -89,7 +89,7 @@
       <div class="rec-meta-row">
         <span class="rec-year">{{ item.year }}</span>
         {% if item._stars %}
-        <span class="rec-stars" title="豆瓣评分 {{ item.douban_rating }}">{{ item._stars }}</span>
+        <span class="rec-stars" title="TMDB 口碑 {{ item.douban_rating }}">{{ item._stars }}</span>
         {% endif %}
         <span class="rec-my-stars" data-id="{{ item.subject_id }}" title="点击评分">
           {% if item.my_rating %}{{ '★' * item.my_rating }}{{ '☆' * (5 - item.my_rating) }}{% else %}☆☆☆☆☆{% endif %}
@@ -107,7 +107,7 @@
         {% if item.genres %}<div style="margin-bottom:4px">🏷️ {{ item.genres }}</div>{% endif %}
         {% if item.directors %}<div style="margin-bottom:4px">🎬 导演：{{ item.directors }}</div>{% endif %}
         {% if item.actors %}<div style="margin-bottom:4px">🎭 演员：{{ item.actors }}</div>{% endif %}
-        {% if item._stars %}<div style="margin-bottom:4px">⭐ 豆瓣评分：{{ item._stars }}（{{ item.douban_rating }}）</div>{% endif %}
+        {% if item._stars %}<div style="margin-bottom:4px">⭐ TMDB 口碑：{{ item._stars }}（{{ item.douban_rating }}）</div>{% endif %}
       </div>
       <div class="rec-actions">
         <button class="btn small expand-btn" data-id="{{ item.subject_id }}" title="展开详情">▾ 详情</button>

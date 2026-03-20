@@ -4,7 +4,7 @@
   <div class="hero-copy">
     <div class="eyebrow">你的私人影音中心</div>
     <h1>今日推荐</h1>
-    <p>基于你的豆瓣历史、评分、想看列表和口味画像推荐。</p>
+    <p>基于你的历史评分、评语、想看列表与口味画像，结合 TMDB 数据推荐。</p>
     <div class="actions">
       <a class="btn primary" href="/recommendations">看今日推荐</a>
       <a class="btn accent" href="/recommendations?sort=random">🎲 随机一部</a>
@@ -48,8 +48,8 @@
               <h2 class="tonight-title">{{ surprise.title }}</h2>
               {% if surprise._first_genre %}<span class="rec-genre-chip" style="font-size:11px;padding:3px 10px">{{ surprise._first_genre }}</span>{% endif %}
             </div>
-            <div class="tonight-meta">{{ surprise.year }} · {{ surprise.kind }} · 豆瓣 {{ surprise.douban_rating or '-' }}</div>
-            {% if surprise._stars %}<div class="tonight-stars">{{ surprise._stars }} <span style="font-size:12px;color:var(--text-secondary)">豆瓣</span></div>{% endif %}
+            <div class="tonight-meta">{{ surprise.year }} · {{ surprise.kind }} · TMDB {{ surprise.douban_rating or '-' }}</div>
+            {% if surprise._stars %}<div class="tonight-stars">{{ surprise._stars }} <span style="font-size:12px;color:var(--text-secondary)">TMDB</span></div>{% endif %}
           </div>
           <div class="rating-badge-lg">{{ surprise.douban_rating or '-' }}</div>
         </div>
@@ -119,7 +119,7 @@
           {% if item.genres %}<div style="margin-bottom:4px">🏷️ {{ item.genres }}</div>{% endif %}
           {% if item.directors %}<div style="margin-bottom:4px">🎬 导演：{{ item.directors }}</div>{% endif %}
           {% if item.actors %}<div style="margin-bottom:4px">🎭 演员：{{ item.actors }}</div>{% endif %}
-          {% if item._stars %}<div style="margin-bottom:4px">⭐ 豆瓣评分：{{ item._stars }}（{{ item.douban_rating }}）</div>{% endif %}
+          {% if item._stars %}<div style="margin-bottom:4px">⭐ TMDB 口碑：{{ item._stars }}（{{ item.douban_rating }}）</div>{% endif %}
         </div>
         <div class="rec-actions">
           <button class="btn small expand-btn" data-id="{{ item.subject_id }}" title="展开详情">▾ 详情</button>

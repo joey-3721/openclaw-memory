@@ -436,153 +436,140 @@ def split_multi(v):
     return [x.strip() for x in (v or '').split('/') if x.strip()]
 
 
+def split_tokens(v):
+    raw = str(v or '').strip()
+    if not raw:
+        return []
+    for sep in [' / ', '/', '·', '、', ',', '，']:
+        raw = raw.replace(sep, '|')
+    return [x.strip() for x in raw.split('|') if x.strip()]
+
+
 def load_profile(conn):
     rows = conn.execute('SELECT * FROM douban_watch_history WHERE status="collect" AND my_rating IS NOT NULL').fetchall()
-    high = [r for r in rows if r['my_rating'] >= 4]
+    high = [r for r in rows if (r['my_rating'] or 0) >= 4]
+    low = [r for r in rows if (r['my_rating'] or 0) <= 2]
     genre_counter = Counter()
     country_counter = Counter()
+    dislike_genres = Counter()
+    dislike_countries = Counter()
+    dislike_keywords = Counter()
+    liked_titles = set()
+    watched_titles = set()
+    low_rated_titles = set()
+    low_rated_franchises = set()
+    for r in rows:
+        title = str(r['title'] or '').strip()
+        if title:
+            watched_titles.add(normalize_title(title))
     for r in high:
-        genre_counter.update(split_multi(r['genres']))
-        country_counter.update(split_multi(r['countries']))
+        genre_counter.update(split_tokens(r['genres']))
+        country_counter.update(split_tokens(r['countries']))
+        if r['title']:
+            liked_titles.add(normalize_title(r['title']))
+    for r in low:
+        dislike_genres.update(split_tokens(r['genres']))
+        dislike_countries.update(split_tokens(r['countries']))
+        if r['title']:
+            norm = normalize_title(r['title'])
+            low_rated_titles.add(norm)
+            for token in ['哥斯拉','金刚','环太平洋','流浪地球','柯南','唐探','鱿鱼游戏']:
+                if token in (r['title'] or ''):
+                    low_rated_franchises.add(token)
+        for kw in ['看睡着','昏昏欲睡','催眠','太慢','墨迹','无聊','不吸引','尴尬','不知所云','磨磨叽叽']:
+            if kw in str(r['comment'] or ''):
+                dislike_keywords[kw] += 1
     directors = Counter()
     actors = Counter()
-    for r in high[:30]:
-        directors.update(split_multi(r['directors']))
-        actors.update(split_multi(r['actors']))
+    for r in high[:40]:
+        directors.update(split_tokens(r['directors']))
+        actors.update(split_tokens(r['actors']))
     return {
         'rated_count': len(rows),
         'high_rated_count': len(high),
-        'top_genres': genre_counter.most_common(8),
-        'top_countries': country_counter.most_common(6),
-        'top_directors': [d for d, _ in directors.most_common(5)],
-        'top_actors': [a for a, _ in actors.most_common(8)],
+        'top_genres': genre_counter.most_common(10),
+        'top_countries': country_counter.most_common(8),
+        'top_directors': [d for d, _ in directors.most_common(6)],
+        'top_actors': [a for a, _ in actors.most_common(10)],
+        'dislike_genres': dislike_genres,
+        'dislike_countries': dislike_countries,
+        'dislike_keywords': dislike_keywords,
+        'watched_titles': watched_titles,
+        'liked_titles': liked_titles,
+        'low_rated_titles': low_rated_titles,
+        'low_rated_franchises': low_rated_franchises,
     }
 
 
 def make_recommendation_reason(item, profile, high_rated=None):
-    """Generate a human-readable reason why this item was recommended.
-    
-    Args:
-        item: the candidate item dict
-        profile: user taste profile dict
-        high_rated: optional list of user's highly-rated items (dicts) for richer context
-    """
     reasons = []
-    genres = split_multi(item['genres'])
-    countries = split_multi(item['countries'])
-    directors = split_multi(item['directors'])
-    actors = split_multi(item['actors'])
-
-    # Genre match
+    title = item.get('title') or '这部'
+    genres = split_tokens(item.get('genres'))
+    countries = split_tokens(item.get('countries'))
+    summary = str(item.get('summary') or item.get('intro') or '').strip()
     profile_genres = {g for g, _ in profile['top_genres']}
     matched_genres = [g for g in genres if g in profile_genres]
+    if summary:
+        hook = summary[:68].rstrip('，。；;、 ')
+        reasons.append(f'它最抓人的不是设定，而是{hook}')
     if matched_genres:
-        genre_str = '/'.join(matched_genres[:2])
-        # Count how many highly-rated items share this genre
-        if high_rated:
-            genre_count = sum(1 for r in high_rated if any(g in profile_genres for g in split_multi(r.get('genres') or '')))
-            if genre_count >= 3:
-                reasons.append(f"「{genre_str}」是你最高频给高分的题材（共{genre_count}部）")
-            else:
-                reasons.append(f"你喜欢的「{genre_str}」")
-        else:
-            reasons.append(f"你喜欢的「{genre_str}」")
-
-    # Country match
-    profile_countries = {c for c, _ in profile['top_countries']}
-    matched_countries = [c for c in countries if c in profile_countries]
-    if matched_countries:
-        reasons.append(f"产地「{'/'.join(matched_countries[:2])}」与你常看的一致")
-
-    # Director match with personal rating context
-    if any(d in profile['top_directors'] for d in directors):
-        matched_dir = next((d for d in directors if d in profile['top_directors']), None)
-        if matched_dir:
-            # Find how user rated this director's works
-            if high_rated:
-                dir_rated = [r for r in high_rated if matched_dir in split_multi(r.get('directors') or '')]
-                if dir_rated:
-                    top = max(r.get('my_rating') or 0 for r in dir_rated)
-                    reasons.append(f"导演{matched_dir}的作品你曾给 top{top} 分")
-                else:
-                    reasons.append(f"导演{matched_dir}的作品你给分很高")
-            else:
-                reasons.append(f"导演{matched_dir}的作品你给分很高")
-
-    # Actor match
-    matched_actors = [a for a in actors if a in profile['top_actors']]
-    if len(matched_actors) >= 2:
-        reasons.append(f"演员{matched_actors[0]}等是你熟悉的")
-    elif len(matched_actors) == 1:
-        reasons.append(f"有你眼熟的演员{matched_actors[0]}")
-
-    # High rating on Douban
-    if item['douban_rating'] and item['douban_rating'] >= 9.0:
-        reasons.append(f"豆瓣 {item['douban_rating']} 分，超级口碑")
-    elif item['douban_rating'] and item['douban_rating'] >= 8.5:
-        reasons.append(f"豆瓣 {item['douban_rating']} 分，口碑扎实")
-    elif item['douban_rating'] and item['douban_rating'] >= 8.0:
-        reasons.append(f"豆瓣 {item['douban_rating']} 分，值得一看")
-
-    # Year freshness for older items
-    try:
-        year = int(str(item.get('year') or 0)[:4])
-        if year and year < 2000 and item.get('douban_rating'):
-            reasons.append(f"{year}年经典老片，豆瓣仍有{item['douban_rating']}分")
-    except:
-        pass
-
+        reasons.append(f"你更容易吃「{' / '.join(matched_genres[:2])}」这类题材")
+    if countries:
+        profile_countries = {c for c, _ in profile['top_countries']}
+        matched_countries = [c for c in countries if c in profile_countries]
+        if matched_countries:
+            reasons.append(f"产地「{' / '.join(matched_countries[:2])}」和你常看的重合")
+    if item.get('douban_rating'):
+        reasons.append(f"TMDB 口碑 {item.get('douban_rating')}，不是纯噱头型片单")
     if not reasons:
-        reasons.append(f"整体气质与你的观影偏好较为接近")
-
+        reasons.append('它的剧情推进和你的高分片偏好更接近，不是那种容易把你看困的类型')
     return '；'.join(reasons) + '。'
 
 
-def recommendation_candidates(conn, limit=30):
-    rows = conn.execute('SELECT * FROM douban_watch_history').fetchall()
-    high = [r for r in rows if r['status'] == 'collect' and r['my_rating'] is not None and r['my_rating'] >= 4]
-    liked = [r for r in rows if r['recommend_feedback'] == 'like']
-    disliked = [r for r in rows if r['recommend_feedback'] == 'dislike']
-    wish = [r for r in rows if r['status'] == 'wish' and r['recommend_feedback'] != 'dislike']
-    genre_counter = Counter(); country_counter = Counter(); kind_counter = Counter(); director_counter = Counter(); actor_counter = Counter()
-    dislike_genres = Counter(); dislike_countries = Counter(); dislike_directors = Counter(); dislike_actors = Counter()
-    for r in high + liked:
-        genre_counter.update(split_multi(r['genres']))
-        country_counter.update(split_multi(r['countries']))
-        kind_counter.update([r['kind'] or 'unknown'])
-        director_counter.update(split_multi(r['directors']))
-        actor_counter.update(split_multi(r['actors']))
-    for r in disliked:
-        dislike_genres.update(split_multi(r['genres']))
-        dislike_countries.update(split_multi(r['countries']))
-        dislike_directors.update(split_multi(r['directors']))
-        dislike_actors.update(split_multi(r['actors']))
-    ranked = []
-    for r in wish:
-        release_year = None
-        if r['release_dates']:
-            try:
-                release_year = int(str(r['release_dates'])[:4])
-            except:
-                pass
-        if release_year and release_year > 2026:
-            continue
-
-        score = (r['douban_rating'] or 0) * 0.8
-        score += sum(genre_counter[g] for g in split_multi(r['genres'])) * 0.45
-        score += sum(country_counter[c] for c in split_multi(r['countries'])) * 0.30
-        score += kind_counter[r['kind'] or 'unknown'] * 0.5
-        score += sum(director_counter[d] for d in split_multi(r['directors'])) * 0.55
-        score += sum(actor_counter[a] for a in split_multi(r['actors'])) * 0.22
-        score -= sum(dislike_genres[g] for g in split_multi(r['genres'])) * 0.65
-        score -= sum(dislike_countries[c] for c in split_multi(r['countries'])) * 0.40
-        score -= sum(dislike_directors[d] for d in split_multi(r['directors'])) * 0.75
-        score -= sum(dislike_actors[a] for a in split_multi(r['actors'])) * 0.18
-        if r['kind'] == 'movie':
-            score += 1.0
-        ranked.append((score, r))
-    ranked.sort(key=lambda x: x[0], reverse=True)
-    return [r for _, r in ranked[:limit]]
+def tmdb_recommendation_candidates(conn, limit=20):
+    profile = load_profile(conn)
+    candidates = []
+    plans = [
+        ('movie', 'popularity', 'US', ''), ('movie', 'rating', 'US', ''),
+        ('movie', 'popularity', 'KR', ''), ('movie', 'rating', 'JP', ''),
+        ('tv', 'popularity', 'US', ''), ('tv', 'rating', 'KR', ''),
+        ('tv', 'rating', 'JP', ''), ('tv', 'trending', 'US', ''),
+        ('tv', 'popularity', 'KR', '悬疑'), ('movie', 'rating', 'US', '犯罪'),
+    ]
+    seen = set()
+    for kind, sort, region, genre in plans:
+        try:
+            result = tmdb_discover(kind=kind, sort=sort, region=region, genre=genre, page=1, limit=20)
+            items = result.get('items') or []
+        except Exception:
+            items = []
+        for item in items:
+            norm = normalize_title(item.get('title') or '')
+            if not norm or norm in seen:
+                continue
+            seen.add(norm)
+            if norm in profile['watched_titles']:
+                continue
+            title = item.get('title') or ''
+            if any(token in title for token in profile['low_rated_franchises']):
+                continue
+            score = (item.get('douban_rating') or 0) * 0.9
+            score += sum(cnt for g, cnt in profile['top_genres'] if g in split_tokens(item.get('genres'))) * 0.18
+            score += sum(cnt for c, cnt in profile['top_countries'] if c in split_tokens(item.get('countries'))) * 0.14
+            score -= sum(profile['dislike_genres'].get(g, 0) for g in split_tokens(item.get('genres'))) * 0.22
+            score -= sum(profile['dislike_countries'].get(c, 0) for c in split_tokens(item.get('countries'))) * 0.12
+            summary = str(item.get('summary') or item.get('intro') or '')
+            if any(kw in summary for kw in ['慢热','家庭琐事','温吞']):
+                score -= 1.2
+            item['_score'] = score
+            item['_reason'] = make_recommendation_reason(item, profile)
+            item['_cover_style'] = cover_style(item)
+            item['_cover_url'] = cover_url(item)
+            item['_stars'] = rating_stars(item.get('douban_rating'))
+            item['_first_genre'] = first_genre(item)
+            candidates.append(item)
+    candidates.sort(key=lambda x: x.get('_score', 0), reverse=True)
+    return candidates[:limit]
 
 
 def cover_style(item):
@@ -1006,31 +993,7 @@ def library(request: Request, status: str = Query('collect'), kind: str = Query(
 @app.get('/recommendations', response_class=HTMLResponse)
 def recommendations(request: Request, sort: str = Query('score')):
     conn = get_conn()
-    profile = load_profile(conn)
-    recs = recommendation_candidates(conn, limit=60)
-    high_rated = [dict(r) for r in conn.execute(
-        'SELECT * FROM douban_watch_history WHERE status="collect" AND my_rating >= 4'
-    ).fetchall()]
-    # Attach reasons and scores
-    recs_with_reason = []
-    for r in recs:
-        rec = dict(r)
-        rec['_reason'] = make_recommendation_reason(r, profile, high_rated)
-        rec['_cover_style'] = cover_style(r)
-        rec['_cover_url'] = cover_url(r)
-        rec['_stars'] = rating_stars(rec.get('douban_rating'))
-        rec['_first_genre'] = first_genre(rec)
-        # Compute match score
-        genre_counter = Counter(g for g, _ in profile['top_genres'])
-        country_counter = Counter(c for c, _ in profile['top_countries'])
-        rec['_score'] = (
-            (rec['douban_rating'] or 0) * 0.8 +
-            sum(genre_counter[g] for g in split_multi(rec['genres'])) * 0.35 +
-            sum(country_counter[c] for c in split_multi(rec['countries'])) * 0.25
-        )
-        recs_with_reason.append(rec)
-
-    # Sort
+    recs_with_reason = tmdb_recommendation_candidates(conn, limit=20)
     if sort == 'rating':
         recs_with_reason.sort(key=lambda x: x.get('douban_rating') or 0, reverse=True)
     elif sort == 'year':
@@ -1038,11 +1001,8 @@ def recommendations(request: Request, sort: str = Query('score')):
     elif sort == 'random':
         random.shuffle(recs_with_reason)
     else:
-        recs_with_reason.sort(key=lambda x: x['_score'], reverse=True)
-
-    recs_with_reason = recs_with_reason[:24]
-    # tonight pick: random from top-10 (true daily surprise, distinct from ranked list)
-    tonight_pick = random.choice(recs_with_reason[:10]) if len(recs_with_reason) >= 10 else (recs_with_reason[0] if recs_with_reason else None)
+        recs_with_reason.sort(key=lambda x: x.get('_score') or 0, reverse=True)
+    tonight_pick = random.choice(recs_with_reason[:8]) if len(recs_with_reason) >= 8 else (recs_with_reason[0] if recs_with_reason else None)
     return templates.TemplateResponse('recommendations.html', {
         'request': request,
         'recs': recs_with_reason,
