@@ -37,21 +37,28 @@
     <a class="filter-chip {% if region=='TH' %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort={{ sort }}&region=TH&year={{ year }}">🇹🇭 泰国</a>
   </div>
   {# 题材 #}
-  <div class="filter-group">
-    <span class="filter-label">题材</span>
-    <a class="filter-chip {% if not genre %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort={{ sort }}&region={{ region }}&year={{ year }}&genre=">全部</a>
-    {% for label, gid in top_genres %}
-    <a class="filter-chip {% if genre==label %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort={{ sort }}&region={{ region }}&year={{ year }}&genre={{ label }}">{{ label }}</a>
-    {% endfor %}
-    <button class="filter-chip" id="show-more-genres" onclick="document.getElementById('extra-genres').style.display='flex';this.style.display='none';this.nextElementSibling.style.display='flex';">更多 ▾</button>
-    <span id="hide-extra-genres" style="display:none">
-    {% for label, gid in extra_genres %}
-    <a class="filter-chip {% if genre==label %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort={{ sort }}&region={{ region }}&year={{ year }}&genre={{ label }}">{{ label }}</a>
-    {% endfor %}
-    <button class="filter-chip" onclick="document.getElementById('extra-genres').style.display='none';document.getElementById('show-more-genres').style.display='inline-flex';this.parentElement.style.display='none';">收起 ▴</button>
-    </span>
+  <div class="filter-group" style="width:100%;align-items:flex-start;">
+    <span class="filter-label" style="margin-top:6px;">题材</span>
+    <div style="display:flex;flex-direction:column;gap:8px;flex:1;min-width:0;">
+      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+        <a class="filter-chip {% if not genre %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort={{ sort }}&region={{ region }}&year={{ year }}&genre=">全部</a>
+        {% for label, gid in top_genres %}
+        <a class="filter-chip {% if genre==label %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort={{ sort }}&region={{ region }}&year={{ year }}&genre={{ label }}">{{ label }}</a>
+        {% endfor %}
+        {% if extra_genres %}
+        <button type="button" class="filter-chip" id="show-more-genres">更多 ▾</button>
+        {% endif %}
+      </div>
+      {% if extra_genres %}
+      <div id="extra-genres" style="display:none;flex-wrap:wrap;gap:8px;">
+        {% for label, gid in extra_genres %}
+        <a class="filter-chip {% if genre==label %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort={{ sort }}&region={{ region }}&year={{ year }}&genre={{ label }}">{{ label }}</a>
+        {% endfor %}
+        <button type="button" class="filter-chip" id="hide-extra-genres">收起 ▴</button>
+      </div>
+      {% endif %}
+    </div>
   </div>
-  <div class="filter-group" id="extra-genres" style="display:none;flex-wrap:wrap;">
   {# 年份 #}
   <div class="filter-group">
     <span class="filter-label">年份</span>
@@ -343,6 +350,23 @@ document.addEventListener('DOMContentLoaded', function() {
         setTimeout(function() { location.reload(); }, 800);
       });
   });
+});
+</script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  var showBtn = document.getElementById('show-more-genres');
+  var hideBtn = document.getElementById('hide-extra-genres');
+  var extra = document.getElementById('extra-genres');
+  if (showBtn && hideBtn && extra) {
+    showBtn.addEventListener('click', function() {
+      extra.style.display = 'flex';
+      showBtn.style.display = 'none';
+    });
+    hideBtn.addEventListener('click', function() {
+      extra.style.display = 'none';
+      showBtn.style.display = 'inline-flex';
+    });
+  }
 });
 </script>
 {% endblock %}
