@@ -36,8 +36,21 @@ def get_site_stats():
     c.execute('SELECT ROUND(AVG(douban_rating),1) FROM douban_watch_history WHERE status="collect" AND douban_rating IS NOT NULL')
     row = c.fetchone()
     avg_rating = row[0] if row else None
+    # Rating distribution (my_rating: 1-5)
+    dist_rows = c.execute('''
+        SELECT my_rating, COUNT(*) FROM douban_watch_history
+        WHERE my_rating IS NOT NULL GROUP BY my_rating ORDER BY my_rating DESC
+    ''').fetchall()
+    rating_dist = []
+    max_count = max((r[1] for r in dist_rows), default=1)
+    for label, count in dist_rows:
+        rating_dist.append({
+            'label': str(label) + '★',
+            'count': count,
+            'pct': round(count / max_count * 100)
+        })
     conn.close()
-    return {'total': total, 'watched': watched, 'wish': wish, 'avg_rating': avg_rating}
+    return {'total': total, 'watched': watched, 'wish': wish, 'avg_rating': avg_rating, 'rating_dist': rating_dist}
 
 
 def split_multi(v):

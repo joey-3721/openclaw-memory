@@ -202,6 +202,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 card.classList.add('watched');
               }
+              if (window.showToast) showToast('已标记为看过 🎉', 'success');
             } else {
               btn.textContent = '再看 ' + data.watch_count + '次 ✓';
               var card2 = document.querySelector('.rec-card[data-subject="' + id + '"]');
@@ -214,6 +215,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 newBadge.textContent = '🔁 ' + data.watch_count + '次';
                 card2.querySelector('.rec-cover').appendChild(newBadge);
               }
+              if (window.showToast) showToast('观看次数 +1 🔁', 'success');
             }
           }
         })
@@ -242,7 +244,9 @@ document.addEventListener('DOMContentLoaded', function() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ my_rating: newRating })
-      }).then(function(r) { return r.json(); });
+      }).then(function(r) { return r.json(); }).then(function() {
+        if (window.showToast) showToast('评分 ' + newRating + '★ 已保存 ✨', 'success');
+      });
     });
   });
 
@@ -288,7 +292,8 @@ document.addEventListener('DOMContentLoaded', function() {
       .then(function(r) { return r.json(); })
       .then(function() {
         document.getElementById('editModal').style.display = 'none';
-        location.reload();
+        if (window.showToast) showToast('保存成功 ✨', 'success');
+        setTimeout(function() { location.reload(); }, 600);
       });
   });
 });

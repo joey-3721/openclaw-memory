@@ -26,9 +26,23 @@
       <div class="footer-stat"><span>想看</span><strong>{{ site_stats.wish }}</strong>部</div>
       {% if site_stats.avg_rating %}<div class="footer-stat"><span>均分</span><strong>{{ site_stats.avg_rating }}</strong></div>{% endif %}
     </div>
+    {% if site_stats.rating_dist %}
+    <div class="rating-dist">
+      <div class="rating-dist-title">我的评分分布</div>
+      {% for row in site_stats.rating_dist %}
+      <div class="rating-dist-row">
+        <span class="rating-dist-label">{{ row.label }}</span>
+        <div class="rating-dist-bar-bg"><div class="rating-dist-bar" style="width:{{ row.pct }}%"></div></div>
+        <span class="rating-dist-count">{{ row.count }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
     <span class="footer-brand">🎬 Media Hub</span>
   </footer>
   {% endif %}
+
+<div id="toast-container"></div>
 <script>
 (function() {
   var btn = document.getElementById('backToTop');
@@ -41,6 +55,23 @@
       window.scrollTo({ top: 0, behavior: 'smooth' });
     });
   }
+
+  // ── Toast System ──
+  window._toastTimer = null;
+  window.showToast = function(msg, type, icon) {
+    type = type || 'success';
+    icon = icon || (type === 'success' ? '✅' : type === 'warn' ? '⚠️' : '❌');
+    var container = document.getElementById('toast-container');
+    var toast = document.createElement('div');
+    toast.className = 'toast toast-' + type;
+    toast.innerHTML = '<span class="toast-icon">' + icon + '</span><span class="toast-msg">' + msg + '</span>';
+    container.appendChild(toast);
+    clearTimeout(window._toastTimer);
+    window._toastTimer = setTimeout(function() {
+      toast.classList.add('removing');
+      setTimeout(function() { toast.remove(); }, 220);
+    }, 2800);
+  };
 })();
 </script>
 </body>

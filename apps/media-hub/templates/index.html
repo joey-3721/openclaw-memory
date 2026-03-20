@@ -193,6 +193,7 @@ document.addEventListener('DOMContentLoaded', function() {
                   cover.appendChild(overlay);
                 }
               }
+              if (window.showToast) showToast('已标记为看过 🎉', 'success');
             } else {
               btn.textContent = '再看 ' + data.watch_count + '次 ✓';
               // Update watch count badge on compact card
@@ -208,6 +209,7 @@ document.addEventListener('DOMContentLoaded', function() {
                   card2.querySelector('.rec-cover').appendChild(newBadge);
                 }
               }
+              if (window.showToast) showToast('观看次数 +1 🔁', 'success');
             }
           }
         }).catch(function(e) { console.error(e); });
@@ -245,6 +247,8 @@ document.addEventListener('DOMContentLoaded', function() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ my_rating: newRating })
+      }).then(function() {
+        if (window.showToast) showToast('评分 ' + newRating + '★ 已保存 ✨', 'success');
       });
     });
   });

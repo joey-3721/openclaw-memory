@@ -167,6 +167,8 @@ document.addEventListener('DOMContentLoaded', function() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ my_rating: newRating })
+      }).then(function() {
+        if (window.showToast) showToast('评分 ' + newRating + '★ 已保存 ✨', 'success');
       });
     });
   });
@@ -194,8 +196,10 @@ document.addEventListener('DOMContentLoaded', function() {
                   cover.appendChild(overlay);
                 }
               }
+              if (window.showToast) showToast('已标记为看过 🎉', 'success');
             } else {
               btn.textContent = '再看 ' + data.watch_count + '次';
+              if (window.showToast) showToast('观看次数 +1 🔁', 'success');
             }
           }
         });
@@ -252,7 +256,8 @@ document.addEventListener('DOMContentLoaded', function() {
       body: JSON.stringify(payload)
     }).then(function() {
       document.getElementById('editModal').style.display = 'none';
-      location.reload();
+      if (window.showToast) showToast('保存成功 ✨', 'success');
+      setTimeout(function() { location.reload(); }, 600);
     });
   });
 });
