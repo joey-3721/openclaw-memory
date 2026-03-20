@@ -463,12 +463,20 @@ def update_rating(subject_id: str, my_rating: int = None, comment: str = None, w
 
 
 @app.post('/api/edit/{subject_id}', response_class=JSONResponse)
-def edit_item(subject_id: str, my_rating: int = None, comment: str = None, watched_date: str = None, watch_count: int = None, cover_url: str = None):
-    """Edit an item: rating, comment, watched date, watch count, cover_url. Marks source as user-edited."""
+async def edit_item(subject_id: str, request: Request):
+    """Edit an item from JSON body: rating, comment, watched date, watch count, cover_url."""
     conn = get_conn()
     item = conn.execute('SELECT * FROM douban_watch_history WHERE subject_id=?', (subject_id,)).fetchone()
     if not item:
         raise HTTPException(404, 'Item not found')
+
+    payload = await request.json()
+    my_rating = payload.get('my_rating')
+    comment = payload.get('comment')
+    watched_date = payload.get('watched_date')
+    watch_count = payload.get('watch_count')
+    cover_url = payload.get('cover_url')
+
     if my_rating is not None:
         conn.execute('UPDATE douban_watch_history SET my_rating=?, rating_source="user" WHERE subject_id=?', (my_rating, subject_id))
     if comment is not None:
@@ -479,6 +487,8 @@ def edit_item(subject_id: str, my_rating: int = None, comment: str = None, watch
         conn.execute('UPDATE douban_watch_history SET watch_count=? WHERE subject_id=?', (watch_count, subject_id))
     if cover_url is not None:
         conn.execute('UPDATE douban_watch_history SET cover_url=? WHERE subject_id=?', (cover_url, subject_id))
+
     conn.commit()
     updated = conn.execute('SELECT * FROM douban_watch_history WHERE subject_id=?', (subject_id,)).fetchone()
+    conn.close()
     return dict(updated)
