@@ -1,10 +1,9 @@
 {% extends 'base.html' %}
 {% block content %}
-<section class="page-intro compact">
+<section class="page-intro compact muted">
   <div>
-    <div class="page-kicker">LIBRARY</div>
     <h1>影视库</h1>
-    <p>共 {{ items|length }} 条记录，按状态、类型和排序快速筛。</p>
+    <p>共 {{ items|length }} 条记录，按状态、类型和排序快速筛选。</p>
   </div>
   <div class="page-intro-stats">
     <div class="intro-stat"><span>当前结果</span><strong>{{ items|length }}</strong></div>

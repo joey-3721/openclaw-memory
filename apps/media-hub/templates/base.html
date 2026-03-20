@@ -9,46 +9,63 @@
 </head>
 <body>
   <button class="back-to-top" id="backToTop" title="回到顶部">↑</button>
-  <header class="topbar">
-    <div class="topbar-inner">
-      <a class="brand" href="/">
+  <button class="sidebar-toggle" id="sidebarToggle" aria-label="打开导航">☰</button>
+
+  <div class="app-shell" id="appShell">
+    <aside class="sidebar" id="sidebar">
+      <a class="brand brand-sidebar" href="/">
         <span class="brand-mark">影</span>
         <span class="brand-copy">
           <strong>Media Hub</strong>
           <em>私人影视库</em>
         </span>
       </a>
-      <nav class="topnav">
+
+      <nav class="sidebar-nav">
         <a href="/" class="nav-link {% if request and request.url.path == '/' %}active{% endif %}">首页</a>
         <a href="/library" class="nav-link {% if request and request.url.path.startswith('/library') %}active{% endif %}">影视库</a>
         <a href="/recommendations" class="nav-link {% if request and request.url.path.startswith('/recommendations') %}active{% endif %}">推荐</a>
       </nav>
-    </div>
-  </header>
-  <main class="container">{% block content %}{% endblock %}</main>
-  {% if site_stats %}
-  <footer class="site-footer">
-    <div class="footer-stats">
-      <div class="footer-stat"><span>影视库</span><strong>{{ site_stats.total }}</strong>部</div>
-      <div class="footer-stat"><span>已看</span><strong>{{ site_stats.watched }}</strong>部</div>
-      <div class="footer-stat"><span>想看</span><strong>{{ site_stats.wish }}</strong>部</div>
-      {% if site_stats.avg_rating %}<div class="footer-stat"><span>均分</span><strong>{{ site_stats.avg_rating }}</strong></div>{% endif %}
-    </div>
-    {% if site_stats.rating_dist %}
-    <div class="rating-dist">
-      <div class="rating-dist-title">我的评分分布</div>
-      {% for row in site_stats.rating_dist %}
-      <div class="rating-dist-row">
-        <span class="rating-dist-label">{{ row.label }}</span>
-        <div class="rating-dist-bar-bg"><div class="rating-dist-bar" style="width:{{ row.pct }}%"></div></div>
-        <span class="rating-dist-count">{{ row.count }}</span>
+
+      {% if site_stats %}
+      <div class="sidebar-meta">
+        <div class="sidebar-meta-title">概览</div>
+        <div class="sidebar-stat-row"><span>全部</span><strong>{{ site_stats.total }}</strong></div>
+        <div class="sidebar-stat-row"><span>已看</span><strong>{{ site_stats.watched }}</strong></div>
+        <div class="sidebar-stat-row"><span>想看</span><strong>{{ site_stats.wish }}</strong></div>
       </div>
-      {% endfor %}
-    </div>
-    {% endif %}
-    <span class="footer-brand">🎬 Media Hub</span>
-  </footer>
-  {% endif %}
+      {% endif %}
+    </aside>
+
+    <div class="shell-overlay" id="shellOverlay"></div>
+
+    <main class="main-panel">
+      <div class="container">{% block content %}{% endblock %}</div>
+
+      {% if site_stats %}
+      <footer class="site-footer">
+        <div class="footer-stats">
+          <div class="footer-stat"><span>影视库</span><strong>{{ site_stats.total }}</strong>部</div>
+          <div class="footer-stat"><span>已看</span><strong>{{ site_stats.watched }}</strong>部</div>
+          <div class="footer-stat"><span>想看</span><strong>{{ site_stats.wish }}</strong>部</div>
+          {% if site_stats.avg_rating %}<div class="footer-stat"><span>均分</span><strong>{{ site_stats.avg_rating }}</strong></div>{% endif %}
+        </div>
+        {% if site_stats.rating_dist %}
+        <div class="rating-dist">
+          <div class="rating-dist-title">我的评分分布</div>
+          {% for row in site_stats.rating_dist %}
+          <div class="rating-dist-row">
+            <span class="rating-dist-label">{{ row.label }}</span>
+            <div class="rating-dist-bar-bg"><div class="rating-dist-bar" style="width:{{ row.pct }}%"></div></div>
+            <span class="rating-dist-count">{{ row.count }}</span>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </footer>
+      {% endif %}
+    </main>
+  </div>
 
 <div id="toast-container"></div>
 <script>
@@ -63,6 +80,17 @@
       window.scrollTo({ top: 0, behavior: 'smooth' });
     });
   }
+
+  var sidebar = document.getElementById('sidebar');
+  var overlay = document.getElementById('shellOverlay');
+  var toggle = document.getElementById('sidebarToggle');
+  function closeSidebar() {
+    document.body.classList.remove('sidebar-open');
+  }
+  if (toggle) toggle.addEventListener('click', function() {
+    document.body.classList.toggle('sidebar-open');
+  });
+  if (overlay) overlay.addEventListener('click', closeSidebar);
 
   // ── Toast System ──
   window._toastTimer = null;
