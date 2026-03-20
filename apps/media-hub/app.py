@@ -1121,20 +1121,26 @@ def set_feedback(subject_id: str, feedback: str = Query(...)):
 
 @app.post('/api/watch/{subject_id}', response_class=JSONResponse)
 def mark_watched(subject_id: str):
-    """Mark an item as watched, or re-watch if already watched."""
+    """Toggle watch status: wish -> collect, collect -> wish (undo misclick)."""
     conn = get_conn()
     item = conn.execute('SELECT * FROM douban_watch_history WHERE subject_id=?', (subject_id,)).fetchone()
     if not item:
         raise HTTPException(404, 'Item not found')
     now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     current_count = (item['watch_count'] or 1)
-    # If user is marking as watched via this button, record it as a watch action
+    if item['status'] == 'collect':
+        conn.execute(
+            'UPDATE douban_watch_history SET status="wish" WHERE subject_id=?',
+            (subject_id,)
+        )
+        conn.commit()
+        return {'ok': True, 'subject_id': subject_id, 'status': 'wish'}
     conn.execute(
         'UPDATE douban_watch_history SET status="collect", watched_date=?, watch_count=? WHERE subject_id=?',
         (now, max(current_count, 1), subject_id)
     )
     conn.commit()
-    return {'ok': True, 'subject_id': subject_id, 'watched_date': now, 'watch_count': max(current_count, 1)}
+    return {'ok': True, 'subject_id': subject_id, 'status': 'collect', 'watched_date': now, 'watch_count': max(current_count, 1)}
 
 
 @app.post('/api/rewatch/{subject_id}', response_class=JSONResponse)
@@ -1231,44 +1237,61 @@ def api_library_search(q: str = Query(''), limit: int = Query(10)):
 
 @app.post('/api/merge', response_class=JSONResponse)
 async def api_merge(request: Request):
-    """Merge two local items: target keeps user data (rating/comment), source TMDB data fills gaps.
-    Deletes the source row. target_subject_id wins."""
+    """Merge a discover/TMDB item into an existing local item.
+    Target keeps user rating/comment; TMDB metadata overlays target. If source exists locally, delete it."""
     payload = await request.json()
-    source_id = payload.get('source_subject_id')   # TMDB item being merged in
-    target_id = payload.get('target_subject_id')  # existing local item to keep
+    source_id = payload.get('source_subject_id')
+    target_id = payload.get('target_subject_id')
 
     if not source_id or not target_id:
         raise HTTPException(400, 'source_subject_id and target_subject_id required')
 
     conn = get_conn()
-    source = conn.execute('SELECT * FROM douban_watch_history WHERE subject_id=?', (source_id,)).fetchone()
+    source_row = conn.execute('SELECT * FROM douban_watch_history WHERE subject_id=?', (source_id,)).fetchone()
     target = conn.execute('SELECT * FROM douban_watch_history WHERE subject_id=?', (target_id,)).fetchone()
 
-    if not source or not target:
-        raise HTTPException(404, 'One or both items not found')
+    if not target:
+        raise HTTPException(404, 'Target item not found')
 
-    # Extract tmdb_id from source if it has one
-    source_tmdb_id = source.get('tmdb_id') or (source_id.split(':')[-1] if source_id.startswith('tmdb:') else '')
+    source = dict(source_row) if source_row else {
+        'subject_id': source_id,
+        'tmdb_id': payload.get('tmdb_id') or (source_id.split(':')[-1] if str(source_id).startswith('tmdb:') else ''),
+        'title': payload.get('title'),
+        'kind': payload.get('kind'),
+        'year': payload.get('year'),
+        'url': payload.get('url'),
+        'intro': payload.get('intro'),
+        'summary': payload.get('summary'),
+        'genres': payload.get('genres') or '',
+        'douban_rating': payload.get('douban_rating'),
+        'douban_rating_count': payload.get('douban_rating_count'),
+        'cover_url': payload.get('cover_url')
+    }
 
-    # Build merged record: keep target's user fields, fill gaps from source
     updates = {}
     for field in ['tmdb_id', 'title', 'kind', 'year', 'url', 'intro', 'summary',
                   'genres', 'douban_rating', 'douban_rating_count', 'cover_url']:
-        if not target.get(field) and source.get(field):
+        if source.get(field):
             updates[field] = source.get(field)
-    # Ensure tmdb_id is set if source has it
-    if source_tmdb_id and not target.get('tmdb_id'):
-        updates['tmdb_id'] = source_tmdb_id
+    updates['status'] = 'collect'
+    if not target['watched_date']:
+        updates['watched_date'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-    if updates:
-        set_clause = ', '.join(f'{k}=?' for k in updates.keys())
-        conn.execute(
-            f'UPDATE douban_watch_history SET {set_clause} WHERE subject_id=?',
-            list(updates.values()) + [target_id]
-        )
+    if updates.get('cover_url') and str(updates['cover_url']).startswith('http'):
+        try:
+            updates['cover_url'] = download_cover_to_local(updates['cover_url'], target_id)
+        except Exception:
+            updates['cover_url'] = normalize_cover_url(updates['cover_url'])
 
-    # Delete source
-    conn.execute('DELETE FROM douban_watch_history WHERE subject_id=?', (source_id,))
+    set_clause = ', '.join(f'{k}=?' for k in updates.keys())
+    conn.execute(
+        f'UPDATE douban_watch_history SET {set_clause} WHERE subject_id=?',
+        list(updates.values()) + [target_id]
+    )
+
+    if source_row and source_id != target_id:
+        conn.execute('DELETE FROM douban_watch_history WHERE subject_id=?', (source_id,))
+
     conn.commit()
     updated = conn.execute('SELECT * FROM douban_watch_history WHERE subject_id=?', (target_id,)).fetchone()
     conn.close()

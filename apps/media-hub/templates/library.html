@@ -104,7 +104,7 @@
         <button class="btn small watch-btn {% if item.status=='collect' %}primary{% endif %}" data-id="{{ item.subject_id }}" data-action="watch">
           {% if item.status == 'collect' %}已看{% else %}看过{% endif %}
         </button>
-        <button class="btn small rewatch-btn" data-id="{{ item.subject_id }}" data-action="rewatch">再看</button>
+        {% if item.status == 'collect' %}<button class="btn small rewatch-btn" data-id="{{ item.subject_id }}" data-action="rewatch">再看</button>{% endif %}
         <button class="btn small edit-btn" data-id="{{ item.subject_id }}">✏️</button>
         <button class="btn small delete-btn" data-id="{{ item.subject_id }}" data-title="{{ item.title|e }}">🗑️</button>
         <button class="btn small expand-lib-btn" data-id="{{ item.subject_id }}" title="展开详情">▾ 详情</button>

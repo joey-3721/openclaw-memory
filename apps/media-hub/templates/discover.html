@@ -287,7 +287,20 @@ document.addEventListener('DOMContentLoaded', function() {
     fetch('/api/merge', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ source_subject_id: currentWatchedItem.subject_id, target_subject_id: selectedMergeSid })
+      body: JSON.stringify({
+        source_subject_id: currentWatchedItem.subject_id,
+        target_subject_id: selectedMergeSid,
+        tmdb_id: currentWatchedItem.subject_id.indexOf('tmdb:') === 0 ? currentWatchedItem.subject_id.split(':').slice(-1)[0] : '',
+        title: currentWatchedItem.title,
+        kind: currentWatchedItem.kind,
+        year: currentWatchedItem.year,
+        url: currentWatchedItem.url,
+        intro: currentWatchedItem.intro,
+        summary: currentWatchedItem.summary,
+        douban_rating: currentWatchedItem.douban_rating,
+        douban_rating_count: currentWatchedItem.douban_rating_count,
+        cover_url: currentWatchedItem.cover_url
+      })
     }).then(function(r) { return r.json(); })
       .then(function(data) {
         if (window.showToast) showToast('已合并到：' + (data.item && data.item.title || ''), 'success');

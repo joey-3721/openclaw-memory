@@ -32,9 +32,9 @@
           <button class="feedback-btn dislike {% if today_pick.recommend_feedback == 'dislike' %}active{% endif %}" data-id="{{ today_pick.subject_id }}" data-feedback="dislike">👎 不喜欢</button>
         </div>
         <div class="tonight-actions">
-          <a class="btn primary" href="{{ today_pick.url }}" target="_blank">豆瓣详情</a>
+          <a class="btn primary" href="{{ today_pick.url }}" target="_blank">TMDB</a>
           <button class="btn accent watch-btn" data-id="{{ today_pick.subject_id }}" data-action="watch">✅ 我看过了</button>
-          <button class="btn rewatch-btn" data-id="{{ today_pick.subject_id }}" data-action="rewatch">🔁 又看一次</button>
+          
           <button class="btn" id="shuffle-tonight" title="换一个推荐">🎲 换一部</button>
         </div>
       </div>
@@ -111,11 +111,11 @@
       </div>
       <div class="rec-actions">
         <button class="btn small expand-btn" data-id="{{ item.subject_id }}" title="展开详情">▾ 详情</button>
-        <a class="btn small" href="{{ item.url }}" target="_blank">豆瓣</a>
+        {% if item.tmdb_id and item.url %}<a class="btn small" href="{{ item.url }}" target="_blank">TMDB</a>{% endif %}
         <button class="btn small primary watch-btn" data-id="{{ item.subject_id }}" data-action="watch" {% if item.status=='collect' %}disabled{% endif %}>
           {% if item.status == 'collect' %}已看 ✓{% else %}看过{% endif %}
         </button>
-        <button class="btn small rewatch-btn" data-id="{{ item.subject_id }}" data-action="rewatch">再看</button>
+        
         <button class="btn small edit-btn" data-id="{{ item.subject_id }}">✏️</button>
       </div>
     </div>
