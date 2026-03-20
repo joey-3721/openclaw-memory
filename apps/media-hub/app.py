@@ -43,6 +43,8 @@ def ensure_schema(conn):
         conn.execute('ALTER TABLE douban_watch_history ADD COLUMN recommend_feedback TEXT')
     if 'feedback_updated_at' not in cols:
         conn.execute('ALTER TABLE douban_watch_history ADD COLUMN feedback_updated_at TEXT')
+    if 'added_at' not in cols:
+        conn.execute("ALTER TABLE douban_watch_history ADD COLUMN added_at TEXT DEFAULT (datetime('now'))")
     conn.commit()
 
 
@@ -646,9 +648,9 @@ def discover(request: Request,
 
 
 @app.get('/watchlist', response_class=HTMLResponse)
-def watchlist(request: Request, kind: str = Query('all'), q: str = Query(''), sort: str = Query('date')):
+def watchlist(request: Request, kind: str = Query('all'), q: str = Query(''), sort: str = Query('date'), added_order: str = Query('desc')):
     conn = get_conn()
-    items = build_library_items(conn, status='wish', kind=kind, q=q, sort=sort, limit=300)
+    items = build_library_items_wish(conn, kind=kind, q=q, sort=sort, added_order=added_order, limit=300)
     return templates.TemplateResponse('library.html', {
         'request': request,
         'items': items,
@@ -656,9 +658,43 @@ def watchlist(request: Request, kind: str = Query('all'), q: str = Query(''), so
         'kind': kind,
         'q': q,
         'sort': sort,
+        'added_order': added_order,
         'page_mode': 'watchlist',
         'site_stats': get_site_stats(),
     })
+
+
+def build_library_items_wish(conn, kind='all', q='', sort='date', added_order='desc', limit=300):
+    sql = 'SELECT * FROM douban_watch_history WHERE status="wish"'
+    params = []
+    if kind != 'all':
+        sql += ' AND kind=?'
+        params.append(kind)
+    if q:
+        sql += ' AND (title LIKE ? OR genres LIKE ? OR countries LIKE ? OR actors LIKE ? OR directors LIKE ?)'
+        like = f'%{q}%'
+        params += [like] * 5
+    # Default: order by added_at (newest first = desc)
+    order_dir = 'DESC' if added_order == 'desc' else 'ASC'
+    if sort == 'rating':
+        sql += f' ORDER BY douban_rating DESC, added_at {order_dir} LIMIT ?'
+    elif sort == 'year':
+        sql += f' ORDER BY year DESC, added_at {order_dir} LIMIT ?'
+    elif sort == 'title':
+        sql += f' ORDER BY title ASC LIMIT ?'
+    else:
+        sql += f' ORDER BY added_at {order_dir} LIMIT ?'
+    params.append(limit)
+    rows = conn.execute(sql, params).fetchall()
+    items = []
+    for r in rows:
+        item = dict(r)
+        item['_cover_style'] = cover_style(r)
+        item['_cover_url'] = cover_url(r)
+        item['_stars'] = rating_stars(item.get('douban_rating'))
+        item['_first_genre'] = first_genre(item)
+        items.append(item)
+    return items
 
 
 @app.get('/library', response_class=HTMLResponse)
@@ -780,11 +816,12 @@ async def import_tmdb_to_watchlist(request: Request):
         if item['status'] != 'collect':
             conn.execute('UPDATE douban_watch_history SET status="wish" WHERE subject_id=?', (subject_id,))
     else:
+        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         conn.execute(
             '''INSERT INTO douban_watch_history (
                 subject_id, title, kind, year, url, intro, summary, douban_rating, douban_rating_count,
-                status, cover_url, watched_date, watch_count
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, "wish", ?, NULL, 1)''',
+                status, cover_url, watched_date, watch_count, added_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, "wish", ?, NULL, 1, ?)''',
             (
                 subject_id,
                 payload.get('title') or '未命名',
@@ -796,6 +833,7 @@ async def import_tmdb_to_watchlist(request: Request):
                 payload.get('douban_rating'),
                 payload.get('douban_rating_count'),
                 payload.get('cover_url'),
+                now,
             )
         )
     conn.commit()
