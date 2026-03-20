@@ -50,6 +50,27 @@ def ensure_schema(conn):
         conn.execute("ALTER TABLE douban_watch_history ADD COLUMN tmdb_id TEXT")
         # Backfill: extract existing tmdb:* subject_ids
         conn.execute("UPDATE douban_watch_history SET tmdb_id = substr(subject_id, 6) WHERE subject_id LIKE 'tmdb:%'")
+    conn.execute("""CREATE TABLE IF NOT EXISTS recommendation_cache (
+        cache_key TEXT PRIMARY KEY,
+        tmdb_id TEXT,
+        subject_id TEXT,
+        title TEXT,
+        kind TEXT,
+        year INTEGER,
+        url TEXT,
+        intro TEXT,
+        summary TEXT,
+        tmdb_rating REAL,
+        tmdb_vote_count INTEGER,
+        genres TEXT,
+        countries TEXT,
+        poster_url TEXT,
+        cover_url TEXT,
+        score REAL,
+        reason TEXT,
+        rank_order INTEGER,
+        generated_at TEXT
+    )""")
     conn.commit()
 
 
@@ -554,6 +575,14 @@ def tmdb_recommendation_candidates(conn, limit=20):
             if any(token in title for token in profile['low_rated_franchises']):
                 continue
             score = (item.get('douban_rating') or 0) * 0.9
+            year = int(item.get('year') or 0) if str(item.get('year') or '').isdigit() else 0
+            votes = item.get('douban_rating_count') or 0
+            if year and year < 2018:
+                score -= 2.2
+                if year < 2010:
+                    score -= 1.5
+                if (item.get('douban_rating') or 0) >= 8.6 and votes >= 8000:
+                    score += 2.6
             score += sum(cnt for g, cnt in profile['top_genres'] if g in split_tokens(item.get('genres'))) * 0.18
             score += sum(cnt for c, cnt in profile['top_countries'] if c in split_tokens(item.get('countries'))) * 0.14
             score -= sum(profile['dislike_genres'].get(g, 0) for g in split_tokens(item.get('genres'))) * 0.22
@@ -669,6 +698,54 @@ def first_genre(item):
         return ''
     return genres.split('/')[0].strip()
 
+
+
+
+def cache_recommendations(conn, items, cache_key='default'):
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    conn.execute('DELETE FROM recommendation_cache WHERE cache_key=?', (cache_key,))
+    for idx, item in enumerate(items, start=1):
+        tmdb_id = str(item.get('tmdb_id') or item.get('subject_id') or '').replace('tmdb:', '')
+        subject_id = f'tmdb:{tmdb_id}' if tmdb_id else str(item.get('subject_id') or '')
+        poster = item.get('_cover_url') or item.get('cover_url') or cover_url(item)
+        local_cover = None
+        if poster and tmdb_id:
+            try:
+                local_cover = download_cover_to_local(poster, subject_id)
+            except Exception:
+                local_cover = poster
+        conn.execute("""INSERT OR REPLACE INTO recommendation_cache (
+                cache_key, tmdb_id, subject_id, title, kind, year, url, intro, summary,
+                tmdb_rating, tmdb_vote_count, genres, countries, poster_url, cover_url,
+                score, reason, rank_order, generated_at
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (
+                cache_key, tmdb_id, subject_id, item.get('title'), item.get('kind'), item.get('year'), item.get('url'),
+                item.get('intro'), item.get('summary'), item.get('douban_rating'), item.get('douban_rating_count'),
+                item.get('genres'), item.get('countries'), poster, local_cover, item.get('_score'), item.get('_reason'), idx, now
+            )
+        )
+    conn.commit()
+
+
+def load_cached_recommendations(conn, cache_key='default', max_age_hours=12):
+    rows = conn.execute(
+        "SELECT * FROM recommendation_cache WHERE cache_key=? AND generated_at >= datetime('now', ?) ORDER BY rank_order ASC",
+        (cache_key, f'-{max_age_hours} hours')
+    ).fetchall()
+    items = []
+    for r in rows:
+        item = dict(r)
+        item['douban_rating'] = item.get('tmdb_rating')
+        item['douban_rating_count'] = item.get('tmdb_vote_count')
+        item['_reason'] = item.get('reason')
+        item['_score'] = item.get('score')
+        item['_cover_url'] = item.get('cover_url') or item.get('poster_url')
+        item['_cover_style'] = cover_style(item)
+        item['_stars'] = rating_stars(item.get('tmdb_rating'))
+        item['_first_genre'] = first_genre(item)
+        items.append(item)
+    return items
 
 @app.get('/', response_class=HTMLResponse)
 def home(request: Request):
