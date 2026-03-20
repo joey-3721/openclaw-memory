@@ -80,6 +80,34 @@ def douban_probe(cookie: str | None = None):
         return {'ok': False, 'configured': True, 'message': f'探测失败：{e}'}
 
 
+def douban_search_fallback(query: str, kind: str = 'movie', limit: int = 20):
+    conn = get_conn()
+    sql = 'SELECT * FROM douban_watch_history WHERE 1=1'
+    params = []
+    if kind == 'movie':
+        sql += ' AND kind="movie"'
+    elif kind == 'tv':
+        sql += ' AND kind="tv" AND genres NOT LIKE "%综艺%"'
+    elif kind == 'variety':
+        sql += ' AND (genres LIKE "%综艺%" OR title LIKE "%脱口秀%" OR title LIKE "%歌手%")'
+    if query:
+        sql += ' AND (title LIKE ? OR genres LIKE ? OR actors LIKE ? OR directors LIKE ? OR summary LIKE ?)'
+        like = f'%{query}%'
+        params += [like] * 5
+    sql += ' ORDER BY douban_rating DESC, douban_rating_count DESC, year DESC LIMIT ?'
+    params.append(limit)
+    rows = conn.execute(sql, params).fetchall()
+    items = []
+    for r in rows:
+        item = dict(r)
+        item['_cover_style'] = cover_style(r)
+        item['_cover_url'] = cover_url(r)
+        item['_stars'] = rating_stars(item.get('douban_rating'))
+        item['_first_genre'] = first_genre(item)
+        items.append(item)
+    return items
+
+
 def get_site_stats():
     conn = get_conn()
     c = conn.cursor()
@@ -447,40 +475,42 @@ async def save_douban_cookie(request: Request):
 
 @app.get('/discover', response_class=HTMLResponse)
 def discover(request: Request, kind: str = Query('movie'), q: str = Query(''), sort: str = Query('hot')):
-    conn = get_conn()
-    sql = 'SELECT * FROM douban_watch_history WHERE 1=1'
-    params = []
-    if kind == 'movie':
-        sql += ' AND kind="movie"'
-    elif kind == 'tv':
-        sql += ' AND kind="tv" AND genres NOT LIKE "%综艺%"'
-    elif kind == 'variety':
-        sql += ' AND (genres LIKE "%综艺%" OR title LIKE "%脱口秀%" OR title LIKE "%歌手%")'
     if q:
-        sql += ' AND (title LIKE ? OR genres LIKE ? OR actors LIKE ? OR directors LIKE ?)'
-        like = f'%{q}%'
-        params += [like] * 4
-    if sort == 'rating':
-        sql += ' ORDER BY douban_rating DESC, year DESC LIMIT 60'
-    elif sort == 'year':
-        sql += ' ORDER BY year DESC, douban_rating DESC LIMIT 60'
+        items = douban_search_fallback(q, kind=kind, limit=60)
+        mode = 'search'
     else:
-        sql += ' ORDER BY douban_rating DESC, douban_rating_count DESC, year DESC LIMIT 60'
-    rows = conn.execute(sql, params).fetchall()
-    items = []
-    for r in rows:
-        item = dict(r)
-        item['_cover_style'] = cover_style(r)
-        item['_cover_url'] = cover_url(r)
-        item['_stars'] = rating_stars(item.get('douban_rating'))
-        item['_first_genre'] = first_genre(item)
-        items.append(item)
+        conn = get_conn()
+        sql = 'SELECT * FROM douban_watch_history WHERE 1=1'
+        params = []
+        if kind == 'movie':
+            sql += ' AND kind="movie"'
+        elif kind == 'tv':
+            sql += ' AND kind="tv" AND genres NOT LIKE "%综艺%"'
+        elif kind == 'variety':
+            sql += ' AND (genres LIKE "%综艺%" OR title LIKE "%脱口秀%" OR title LIKE "%歌手%")'
+        if sort == 'rating':
+            sql += ' ORDER BY douban_rating DESC, year DESC LIMIT 60'
+        elif sort == 'year':
+            sql += ' ORDER BY year DESC, douban_rating DESC LIMIT 60'
+        else:
+            sql += ' ORDER BY douban_rating DESC, douban_rating_count DESC, year DESC LIMIT 60'
+        rows = conn.execute(sql, params).fetchall()
+        items = []
+        for r in rows:
+            item = dict(r)
+            item['_cover_style'] = cover_style(r)
+            item['_cover_url'] = cover_url(r)
+            item['_stars'] = rating_stars(item.get('douban_rating'))
+            item['_first_genre'] = first_genre(item)
+            items.append(item)
+        mode = 'discover'
     return templates.TemplateResponse('discover.html', {
         'request': request,
         'items': items,
         'kind': kind,
         'q': q,
         'sort': sort,
+        'mode': mode,
         'douban_probe': douban_probe(),
         'site_stats': get_site_stats(),
     })

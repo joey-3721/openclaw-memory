@@ -2,8 +2,8 @@
 {% block content %}
 <section class="page-intro compact muted">
   <div>
-    <h1>豆瓣发现</h1>
-    <p>先把分类、搜索、加入待看片库和 Cookie 管理打通；真实豆瓣热门源正在接入中。</p>
+    <h1>{% if mode == 'search' %}豆瓣搜索{% else %}豆瓣发现{% endif %}</h1>
+    <p>{% if mode == 'search' %}先把搜索入口和加入待看片库流程打通；当前搜索结果先用本地库兜底，后续再替换成真实 Douban 搜索源。{% else %}先把分类、搜索、加入待看片库和 Cookie 管理打通；真实豆瓣热门源正在接入中。{% endif %}</p>
   </div>
   <div class="page-intro-stats">
     <div class="intro-stat"><span>当前结果</span><strong>{{ items|length }}</strong></div>
