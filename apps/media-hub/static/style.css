@@ -229,6 +229,21 @@ body::before {
 }
 
 .actions { display: flex; gap: 12px; flex-wrap: wrap; }
+.feedback-actions { display: flex; gap: 10px; flex-wrap: wrap; margin: 4px 0 2px; }
+.feedback-btn {
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.04);
+  color: var(--text-primary);
+  border-radius: 14px;
+  padding: 12px 16px;
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+.feedback-btn:hover { transform: translateY(-1px); background: rgba(255,255,255,0.08); }
+.feedback-btn.like.active { background: rgba(255,84,130,0.16); border-color: rgba(255,84,130,0.34); color: #ffb5cb; box-shadow: 0 10px 24px rgba(255,84,130,0.14); }
+.feedback-btn.dislike.active { background: rgba(90,110,130,0.20); border-color: rgba(150,165,180,0.28); color: #dbe4ef; box-shadow: 0 10px 24px rgba(120,135,150,0.14); }
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   padding: 11px 24px; border-radius: 50px; font-size: 14px; font-weight: 600; text-decoration: none;

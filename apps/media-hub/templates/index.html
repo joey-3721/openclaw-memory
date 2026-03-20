@@ -57,6 +57,10 @@
         {% if surprise.directors or surprise.actors %}
         <p class="tonight-credits">🎬 {{ surprise.directors[:40] }}{% if surprise.directors and surprise.actors %} · {% endif %}{{ surprise.actors[:50] }}</p>
         {% endif %}
+        <div class="feedback-actions">
+          <button class="feedback-btn like {% if surprise.recommend_feedback == 'like' %}active{% endif %}" data-id="{{ surprise.subject_id }}" data-feedback="like">❤️ 喜欢</button>
+          <button class="feedback-btn dislike {% if surprise.recommend_feedback == 'dislike' %}active{% endif %}" data-id="{{ surprise.subject_id }}" data-feedback="dislike">👎 不喜欢</button>
+        </div>
         <div class="tonight-actions">
           <a class="btn primary" href="{{ surprise.url }}" target="_blank">豆瓣详情</a>
           <button class="btn accent watch-btn" data-id="{{ surprise.subject_id }}" data-action="watch">✅ 我看过了</button>

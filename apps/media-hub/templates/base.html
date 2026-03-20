@@ -92,6 +92,30 @@
   });
   if (overlay) overlay.addEventListener('click', closeSidebar);
 
+  document.addEventListener('click', function(e) {
+    var btn = e.target.closest('.feedback-btn');
+    if (!btn) return;
+    var id = btn.dataset.id;
+    var feedback = btn.dataset.feedback;
+    btn.disabled = true;
+    fetch('/api/feedback/' + id + '?feedback=' + encodeURIComponent(feedback), { method: 'POST' })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        document.querySelectorAll('.feedback-btn[data-id="' + id + '"]').forEach(function(el) {
+          el.classList.toggle('active', el.dataset.feedback === feedback);
+          el.disabled = false;
+        });
+        if (window.showToast) {
+          if (feedback === 'like') showToast('已加入想看，并记住你的喜欢 ❤️', 'success');
+          else showToast('已记住这次点踩，后续少推类似内容 👎', 'warn');
+        }
+      })
+      .catch(function() {
+        document.querySelectorAll('.feedback-btn[data-id="' + id + '"]').forEach(function(el) { el.disabled = false; });
+        if (window.showToast) showToast('反馈保存失败', 'error');
+      });
+  });
+
   // ── Toast System ──
   window._toastTimer = null;
   window.showToast = function(msg, type, icon) {

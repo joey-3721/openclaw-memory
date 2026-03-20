@@ -25,8 +25,18 @@ templates = Jinja2Templates(directory=str(BASE_DIR / 'templates'))
 
 def get_conn():
     conn = sqlite3.connect(DB_PATH)
+    ensure_schema(conn)
     conn.row_factory = sqlite3.Row
     return conn
+
+
+def ensure_schema(conn):
+    cols = {row[1] for row in conn.execute('PRAGMA table_info(douban_watch_history)').fetchall()}
+    if 'recommend_feedback' not in cols:
+        conn.execute('ALTER TABLE douban_watch_history ADD COLUMN recommend_feedback TEXT')
+    if 'feedback_updated_at' not in cols:
+        conn.execute('ALTER TABLE douban_watch_history ADD COLUMN feedback_updated_at TEXT')
+    conn.commit()
 
 
 def get_site_stats():
@@ -167,15 +177,24 @@ def make_recommendation_reason(item, profile, high_rated=None):
 def recommendation_candidates(conn, limit=30):
     rows = conn.execute('SELECT * FROM douban_watch_history').fetchall()
     high = [r for r in rows if r['status'] == 'collect' and r['my_rating'] is not None and r['my_rating'] >= 4]
-    wish = [r for r in rows if r['status'] == 'wish']
-    genre_counter = Counter(); country_counter = Counter(); kind_counter = Counter()
-    for r in high:
+    liked = [r for r in rows if r['recommend_feedback'] == 'like']
+    disliked = [r for r in rows if r['recommend_feedback'] == 'dislike']
+    wish = [r for r in rows if r['status'] == 'wish' and r['recommend_feedback'] != 'dislike']
+    genre_counter = Counter(); country_counter = Counter(); kind_counter = Counter(); director_counter = Counter(); actor_counter = Counter()
+    dislike_genres = Counter(); dislike_countries = Counter(); dislike_directors = Counter(); dislike_actors = Counter()
+    for r in high + liked:
         genre_counter.update(split_multi(r['genres']))
         country_counter.update(split_multi(r['countries']))
         kind_counter.update([r['kind'] or 'unknown'])
+        director_counter.update(split_multi(r['directors']))
+        actor_counter.update(split_multi(r['actors']))
+    for r in disliked:
+        dislike_genres.update(split_multi(r['genres']))
+        dislike_countries.update(split_multi(r['countries']))
+        dislike_directors.update(split_multi(r['directors']))
+        dislike_actors.update(split_multi(r['actors']))
     ranked = []
     for r in wish:
-        # Skip if release date is in the future
         release_year = None
         if r['release_dates']:
             try:
@@ -186,9 +205,15 @@ def recommendation_candidates(conn, limit=30):
             continue
 
         score = (r['douban_rating'] or 0) * 0.8
-        score += sum(genre_counter[g] for g in split_multi(r['genres'])) * 0.35
-        score += sum(country_counter[c] for c in split_multi(r['countries'])) * 0.25
+        score += sum(genre_counter[g] for g in split_multi(r['genres'])) * 0.45
+        score += sum(country_counter[c] for c in split_multi(r['countries'])) * 0.30
         score += kind_counter[r['kind'] or 'unknown'] * 0.5
+        score += sum(director_counter[d] for d in split_multi(r['directors'])) * 0.55
+        score += sum(actor_counter[a] for a in split_multi(r['actors'])) * 0.22
+        score -= sum(dislike_genres[g] for g in split_multi(r['genres'])) * 0.65
+        score -= sum(dislike_countries[c] for c in split_multi(r['countries'])) * 0.40
+        score -= sum(dislike_directors[d] for d in split_multi(r['directors'])) * 0.75
+        score -= sum(dislike_actors[a] for a in split_multi(r['actors'])) * 0.18
         if r['kind'] == 'movie':
             score += 1.0
         ranked.append((score, r))
@@ -467,6 +492,28 @@ def get_item(subject_id: str):
     if not item:
         raise HTTPException(404, 'Item not found')
     return dict(item)
+
+
+@app.post('/api/feedback/{subject_id}', response_class=JSONResponse)
+def set_feedback(subject_id: str, feedback: str = Query(...)):
+    conn = get_conn()
+    item = conn.execute('SELECT * FROM douban_watch_history WHERE subject_id=?', (subject_id,)).fetchone()
+    if not item:
+        raise HTTPException(404, 'Item not found')
+    if feedback not in {'like', 'dislike', 'clear'}:
+        raise HTTPException(400, 'feedback must be like/dislike/clear')
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    new_feedback = None if feedback == 'clear' else feedback
+    new_status = item['status']
+    if feedback == 'like' and item['status'] != 'collect':
+        new_status = 'wish'
+    conn.execute(
+        'UPDATE douban_watch_history SET recommend_feedback=?, feedback_updated_at=?, status=? WHERE subject_id=?',
+        (new_feedback, now, new_status, subject_id)
+    )
+    conn.commit()
+    updated = conn.execute('SELECT * FROM douban_watch_history WHERE subject_id=?', (subject_id,)).fetchone()
+    return {'ok': True, 'item': dict(updated), 'feedback': new_feedback, 'status': updated['status']}
 
 
 @app.post('/api/watch/{subject_id}', response_class=JSONResponse)
