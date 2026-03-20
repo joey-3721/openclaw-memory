@@ -3,7 +3,7 @@
 <section class="page-intro compact muted">
   <div>
     <h1>{% if mode == 'search' %}豆瓣搜索{% else %}豆瓣发现{% endif %}</h1>
-    <p>{% if mode == 'search' %}先把搜索入口和加入待看片库流程打通；当前搜索结果先用本地库兜底，后续再替换成真实 Douban 搜索源。{% else %}先把分类、搜索、加入待看片库和 Cookie 管理打通；真实豆瓣热门源正在接入中。{% endif %}</p>
+    <p>{% if source == 'tmdb' %}{% if mode == 'search' %}当前搜索结果已切到 TMDB 实时搜索源。{% else %}当前发现页已切到 TMDB 实时发现源。{% endif %}{% else %}{% if mode == 'search' %}当前搜索结果先用本地库兜底，等待真实源可用。{% else %}当前发现页先用本地库兜底，等待真实源可用。{% endif %}{% endif %}</p>
   </div>
   <div class="page-intro-stats">
     <div class="intro-stat"><span>当前结果</span><strong>{{ items|length }}</strong></div>
@@ -15,11 +15,12 @@
   <div class="panel-header">
     <div>
       <h2>Douban Cookie</h2>
-      <div class="section-sub">当前状态：{% if douban_probe.ok %}✅ {{ douban_probe.message }}{% else %}⚠️ {{ douban_probe.message }}{% endif %}</div>
+      <div class="section-sub">Douban：{% if douban_probe.ok %}✅ {{ douban_probe.message }}{% else %}⚠️ {{ douban_probe.message }}{% endif %}</div>
+      <div class="section-sub" style="margin-top:4px;">TMDB：{% if tmdb_probe.ok %}✅ {{ tmdb_probe.message }}{% else %}⚠️ {{ tmdb_probe.message }}{% endif %}</div>
     </div>
     <button class="btn" id="open-cookie-modal">更新 Cookie</button>
   </div>
-  <p style="color:var(--text-secondary);font-size:13px;line-height:1.7;">这版先把 Cookie 输入和状态探测做上。真实豆瓣热门与搜索源下一步会继续接进来；现在页面主体先用本地库做发现页底座，确保分类、筛选、加入待看流程已经可用。</p>
+  <p style="color:var(--text-secondary);font-size:13px;line-height:1.7;">TMDB 已作为更稳定的发现/搜索主数据源接入；Douban Cookie 这边先保留，后面用于补充同步、评分或其他扩展能力。</p>
 </section>
 
 <section class="filter-bar">
@@ -74,7 +75,7 @@
       {% if item.summary %}<p class="media-comment">{{ item.summary[:72] }}{% if item.summary|length > 72 %}...{% endif %}</p>{% elif item.intro %}<p class="media-comment">{{ item.intro[:72] }}{% if item.intro|length > 72 %}...{% endif %}</p>{% endif %}
       <div class="media-actions">
         <a class="btn small" href="{{ item.url }}" target="_blank">豆瓣</a>
-        <button class="btn small add-watchlist-btn {% if item.status=='wish' %}primary{% endif %}" data-id="{{ item.subject_id }}">{% if item.status=='wish' %}已在待看{% else %}加入待看{% endif %}</button>
+        <button class="btn small add-watchlist-btn {% if item.status=='wish' %}primary{% endif %}" data-id="{{ item.subject_id }}" data-title="{{ item.title|e }}" data-kind="{{ item.kind }}" data-year="{{ item.year }}" data-url="{{ item.url|e }}" data-intro="{{ (item.intro or '')|e }}" data-summary="{{ (item.summary or '')|e }}" data-rating="{{ item.douban_rating or '' }}" data-rating-count="{{ item.douban_rating_count or '' }}" data-cover="{{ (item._cover_url or item.cover_url or '')|e }}">{% if item.status=='wish' %}已在待看{% else %}加入待看{% endif %}</button>
       </div>
     </div>
   </article>
@@ -102,8 +103,29 @@ document.addEventListener('DOMContentLoaded', function() {
   document.querySelectorAll('.add-watchlist-btn').forEach(function(btn) {
     btn.addEventListener('click', function() {
       var id = this.dataset.id;
-      fetch('/api/watchlist/add/' + id, { method: 'POST' })
-        .then(function(r) { return r.json(); })
+      var isTmdb = id.indexOf('tmdb:') === 0;
+      var req;
+      if (isTmdb) {
+        req = fetch('/api/watchlist/import-tmdb', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            subject_id: id,
+            title: btn.dataset.title,
+            kind: btn.dataset.kind,
+            year: btn.dataset.year || null,
+            url: btn.dataset.url,
+            intro: btn.dataset.intro,
+            summary: btn.dataset.summary,
+            douban_rating: btn.dataset.rating || null,
+            douban_rating_count: btn.dataset.ratingCount || null,
+            cover_url: btn.dataset.cover
+          })
+        });
+      } else {
+        req = fetch('/api/watchlist/add/' + id, { method: 'POST' });
+      }
+      req.then(function(r) { return r.json(); })
         .then(function(data) {
           btn.textContent = '已在待看';
           btn.classList.add('primary');

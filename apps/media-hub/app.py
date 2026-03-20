@@ -19,7 +19,9 @@ BASE_DIR = Path(__file__).resolve().parent
 DB_PATH = Path(os.getenv('MEDIA_HUB_DB', str(BASE_DIR / 'douban_media.db')))
 COVERS_DIR = Path(os.getenv('MEDIA_HUB_COVERS_DIR', str(BASE_DIR / 'static' / 'covers')))
 CONFIG_DIR = Path(os.getenv('MEDIA_HUB_CONFIG_DIR', str(BASE_DIR / 'config')))
+SECRETS_DIR = CONFIG_DIR / 'secrets'
 COOKIE_PATH = CONFIG_DIR / 'douban_cookie.json'
+TMDB_KEY_PATH = SECRETS_DIR / 'tmdb.json'
 COVERS_DIR.mkdir(parents=True, exist_ok=True)
 
 app = FastAPI(title='Media Hub')
@@ -54,6 +56,26 @@ def read_douban_cookie():
 def write_douban_cookie(cookie: str):
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     COOKIE_PATH.write_text(json.dumps({'cookie': cookie.strip()}, ensure_ascii=False, indent=2))
+
+
+def read_tmdb_key():
+    try:
+        return json.loads(TMDB_KEY_PATH.read_text()).get('api_key', '').strip()
+    except Exception:
+        return ''
+
+
+def tmdb_probe():
+    key = read_tmdb_key()
+    if not key:
+        return {'ok': False, 'configured': False, 'message': '未配置 TMDB API Key'}
+    try:
+        r = requests.get('https://api.themoviedb.org/3/configuration', params={'api_key': key}, timeout=15)
+        if r.ok:
+            return {'ok': True, 'configured': True, 'message': 'TMDB Key 可用'}
+        return {'ok': False, 'configured': True, 'message': f'TMDB 返回 {r.status_code}'}
+    except Exception as e:
+        return {'ok': False, 'configured': True, 'message': f'TMDB 探测失败：{e}'}
 
 
 def douban_probe(cookie: str | None = None):
@@ -105,6 +127,74 @@ def douban_search_fallback(query: str, kind: str = 'movie', limit: int = 20):
         item['_stars'] = rating_stars(item.get('douban_rating'))
         item['_first_genre'] = first_genre(item)
         items.append(item)
+    return items
+
+
+def tmdb_kind_config(kind: str):
+    if kind == 'movie':
+        return {'media_type': 'movie', 'discover_path': '/discover/movie', 'discover_params': {}}
+    if kind == 'variety':
+        return {'media_type': 'tv', 'discover_path': '/discover/tv', 'discover_params': {'with_genres': '10764|10767'}}
+    return {'media_type': 'tv', 'discover_path': '/discover/tv', 'discover_params': {'without_genres': '10764,10767'}}
+
+
+def tmdb_image_url(path: str | None):
+    if not path:
+        return None
+    return f'https://image.tmdb.org/t/p/w500{path}'
+
+
+def tmdb_to_item(raw: dict, media_type: str):
+    title = raw.get('title') or raw.get('name') or '未命名'
+    year_raw = raw.get('release_date') or raw.get('first_air_date') or ''
+    year = int(year_raw[:4]) if year_raw[:4].isdigit() else None
+    genres = '/'.join(str(g) for g in raw.get('genre_ids', [])) if raw.get('genre_ids') else ''
+    overview = raw.get('overview') or ''
+    sid = f"tmdb:{media_type}:{raw.get('id')}"
+    return {
+        'subject_id': sid,
+        'title': title,
+        'kind': 'movie' if media_type == 'movie' else 'tv',
+        'year': year,
+        'url': f'https://www.themoviedb.org/{media_type}/{raw.get("id")}',
+        'intro': overview,
+        'summary': overview,
+        'genres': genres,
+        'douban_rating': round((raw.get('vote_average') or 0), 1),
+        'douban_rating_count': raw.get('vote_count') or 0,
+        'cover_url': tmdb_image_url(raw.get('poster_path')),
+        '_cover_url': tmdb_image_url(raw.get('poster_path')),
+        '_cover_style': cover_style({'title': title}),
+        '_stars': rating_stars(raw.get('vote_average')),
+        '_first_genre': '',
+        'status': None,
+        'source': 'tmdb',
+    }
+
+
+def tmdb_discover(kind: str = 'movie', query: str = '', page: int = 1, limit: int = 20):
+    key = read_tmdb_key()
+    if not key:
+        return []
+    cfg = tmdb_kind_config(kind)
+    if query:
+        path = f'/search/{cfg["media_type"]}'
+        params = {'api_key': key, 'query': query, 'language': 'zh-CN', 'page': page, 'include_adult': 'false'}
+    else:
+        path = cfg['discover_path']
+        params = {
+            'api_key': key,
+            'language': 'zh-CN',
+            'sort_by': 'popularity.desc',
+            'page': page,
+            'vote_count.gte': 20,
+        }
+        params.update(cfg['discover_params'])
+    r = requests.get(f'https://api.themoviedb.org/3{path}', params=params, timeout=20)
+    r.raise_for_status()
+    data = r.json()
+    media_type = cfg['media_type']
+    items = [tmdb_to_item(x, media_type) for x in data.get('results', [])[:limit]]
     return items
 
 
@@ -475,35 +565,41 @@ async def save_douban_cookie(request: Request):
 
 @app.get('/discover', response_class=HTMLResponse)
 def discover(request: Request, kind: str = Query('movie'), q: str = Query(''), sort: str = Query('hot')):
-    if q:
-        items = douban_search_fallback(q, kind=kind, limit=60)
-        mode = 'search'
+    tmdb_status = tmdb_probe()
+    source = 'tmdb' if tmdb_status.get('ok') else 'local'
+    if source == 'tmdb':
+        items = tmdb_discover(kind=kind, query=q, limit=60)
+        mode = 'search' if q else 'discover'
     else:
-        conn = get_conn()
-        sql = 'SELECT * FROM douban_watch_history WHERE 1=1'
-        params = []
-        if kind == 'movie':
-            sql += ' AND kind="movie"'
-        elif kind == 'tv':
-            sql += ' AND kind="tv" AND genres NOT LIKE "%综艺%"'
-        elif kind == 'variety':
-            sql += ' AND (genres LIKE "%综艺%" OR title LIKE "%脱口秀%" OR title LIKE "%歌手%")'
-        if sort == 'rating':
-            sql += ' ORDER BY douban_rating DESC, year DESC LIMIT 60'
-        elif sort == 'year':
-            sql += ' ORDER BY year DESC, douban_rating DESC LIMIT 60'
+        if q:
+            items = douban_search_fallback(q, kind=kind, limit=60)
+            mode = 'search'
         else:
-            sql += ' ORDER BY douban_rating DESC, douban_rating_count DESC, year DESC LIMIT 60'
-        rows = conn.execute(sql, params).fetchall()
-        items = []
-        for r in rows:
-            item = dict(r)
-            item['_cover_style'] = cover_style(r)
-            item['_cover_url'] = cover_url(r)
-            item['_stars'] = rating_stars(item.get('douban_rating'))
-            item['_first_genre'] = first_genre(item)
-            items.append(item)
-        mode = 'discover'
+            conn = get_conn()
+            sql = 'SELECT * FROM douban_watch_history WHERE 1=1'
+            params = []
+            if kind == 'movie':
+                sql += ' AND kind="movie"'
+            elif kind == 'tv':
+                sql += ' AND kind="tv" AND genres NOT LIKE "%综艺%"'
+            elif kind == 'variety':
+                sql += ' AND (genres LIKE "%综艺%" OR title LIKE "%脱口秀%" OR title LIKE "%歌手%")'
+            if sort == 'rating':
+                sql += ' ORDER BY douban_rating DESC, year DESC LIMIT 60'
+            elif sort == 'year':
+                sql += ' ORDER BY year DESC, douban_rating DESC LIMIT 60'
+            else:
+                sql += ' ORDER BY douban_rating DESC, douban_rating_count DESC, year DESC LIMIT 60'
+            rows = conn.execute(sql, params).fetchall()
+            items = []
+            for r in rows:
+                item = dict(r)
+                item['_cover_style'] = cover_style(r)
+                item['_cover_url'] = cover_url(r)
+                item['_stars'] = rating_stars(item.get('douban_rating'))
+                item['_first_genre'] = first_genre(item)
+                items.append(item)
+            mode = 'discover'
     return templates.TemplateResponse('discover.html', {
         'request': request,
         'items': items,
@@ -511,7 +607,9 @@ def discover(request: Request, kind: str = Query('movie'), q: str = Query(''), s
         'q': q,
         'sort': sort,
         'mode': mode,
+        'source': source,
         'douban_probe': douban_probe(),
+        'tmdb_probe': tmdb_status,
         'site_stats': get_site_stats(),
     })
 
@@ -637,6 +735,41 @@ def get_item(subject_id: str):
     if not item:
         raise HTTPException(404, 'Item not found')
     return dict(item)
+
+
+@app.post('/api/watchlist/import-tmdb', response_class=JSONResponse)
+async def import_tmdb_to_watchlist(request: Request):
+    payload = await request.json()
+    subject_id = payload.get('subject_id')
+    if not subject_id:
+        raise HTTPException(400, 'subject_id required')
+    conn = get_conn()
+    item = conn.execute('SELECT * FROM douban_watch_history WHERE subject_id=?', (subject_id,)).fetchone()
+    if item:
+        if item['status'] != 'collect':
+            conn.execute('UPDATE douban_watch_history SET status="wish" WHERE subject_id=?', (subject_id,))
+    else:
+        conn.execute(
+            '''INSERT INTO douban_watch_history (
+                subject_id, title, kind, year, url, intro, summary, douban_rating, douban_rating_count,
+                status, cover_url, watched_date, watch_count
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, "wish", ?, NULL, 1)''',
+            (
+                subject_id,
+                payload.get('title') or '未命名',
+                payload.get('kind'),
+                payload.get('year'),
+                payload.get('url'),
+                payload.get('intro'),
+                payload.get('summary'),
+                payload.get('douban_rating'),
+                payload.get('douban_rating_count'),
+                payload.get('cover_url'),
+            )
+        )
+    conn.commit()
+    updated = conn.execute('SELECT * FROM douban_watch_history WHERE subject_id=?', (subject_id,)).fetchone()
+    return {'ok': True, 'item': dict(updated)}
 
 
 @app.post('/api/watchlist/add/{subject_id}', response_class=JSONResponse)
