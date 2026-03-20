@@ -236,6 +236,81 @@ def match_local_status(conn, item: dict) -> dict:
     return item
 
 
+def match_local_status_batch(conn, items: list) -> list:
+    """Batch version: match all TMDB items against local DB in 2 queries.
+    1. Bulk tmdb_id IN lookup
+    2. Bulk normalized title lookup
+    Returns items with local status merged in.
+    """
+    if not items:
+        return items
+
+    # Collect all tmdb_ids and normalized titles for batch lookup
+    tmdb_ids = [item.get('tmdb_id', '') for item in items if item.get('tmdb_id')]
+    kinds = [item.get('kind') for item in items]
+    norm_titles = {normalize_title(item.get('title', '')): i for i, item in enumerate(items) if item.get('title')}
+
+    # 1. Bulk tmdb_id match
+    local_by_tmdb = {}
+    if tmdb_ids:
+        placeholders = ','.join(['?'] * len(tmdb_ids))
+        rows = conn.execute(
+            f'SELECT * FROM douban_watch_history WHERE tmdb_id IN ({placeholders}) OR subject_id LIKE \'tmdb:%%\'',
+            tmdb_ids
+        ).fetchall()
+        for row in rows:
+            sid = dict(row).get('subject_id', '')
+            tid = dict(row).get('tmdb_id', '')
+            if tid in tmdb_ids:
+                local_by_tmdb[tid] = dict(row)
+
+    # 2. Bulk title match
+    local_by_title = {}
+    all_rows = conn.execute(
+        'SELECT * FROM douban_watch_history WHERE status IS NOT NULL'
+    ).fetchall()
+    title_map = {normalize_title(r['title']): dict(r) for r in all_rows if r['title']}
+
+    # Merge results
+    result = []
+    for item in items:
+        tmdb_id = item.get('tmdb_id', '')
+        norm_title = normalize_title(item.get('title', ''))
+        matched = None
+        match_type = None
+
+        # Prefer tmdb_id match
+        if tmdb_id and tmdb_id in local_by_tmdb:
+            matched = local_by_tmdb[tmdb_id]
+            match_type = 'tmdb_id'
+        # Then title match
+        elif norm_title and norm_title in title_map:
+            matched = title_map[norm_title]
+            match_type = 'title'
+
+        if matched:
+            merged = dict(matched)
+            # Overlay TMDB data for fields the local row might not have
+            for k, v in item.items():
+                if k not in merged or not merged[k]:
+                    merged[k] = v
+            merged['_matched'] = match_type
+            merged['_cover_style'] = cover_style(matched)
+            merged['_cover_url'] = cover_url(matched)
+            merged['_stars'] = rating_stars(merged.get('douban_rating'))
+            merged['_first_genre'] = first_genre(merged)
+            result.append(merged)
+        else:
+            item['status'] = None
+            result.append(item)
+
+    return result
+
+
+    item['status'] = None
+    return item
+
+
 def tmdb_discover(kind: str = 'movie', query: str = '', sort: str = 'popularity',
                    region: str = '', year: str = '', page: int = 1, limit: int = 20):
     key = read_tmdb_key()
@@ -668,9 +743,9 @@ def discover(request: Request,
     source = 'tmdb' if tmdb_status.get('ok') else 'local'
     if source == 'tmdb':
         result = tmdb_discover(kind=kind, query=q, sort=sort, region=region, year=year, page=page, limit=20)
-        # Match each TMDB item against local DB to get real watch status
+        # Batch match all TMDB items against local DB for watch status
         conn = get_conn()
-        items = [match_local_status(conn, item) for item in result['items']]
+        items = match_local_status_batch(conn, result['items'])
         conn.close()
         mode = 'search' if q else 'discover'
         total_pages = result['total_pages']
@@ -1046,3 +1121,136 @@ async def edit_item(subject_id: str, request: Request):
     updated = conn.execute('SELECT * FROM douban_watch_history WHERE subject_id=?', (subject_id,)).fetchone()
     conn.close()
     return dict(updated)
+
+
+@app.get('/api/library/search', response_class=JSONResponse)
+def api_library_search(q: str = Query(''), limit: int = Query(10)):
+    """Search local library for merge/discover purposes."""
+    conn = get_conn()
+    if q:
+        rows = conn.execute(
+            'SELECT * FROM douban_watch_history WHERE title LIKE ? ORDER BY status="wish" DESC, douban_rating DESC LIMIT ?',
+            (f'%{q}%', limit)
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            'SELECT * FROM douban_watch_history ORDER BY douban_rating DESC LIMIT ?',
+            (limit,)
+        ).fetchall()
+    conn.close()
+    return {'items': [dict(r) for r in rows]}
+
+
+@app.post('/api/merge', response_class=JSONResponse)
+async def api_merge(request: Request):
+    """Merge two local items: target keeps user data (rating/comment), source TMDB data fills gaps.
+    Deletes the source row. target_subject_id wins."""
+    payload = await request.json()
+    source_id = payload.get('source_subject_id')   # TMDB item being merged in
+    target_id = payload.get('target_subject_id')  # existing local item to keep
+
+    if not source_id or not target_id:
+        raise HTTPException(400, 'source_subject_id and target_subject_id required')
+
+    conn = get_conn()
+    source = conn.execute('SELECT * FROM douban_watch_history WHERE subject_id=?', (source_id,)).fetchone()
+    target = conn.execute('SELECT * FROM douban_watch_history WHERE subject_id=?', (target_id,)).fetchone()
+
+    if not source or not target:
+        raise HTTPException(404, 'One or both items not found')
+
+    # Extract tmdb_id from source if it has one
+    source_tmdb_id = source.get('tmdb_id') or (source_id.split(':')[-1] if source_id.startswith('tmdb:') else '')
+
+    # Build merged record: keep target's user fields, fill gaps from source
+    updates = {}
+    for field in ['tmdb_id', 'title', 'kind', 'year', 'url', 'intro', 'summary',
+                  'genres', 'douban_rating', 'douban_rating_count', 'cover_url']:
+        if not target.get(field) and source.get(field):
+            updates[field] = source.get(field)
+    # Ensure tmdb_id is set if source has it
+    if source_tmdb_id and not target.get('tmdb_id'):
+        updates['tmdb_id'] = source_tmdb_id
+
+    if updates:
+        set_clause = ', '.join(f'{k}=?' for k in updates.keys())
+        conn.execute(
+            f'UPDATE douban_watch_history SET {set_clause} WHERE subject_id=?',
+            list(updates.values()) + [target_id]
+        )
+
+    # Delete source
+    conn.execute('DELETE FROM douban_watch_history WHERE subject_id=?', (source_id,))
+    conn.commit()
+    updated = conn.execute('SELECT * FROM douban_watch_history WHERE subject_id=?', (target_id,)).fetchone()
+    conn.close()
+    return {'ok': True, 'item': dict(updated)}
+
+
+@app.post('/api/mark-watched', response_class=JSONResponse)
+async def api_mark_watched(request: Request):
+    """Mark a TMDB item as watched. Creates local record if needed with full data + cover."""
+    payload = await request.json()
+    subject_id = payload.get('subject_id')
+    if not subject_id:
+        raise HTTPException(400, 'subject_id required')
+
+    conn = get_conn()
+    item = conn.execute('SELECT * FROM douban_watch_history WHERE subject_id=?', (subject_id,)).fetchone()
+
+    now = datetime.now().strftime('%Y-%m-%d')
+    if item:
+        # Update existing
+        if item['status'] != 'collect':
+            conn.execute(
+                'UPDATE douban_watch_history SET status="collect", watched_date=? WHERE subject_id=?',
+                (now, subject_id)
+            )
+    else:
+        # Create new
+        tmdb_id = subject_id.split(':')[-1] if subject_id.startswith('tmdb:') else ''
+        cover_url = payload.get('cover_url') or ''
+        final_cover = cover_url
+        if final_cover and final_cover.startswith('http'):
+            try:
+                final_cover = download_cover_to_local(final_cover, subject_id)
+            except Exception:
+                final_cover = normalize_cover_url(cover_url)
+
+        conn.execute(
+            '''INSERT INTO douban_watch_history (
+                subject_id, tmdb_id, title, kind, year, url, intro, summary, genres,
+                douban_rating, douban_rating_count, status, cover_url, watched_date,
+                watch_count, added_at, my_rating, comment
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "collect", ?, ?, 1, datetime("now"), ?, ?)''',
+            (
+                subject_id, tmdb_id,
+                payload.get('title') or '未命名',
+                payload.get('kind'),
+                payload.get('year'),
+                payload.get('url'),
+                payload.get('intro') or '',
+                payload.get('summary') or '',
+                '',
+                payload.get('douban_rating'),
+                payload.get('douban_rating_count'),
+                final_cover,
+                now,
+                payload.get('my_rating'),
+                payload.get('comment'),
+            )
+        )
+
+    # Update rating and comment if provided
+    rating = payload.get('my_rating')
+    comment = payload.get('comment')
+    if rating is not None:
+        conn.execute('UPDATE douban_watch_history SET my_rating=?, rating_source="user" WHERE subject_id=?', (rating, subject_id))
+    if comment:
+        conn.execute('UPDATE douban_watch_history SET comment=?, comment_source="user" WHERE subject_id=?', (comment, subject_id))
+
+    conn.commit()
+    updated = conn.execute('SELECT * FROM douban_watch_history WHERE subject_id=?', (subject_id,)).fetchone()
+    conn.close()
+    return {'ok': True, 'item': dict(updated)}
+

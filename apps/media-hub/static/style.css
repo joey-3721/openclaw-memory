@@ -539,3 +539,8 @@ body::before {
   .search-form input { width: 100%; min-width: 0; }
   .footer-stats { grid-template-columns: 1fr 1fr; }
 }
+
+/* Watched modal */
+.star-picker { display: flex; gap: 4px; }
+.star { font-size: 22px; color: var(--border); cursor: pointer; transition: color 0.1s; }
+.star.active, .star:hover { color: #f5c518; }

@@ -97,7 +97,15 @@
       {% if item.summary %}<p class="media-comment">{{ item.summary[:72] }}{% if item.summary|length > 72 %}...{% endif %}</p>{% elif item.intro %}<p class="media-comment">{{ item.intro[:72] }}{% if item.intro|length > 72 %}...{% endif %}</p>{% endif %}
       <div class="media-actions">
         <a class="btn small" href="{{ item.url }}" target="_blank">TMDB</a>
-        <button class="btn small add-watchlist-btn {% if item.status=='wish' %}primary{% endif %}" data-id="{{ item.subject_id }}" data-title="{{ item.title|e }}" data-kind="{{ item.kind }}" data-year="{{ item.year }}" data-url="{{ item.url|e }}" data-intro="{{ (item.intro or '')|e }}" data-summary="{{ (item.summary or '')|e }}" data-rating="{{ item.douban_rating or '' }}" data-rating-count="{{ item.douban_rating_count or '' }}" data-cover="{{ (item._cover_url or item.cover_url or '')|e }}">{% if item.status=='wish' %}已在待看{% else %}加入待看{% endif %}</button>
+        {% if item.status == 'collect' %}
+        <button class="btn small primary" disabled>已看</button>
+        {% elif item.status == 'wish' %}
+        <button class="btn small add-watchlist-btn primary" data-id="{{ item.subject_id }}" data-title="{{ item.title|e }}" data-kind="{{ item.kind }}" data-year="{{ item.year }}" data-url="{{ item.url|e }}" data-intro="{{ (item.intro or '')|e }}" data-summary="{{ (item.summary or '')|e }}" data-rating="{{ item.douban_rating or '' }}" data-rating-count="{{ item.douban_rating_count or '' }}" data-cover="{{ (item._cover_url or item.cover_url or '')|e }}">已在待看</button>
+        <button class="btn small mark-watched-btn" data-id="{{ item.subject_id }}" data-title="{{ item.title|e }}" data-kind="{{ item.kind }}" data-year="{{ item.year }}" data-url="{{ item.url|e }}" data-intro="{{ (item.intro or '')|e }}" data-summary="{{ (item.summary or '')|e }}" data-rating="{{ item.douban_rating or '' }}" data-rating-count="{{ item.douban_rating_count or '' }}" data-cover="{{ (item._cover_url or item.cover_url or '')|e }}">看过</button>
+        {% else %}
+        <button class="btn small add-watchlist-btn" data-id="{{ item.subject_id }}" data-title="{{ item.title|e }}" data-kind="{{ item.kind }}" data-year="{{ item.year }}" data-url="{{ item.url|e }}" data-intro="{{ (item.intro or '')|e }}" data-summary="{{ (item.summary or '')|e }}" data-rating="{{ item.douban_rating or '' }}" data-rating-count="{{ item.douban_rating_count or '' }}" data-cover="{{ (item._cover_url or item.cover_url or '')|e }}">加入待看</button>
+        <button class="btn small mark-watched-btn" data-id="{{ item.subject_id }}" data-title="{{ item.title|e }}" data-kind="{{ item.kind }}" data-year="{{ item.year }}" data-url="{{ item.url|e }}" data-intro="{{ (item.intro or '')|e }}" data-summary="{{ (item.summary or '')|e }}" data-rating="{{ item.douban_rating or '' }}" data-rating-count="{{ item.douban_rating_count or '' }}" data-cover="{{ (item._cover_url or item.cover_url or '')|e }}">看过</button>
+        {% endif %}
       </div>
     </div>
   </article>
@@ -105,8 +113,56 @@
   {% endif %}
 </div>
 
+<!-- 看过 modal -->
+<div class="modal" id="watchedModal" style="display:none">
+  <div class="modal-content" style="max-width:480px">
+    <button class="modal-close" id="watched-modal-close">✕</button>
+    <h3 id="watched-modal-title">标记为看过</h3>
+    <div id="watched-step-1">
+      <p style="color:var(--text-secondary);font-size:14px;margin-bottom:16px;">你想怎么记录这部？</p>
+      <div style="display:flex;gap:12px;margin-bottom:20px;">
+        <button class="btn primary" id="btn-merge" style="flex:1">合并到已有</button>
+        <button class="btn" id="btn-new" style="flex:1">新增为看过</button>
+      </div>
+    </div>
+    <div id="watched-step-merge" style="display:none;">
+      <p style="color:var(--text-secondary);font-size:14px;margin-bottom:12px;">在本地片库搜索要合并的条目：</p>
+      <input type="text" id="merge-search-input" placeholder="搜索本地片库标题..." style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--bg-secondary);color:var(--text-primary);margin-bottom:12px;">
+      <div id="merge-results" style="max-height:260px;overflow-y:auto;"></div>
+      <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end;">
+        <button class="btn" id="merge-back-btn">上一步</button>
+        <button class="btn primary" id="merge-confirm-btn" disabled>确认合并</button>
+      </div>
+    </div>
+    <div id="watched-step-new" style="display:none;">
+      <div style="margin-bottom:16px;">
+        <label style="font-size:14px;color:var(--text-secondary);display:block;margin-bottom:8px;">我的评分</label>
+        <div class="star-picker" id="star-picker">
+          <span class="star" data-value="1">★</span>
+          <span class="star" data-value="2">★</span>
+          <span class="star" data-value="3">★</span>
+          <span class="star" data-value="4">★</span>
+          <span class="star" data-value="5">★</span>
+        </div>
+      </div>
+      <div style="margin-bottom:16px;">
+        <label style="font-size:14px;color:var(--text-secondary);display:block;margin-bottom:8px;">我的短评</label>
+        <textarea id="watched-comment-input" rows="3" placeholder="简单说两句...（可选）" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--bg-secondary);color:var(--text-primary);resize:none;"></textarea>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;">
+        <button class="btn" id="new-back-btn">上一步</button>
+        <button class="btn primary" id="new-confirm-btn">保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
+var currentWatchedItem = null;
+var selectedMergeSid = null;
+
 document.addEventListener('DOMContentLoaded', function() {
+  // Add to watchlist
   document.querySelectorAll('.add-watchlist-btn').forEach(function(btn) {
     btn.addEventListener('click', function() {
       var id = this.dataset.id;
@@ -134,11 +190,123 @@ document.addEventListener('DOMContentLoaded', function() {
       }
       req.then(function(r) { return r.json(); })
         .then(function(data) {
-          btn.textContent = '已在待看';
-          btn.classList.add('primary');
           if (window.showToast) showToast('已加入待看片库 🎬', 'success');
+          setTimeout(function() { location.reload(); }, 600);
         });
     });
+  });
+
+  // Star picker
+  document.querySelectorAll('.star').forEach(function(star) {
+    star.addEventListener('click', function() {
+      var val = parseInt(this.dataset.value);
+      document.querySelectorAll('.star').forEach(function(s, i) {
+        s.classList.toggle('active', i < val);
+      });
+      document.getElementById('new-confirm-btn').dataset.rating = val;
+    });
+  });
+
+  // Open watched modal
+  document.querySelectorAll('.mark-watched-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      currentWatchedItem = {
+        subject_id: btn.dataset.id,
+        title: btn.dataset.title,
+        kind: btn.dataset.kind,
+        year: btn.dataset.year || null,
+        url: btn.dataset.url,
+        intro: btn.dataset.intro,
+        summary: btn.dataset.summary,
+        douban_rating: btn.dataset.rating || null,
+        douban_rating_count: btn.dataset.ratingCount || null,
+        cover_url: btn.dataset.cover
+      };
+      selectedMergeSid = null;
+      document.getElementById('merge-confirm-btn').disabled = true;
+      document.getElementById('merge-search-input').value = '';
+      document.getElementById('merge-results').innerHTML = '';
+      document.getElementById('watched-modal-title').textContent = btn.dataset.title;
+      showStep(1);
+      document.getElementById('watchedModal').style.display = 'flex';
+    });
+  });
+
+  function showStep(n) {
+    document.getElementById('watched-step-1').style.display = n === 1 ? 'block' : 'none';
+    document.getElementById('watched-step-merge').style.display = n === 2 ? 'block' : 'none';
+    document.getElementById('watched-step-new').style.display = n === 3 ? 'block' : 'none';
+  }
+
+  document.getElementById('watched-modal-close').addEventListener('click', function() {
+    document.getElementById('watchedModal').style.display = 'none';
+  });
+  document.getElementById('btn-merge').addEventListener('click', function() { showStep(2); });
+  document.getElementById('btn-new').addEventListener('click', function() { showStep(3); });
+  document.getElementById('merge-back-btn').addEventListener('click', function() { showStep(1); });
+  document.getElementById('new-back-btn').addEventListener('click', function() { showStep(1); });
+
+  // Merge search
+  var mergeTimer = null;
+  document.getElementById('merge-search-input').addEventListener('input', function() {
+    clearTimeout(mergeTimer);
+    var q = this.value.trim();
+    if (!q) { document.getElementById('merge-results').innerHTML = ''; return; }
+    mergeTimer = setTimeout(function() {
+      fetch('/api/library/search?q=' + encodeURIComponent(q) + '&limit=10')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          var html = '';
+          (data.items || []).forEach(function(item) {
+            html += '<div class="merge-result-item" data-sid="' + item.subject_id + '" style="display:flex;align-items:center;gap:10px;padding:8px;border-radius:6px;cursor:pointer;margin-bottom:4px;background:var(--bg-secondary);">';
+            html += '<div style="flex:1;">' + item.title + ' <span style="color:var(--text-secondary);font-size:12px;">' + (item.year || '') + '</span></div>';
+            html += '</div>';
+          });
+          if (!html) html = '<p style="color:var(--text-secondary);font-size:13px;text-align:center;padding:12px;">没有找到</p>';
+          document.getElementById('merge-results').innerHTML = html;
+          document.querySelectorAll('.merge-result-item').forEach(function(el) {
+            el.addEventListener('click', function() {
+              document.querySelectorAll('.merge-result-item').forEach(function(e) { e.style.background = 'var(--bg-secondary)'; });
+              el.style.background = 'var(--primary-alpha)';
+              selectedMergeSid = el.dataset.sid;
+              document.getElementById('merge-confirm-btn').disabled = false;
+            });
+          });
+        });
+    }, 300);
+  });
+
+  // Confirm merge
+  document.getElementById('merge-confirm-btn').addEventListener('click', function() {
+    if (!currentWatchedItem || !selectedMergeSid) return;
+    fetch('/api/merge', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ source_subject_id: currentWatchedItem.subject_id, target_subject_id: selectedMergeSid })
+    }).then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (window.showToast) showToast('已合并到：' + (data.item && data.item.title || ''), 'success');
+        document.getElementById('watchedModal').style.display = 'none';
+        setTimeout(function() { location.reload(); }, 800);
+      });
+  });
+
+  // Confirm new
+  document.getElementById('new-confirm-btn').addEventListener('click', function() {
+    if (!currentWatchedItem) return;
+    var rating = parseInt(document.getElementById('new-confirm-btn').dataset.rating) || null;
+    var comment = document.getElementById('watched-comment-input').value.trim();
+    var payload = Object.assign({}, currentWatchedItem, { my_rating: rating, comment: comment, status: 'collect' });
+    fetch('/api/mark-watched', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (window.showToast) showToast('已保存到影视库 🎬', 'success');
+        document.getElementById('watchedModal').style.display = 'none';
+        setTimeout(function() { location.reload(); }, 800);
+      });
   });
 });
 </script>

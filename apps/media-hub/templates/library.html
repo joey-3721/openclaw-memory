@@ -101,7 +101,7 @@
       <p class="rec-credits" style="font-size:11px;margin:4px 0 2px;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ item.directors[:30] }}{% if item.directors and item.actors %} · {% endif %}{{ item.actors[:40] }}</p>
       {% endif %}
       <div class="media-actions">
-        <a class="btn small" href="{{ item.url }}" target="_blank">豆瓣</a>
+        {% if item.url %}<a class="btn small" href="{{ item.url }}" target="_blank">详情</a>{% endif %}
         <button class="btn small watch-btn {% if item.status=='collect' %}primary{% endif %}" data-id="{{ item.subject_id }}" data-action="watch">
           {% if item.status == 'collect' %}已看{% else %}看过{% endif %}
         </button>
