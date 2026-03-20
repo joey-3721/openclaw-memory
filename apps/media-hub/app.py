@@ -198,13 +198,30 @@ def cover_style(item):
     return f"background: linear-gradient(135deg, hsl({hue},55%,22%), hsl({(hue+40)%360},50%,15%));"
 
 
+def normalize_cover_url(value):
+    """Normalize cover URLs for browser compatibility.
+
+    Douban sometimes serves poster URLs as .webp in DevTools/network logs.
+    Some clients/rendering paths behave more reliably with .jpg, so normalize
+    known doubanio poster links back to jpg.
+    """
+    if not value:
+        return None
+    value = str(value).strip()
+    if not value:
+        return None
+    if 'doubanio.com/view/photo/' in value and value.endswith('.webp'):
+        value = value[:-5] + '.jpg'
+    return value
+
+
 def cover_url(item):
-    """Return cover URL or None. Works for sqlite3.Row and dict."""
+    """Return normalized cover URL or None. Works for sqlite3.Row and dict."""
     try:
         value = item['cover_url']
     except Exception:
         value = item.get('cover_url') if hasattr(item, 'get') else None
-    return value or None
+    return normalize_cover_url(value)
 
 
 def rating_stars(rating):
@@ -486,7 +503,7 @@ async def edit_item(subject_id: str, request: Request):
     if watch_count is not None:
         conn.execute('UPDATE douban_watch_history SET watch_count=? WHERE subject_id=?', (watch_count, subject_id))
     if cover_url is not None:
-        conn.execute('UPDATE douban_watch_history SET cover_url=? WHERE subject_id=?', (cover_url, subject_id))
+        conn.execute('UPDATE douban_watch_history SET cover_url=? WHERE subject_id=?', (normalize_cover_url(cover_url), subject_id))
 
     conn.commit()
     updated = conn.execute('SELECT * FROM douban_watch_history WHERE subject_id=?', (subject_id,)).fetchone()
