@@ -58,6 +58,14 @@
   </form>
 </section>
 
+{% if total_pages > 1 %}
+<nav class="pagination-bar" style="display:flex;justify-content:center;align-items:center;gap:12px;padding:16px 0;">
+  <a class="btn{% if page <= 1 %} disabled{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort={{ sort }}&region={{ region }}&year={{ year }}&page={{ page-1 }}">‹ 上一页</a>
+  <span style="color:var(--text-secondary);font-size:14px;">第 {{ page }} / {{ total_pages }} 页 &nbsp;共 {{ total_results }} 条</span>
+  <a class="btn{% if page >= total_pages %} disabled{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort={{ sort }}&region={{ region }}&year={{ year }}&page={{ page+1 }}">下一页 ›</a>
+</nav>
+{% endif %}
+
 <div class="media-grid">
   {% if not items %}
   <div class="empty-state">

@@ -44,7 +44,12 @@ def ensure_schema(conn):
     if 'feedback_updated_at' not in cols:
         conn.execute('ALTER TABLE douban_watch_history ADD COLUMN feedback_updated_at TEXT')
     if 'added_at' not in cols:
-        conn.execute("ALTER TABLE douban_watch_history ADD COLUMN added_at TEXT DEFAULT (datetime('now'))")
+        conn.execute("ALTER TABLE douban_watch_history ADD COLUMN added_at TEXT")
+        conn.execute("UPDATE douban_watch_history SET added_at = datetime('now') WHERE added_at IS NULL")
+    if 'tmdb_id' not in cols:
+        conn.execute("ALTER TABLE douban_watch_history ADD COLUMN tmdb_id TEXT")
+        # Backfill: extract existing tmdb:* subject_ids
+        conn.execute("UPDATE douban_watch_history SET tmdb_id = substr(subject_id, 6) WHERE subject_id LIKE 'tmdb:%'")
     conn.commit()
 
 
@@ -152,9 +157,11 @@ def tmdb_to_item(raw: dict, media_type: str):
     year = int(year_raw[:4]) if year_raw[:4].isdigit() else None
     genres = '/'.join(str(g) for g in raw.get('genre_ids', [])) if raw.get('genre_ids') else ''
     overview = raw.get('overview') or ''
-    sid = f"tmdb:{media_type}:{raw.get('id')}"
+    tmdb_id = str(raw.get('id', ''))
+    sid = f"tmdb:{media_type}:{tmdb_id}"
     return {
         'subject_id': sid,
+        'tmdb_id': tmdb_id,
         'title': title,
         'kind': 'movie' if media_type == 'movie' else 'tv',
         'year': year,
@@ -174,14 +181,68 @@ def tmdb_to_item(raw: dict, media_type: str):
     }
 
 
+def normalize_title(s: str) -> str:
+    """Strip punctuation/spaces for fuzzy comparison."""
+    if not s:
+        return ''
+    import unicodedata
+    s = unicodedata.normalize('NFKC', s)
+    s = re.sub(r'[\s\-_·:：、，,。.]+', '', s)
+    return s.lower()
+
+
+def match_local_status(conn, item: dict) -> dict:
+    """Check if a TMDB item already exists in local DB by tmdb_id or fuzzy title match.
+    Returns the item dict with status/subject_id filled from local DB if found."""
+    tmdb_id = item.get('tmdb_id', '')
+    norm_title = normalize_title(item.get('title', ''))
+
+    # 1. Try exact tmdb_id match
+    if tmdb_id:
+        row = conn.execute(
+            'SELECT * FROM douban_watch_history WHERE tmdb_id=? OR subject_id=?',
+            (tmdb_id, f'tmdb:{item["kind"]}:{tmdb_id}')
+        ).fetchone()
+        if row:
+            item = dict(row)
+            item['_cover_style'] = cover_style(row)
+            item['_cover_url'] = cover_url(row)
+            item['_stars'] = rating_stars(item.get('douban_rating'))
+            item['_first_genre'] = first_genre(item)
+            item['_matched'] = 'tmdb_id'
+            return item
+
+    # 2. Try fuzzy title match (same normalized title, same kind, year close)
+    year = item.get('year')
+    kind = item.get('kind')
+    candidates = conn.execute(
+        'SELECT * FROM douban_watch_history WHERE kind=? AND status IS NOT NULL',
+        (kind,)
+    ).fetchall()
+    for row in candidates:
+        row_title = normalize_title(row['title'])
+        if row_title and row_title == norm_title:
+            matched = dict(row)
+            matched.update({k: v for k, v in item.items()
+                           if k not in matched or not matched[k]})
+            matched['_cover_style'] = cover_style(row)
+            matched['_cover_url'] = cover_url(row)
+            matched['_stars'] = rating_stars(matched.get('douban_rating'))
+            matched['_first_genre'] = first_genre(matched)
+            matched['_matched'] = 'title'
+            return matched
+
+    item['status'] = None
+    return item
+
+
 def tmdb_discover(kind: str = 'movie', query: str = '', sort: str = 'popularity',
-                   region: str = '', year: str = '', page: int = 1, limit: int = 60):
+                   region: str = '', year: str = '', page: int = 1, limit: int = 20):
     key = read_tmdb_key()
     if not key:
-        return []
+        return {'items': [], 'total_pages': 0, 'total_results': 0, 'page': page}
     cfg = tmdb_kind_config(kind)
 
-    # Build sort_by mapping (TMDB v3 sort options)
     sort_map = {
         'popularity': 'popularity.desc',
         'rating':    'vote_average.desc',
@@ -222,7 +283,12 @@ def tmdb_discover(kind: str = 'movie', query: str = '', sort: str = 'popularity'
     data = r.json()
     media_type = cfg['media_type']
     items = [tmdb_to_item(x, media_type) for x in data.get('results', [])[:limit]]
-    return items
+    return {
+        'items': items,
+        'total_pages': data.get('total_pages', 0),
+        'total_results': data.get('total_results', 0),
+        'page': page,
+    }
 
 
 def get_site_stats():
@@ -596,12 +662,19 @@ def discover(request: Request,
              q: str      = Query(''),
              sort: str   = Query('popularity'),
              region: str = Query(''),
-             year: str   = Query('')):
+             year: str   = Query(''),
+             page: int   = Query(1)):
     tmdb_status = tmdb_probe()
     source = 'tmdb' if tmdb_status.get('ok') else 'local'
     if source == 'tmdb':
-        items = tmdb_discover(kind=kind, query=q, sort=sort, region=region, year=year, limit=60)
+        result = tmdb_discover(kind=kind, query=q, sort=sort, region=region, year=year, page=page, limit=20)
+        # Match each TMDB item against local DB to get real watch status
+        conn = get_conn()
+        items = [match_local_status(conn, item) for item in result['items']]
+        conn.close()
         mode = 'search' if q else 'discover'
+        total_pages = result['total_pages']
+        total_results = result['total_results']
     else:
         if q:
             items = douban_search_fallback(q, kind=kind, limit=60)
@@ -632,6 +705,8 @@ def discover(request: Request,
                 item['_first_genre'] = first_genre(item)
                 items.append(item)
             mode = 'discover'
+        total_pages = 1
+        total_results = len(items)
     return templates.TemplateResponse('discover.html', {
         'request': request,
         'items': items,
@@ -640,6 +715,9 @@ def discover(request: Request,
         'sort': sort,
         'region': region,
         'year': year,
+        'page': page,
+        'total_pages': total_pages,
+        'total_results': total_results,
         'mode': mode,
         'source': source,
         'tmdb_probe': tmdb_status,
@@ -817,13 +895,15 @@ async def import_tmdb_to_watchlist(request: Request):
             conn.execute('UPDATE douban_watch_history SET status="wish" WHERE subject_id=?', (subject_id,))
     else:
         now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        tmdb_id = subject_id.split(':')[-1] if subject_id.startswith('tmdb:') else ''
         conn.execute(
             '''INSERT INTO douban_watch_history (
-                subject_id, title, kind, year, url, intro, summary, douban_rating, douban_rating_count,
+                subject_id, tmdb_id, title, kind, year, url, intro, summary, douban_rating, douban_rating_count,
                 status, cover_url, watched_date, watch_count, added_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, "wish", ?, NULL, 1, ?)''',
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "wish", ?, NULL, 1, ?)''',
             (
                 subject_id,
+                tmdb_id,
                 payload.get('title') or '未命名',
                 payload.get('kind'),
                 payload.get('year'),
