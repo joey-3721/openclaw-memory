@@ -2,23 +2,27 @@
 {% block content %}
 <section class="hero small" id="tonight">
   <div class="hero-copy">
-    <div class="eyebrow"><span class="live-dot"></span> 不知道看什么的时候</div>
-    <h1>今晚看什么</h1>
+    <div class="eyebrow"><span class="live-dot"></span> 今日推荐</div>
+    <h1>今日推荐</h1>
     {% if last_updated %}<div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px">🔄 本次刷新于 {{ last_updated }} 北京时间</div>{% endif %}
     {% if today_pick %}
     <div class="tonight-card">
       <div class="tonight-cover" style="{{ today_pick._cover_style }}">
         {% if today_pick._cover_url %}<img src="{{ today_pick._cover_url }}" alt="{{ today_pick.title }}" onerror="this.style.display='none'; this.parentElement.classList.add('cover-img-failed')">{% else %}<div class="cover-fallback-title">{{ today_pick.title[:8] }}</div>{% endif %}
         {% if today_pick.status == 'collect' %}<div class="cover-watched-overlay"><span>已看</span></div>{% endif %}
-        <div class="tonight-overlay">
-          <span class="tonight-title">{{ today_pick.title }}</span>
-          <span class="tonight-meta">{{ today_pick.year }} · {{ today_pick.kind }} · 豆瓣 {{ today_pick.douban_rating or '-' }}</span>
-        </div>
       </div>
       <div class="tonight-info">
-        <div class="rating-badge-lg">{{ today_pick.douban_rating or '-' }}</div>
-        {% if today_pick._stars %}<div class="tonight-stars">{{ today_pick._stars }} <span style="font-size:12px;color:var(--text-secondary)">豆瓣</span></div>{% endif %}
-        {% if today_pick._first_genre %}<span class="rec-genre-chip" style="font-size:11px;padding:3px 10px">{{ today_pick._first_genre }}</span>{% endif %}
+        <div class="tonight-head">
+          <div class="tonight-head-main">
+            <div class="tonight-title-row">
+              <h2 class="tonight-title">{{ today_pick.title }}</h2>
+              {% if today_pick._first_genre %}<span class="rec-genre-chip" style="font-size:11px;padding:3px 10px">{{ today_pick._first_genre }}</span>{% endif %}
+            </div>
+            <div class="tonight-meta">{{ today_pick.year }} · {{ today_pick.kind }} · 豆瓣 {{ today_pick.douban_rating or '-' }}</div>
+            {% if today_pick._stars %}<div class="tonight-stars">{{ today_pick._stars }} <span style="font-size:12px;color:var(--text-secondary)">豆瓣</span></div>{% endif %}
+          </div>
+          <div class="rating-badge-lg">{{ today_pick.douban_rating or '-' }}</div>
+        </div>
         <p class="reason-text">{{ today_pick._reason }}</p>
         {% if today_pick.directors or today_pick.actors %}
         <p class="tonight-credits">🎬 {{ today_pick.directors[:40] }}{% if today_pick.directors and today_pick.actors %} · {% endif %}{{ today_pick.actors[:50] }}</p>
