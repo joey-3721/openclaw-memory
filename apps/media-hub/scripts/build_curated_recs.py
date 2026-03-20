@@ -48,8 +48,12 @@ def main():
     items = []
     for media, en_query, zh_title, reason in CURATED:
         url = f'https://api.themoviedb.org/3/search/{media}'
-        resp = requests.get(url, params={'api_key': key, 'query': en_query, 'language': 'zh-CN', 'include_adult': 'false'}, proxies=proxies, timeout=25)
-        data = resp.json()
+        try:
+            resp = requests.get(url, params={'api_key': key, 'query': en_query, 'language': 'zh-CN', 'include_adult': 'false'}, proxies=proxies, timeout=25)
+            data = resp.json()
+        except Exception as e:
+            print('ERR', zh_title, e)
+            continue
         raw = pick_result(data.get('results') or [], zh_title)
         if not raw:
             print('MISS', zh_title)
