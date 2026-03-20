@@ -640,7 +640,17 @@ def cover_url(item):
         value = item['cover_url']
     except Exception:
         value = item.get('cover_url') if hasattr(item, 'get') else None
-    return normalize_cover_url(value)
+    value = normalize_cover_url(value)
+    if value:
+        return value
+    poster_path = None
+    try:
+        poster_path = item['poster_path']
+    except Exception:
+        poster_path = item.get('poster_path') if hasattr(item, 'get') else None
+    if poster_path:
+        return tmdb_image_url(poster_path)
+    return None
 
 
 def rating_stars(rating):
@@ -665,19 +675,7 @@ def home(request: Request):
     conn = get_conn()
     counts = dict(conn.execute('SELECT status, COUNT(*) FROM douban_watch_history GROUP BY status').fetchall())
     profile = load_profile(conn)
-    rec_rows = recommendation_candidates(conn, limit=6)
-    high_rated = [dict(r) for r in conn.execute(
-        'SELECT * FROM douban_watch_history WHERE status="collect" AND my_rating >= 4'
-    ).fetchall()]
-    recs = []
-    for r in rec_rows:
-        rec = dict(r)
-        rec['_reason'] = make_recommendation_reason(r, profile, high_rated)
-        rec['_cover_style'] = cover_style(r)
-        rec['_cover_url'] = cover_url(r)
-        rec['_stars'] = rating_stars(rec.get('douban_rating'))
-        rec['_first_genre'] = first_genre(rec)
-        recs.append(rec)
+    recs = tmdb_recommendation_candidates(conn, limit=6)
     recent_rows = conn.execute('SELECT * FROM douban_watch_history WHERE status="collect" ORDER BY watched_date DESC LIMIT 8').fetchall()
     recent = []
     for r in recent_rows:
@@ -687,19 +685,7 @@ def home(request: Request):
         item['_stars'] = rating_stars(item.get('douban_rating'))
         item['_first_genre'] = first_genre(item)
         recent.append(item)
-    # Tonight pick: random from top-10 (true daily surprise)
-    recs_all = recommendation_candidates(conn, limit=30)
-    recs_with_reason = []
-    for r in recs_all:
-        rec = dict(r)
-        rec['_reason'] = make_recommendation_reason(r, profile, high_rated)
-        rec['_cover_style'] = cover_style(r)
-        rec['_cover_url'] = cover_url(r)
-        rec['_stars'] = rating_stars(rec.get('douban_rating'))
-        rec['_first_genre'] = first_genre(rec)
-        rec['_score'] = rec.get('_score', 0)
-        recs_with_reason.append(rec)
-    tonight_pick = random.choice(recs_with_reason[:10]) if len(recs_with_reason) >= 10 else (recs_with_reason[0] if recs_with_reason else None)
+    tonight_pick = random.choice(recs[:6]) if len(recs) >= 2 else (recs[0] if recs else None)
     return templates.TemplateResponse('index.html', {
         'request': request,
         'counts': counts,
