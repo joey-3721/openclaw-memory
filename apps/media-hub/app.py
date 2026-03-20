@@ -249,6 +249,7 @@ def home(request: Request):
         item['_cover_style'] = cover_style(r)
         item['_cover_url'] = cover_url(r)
         item['_stars'] = rating_stars(item.get('douban_rating'))
+        item['_first_genre'] = first_genre(item)
         recent.append(item)
     # Tonight pick: random from top-10 (true daily surprise)
     recs_all = recommendation_candidates(conn, limit=30)

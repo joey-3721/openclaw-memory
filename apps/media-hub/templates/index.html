@@ -98,10 +98,12 @@
             {% if item.my_rating %}{{ '★' * item.my_rating }}{{ '☆' * (5 - item.my_rating) }}{% else %}☆☆☆☆☆{% endif %}
           </span>
         </div>
+        {% if item._reason %}
         <div class="rec-reason-wrap">
           <span class="rec-reason-icon">💡</span>
           <p class="rec-reason">{{ item._reason }}</p>
         </div>
+        {% endif %}
         {% if item.directors or item.actors %}
         <p class="rec-credits">{{ item.directors[:30] }}{% if item.directors and item.actors %} · {% endif %}{{ item.actors[:40] }}</p>
         {% endif %}
