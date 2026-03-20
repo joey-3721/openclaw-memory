@@ -8,13 +8,18 @@ from collections import Counter
 import random
 import hashlib
 from datetime import datetime, timedelta
+import os
+import re
+import requests
 
 BASE_DIR = Path(__file__).resolve().parent
-import os
 DB_PATH = Path(os.getenv('MEDIA_HUB_DB', str(BASE_DIR / 'douban_media.db')))
+COVERS_DIR = Path(os.getenv('MEDIA_HUB_COVERS_DIR', str(BASE_DIR / 'static' / 'covers')))
+COVERS_DIR.mkdir(parents=True, exist_ok=True)
 
 app = FastAPI(title='Media Hub')
 app.mount('/static', StaticFiles(directory=str(BASE_DIR / 'static')), name='static')
+app.mount('/covers', StaticFiles(directory=str(COVERS_DIR)), name='covers')
 templates = Jinja2Templates(directory=str(BASE_DIR / 'templates'))
 
 
@@ -213,6 +218,44 @@ def normalize_cover_url(value):
     if 'doubanio.com/view/photo/' in value and value.endswith('.webp'):
         value = value[:-5] + '.jpg'
     return value
+
+
+def local_cover_path(subject_id: str, ext: str = 'jpg'):
+    return COVERS_DIR / f'{subject_id}.{ext}'
+
+
+def download_cover_to_local(url: str, subject_id: str) -> str:
+    """Download remote cover to local static storage and return served URL path."""
+    normalized = normalize_cover_url(url)
+    headers = {
+        'User-Agent': 'Mozilla/5.0',
+        'Referer': 'https://movie.douban.com/',
+    }
+    resp = requests.get(normalized, headers=headers, timeout=20)
+    resp.raise_for_status()
+
+    content_type = (resp.headers.get('Content-Type') or '').lower()
+    if 'png' in content_type:
+        ext = 'png'
+    elif 'webp' in content_type:
+        ext = 'webp'
+    else:
+        ext = 'jpg'
+
+    # Prefer jpg for normalized douban poster links even if extension parsing is noisy.
+    m = re.search(r'\.([a-zA-Z0-9]+)(?:\?|$)', normalized)
+    if m and m.group(1).lower() in {'jpg', 'jpeg', 'png', 'webp'}:
+        ext = 'jpg' if m.group(1).lower() == 'jpeg' else m.group(1).lower()
+
+    for old in COVERS_DIR.glob(f'{subject_id}.*'):
+        try:
+            old.unlink()
+        except OSError:
+            pass
+
+    path = local_cover_path(subject_id, ext)
+    path.write_bytes(resp.content)
+    return f'/covers/{path.name}'
 
 
 def cover_url(item):
@@ -503,7 +546,14 @@ async def edit_item(subject_id: str, request: Request):
     if watch_count is not None:
         conn.execute('UPDATE douban_watch_history SET watch_count=? WHERE subject_id=?', (watch_count, subject_id))
     if cover_url is not None:
-        conn.execute('UPDATE douban_watch_history SET cover_url=? WHERE subject_id=?', (normalize_cover_url(cover_url), subject_id))
+        final_cover_url = normalize_cover_url(cover_url)
+        if final_cover_url and final_cover_url.startswith('http'):
+            try:
+                final_cover_url = download_cover_to_local(final_cover_url, subject_id)
+            except Exception:
+                # Fallback to remote URL if local caching fails.
+                final_cover_url = normalize_cover_url(cover_url)
+        conn.execute('UPDATE douban_watch_history SET cover_url=? WHERE subject_id=?', (final_cover_url, subject_id))
 
     conn.commit()
     updated = conn.execute('SELECT * FROM douban_watch_history WHERE subject_id=?', (subject_id,)).fetchone()
