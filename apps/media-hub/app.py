@@ -7,7 +7,7 @@ from pathlib import Path
 from collections import Counter
 import random
 import hashlib
-from datetime import datetime
+from datetime import datetime, timedelta
 
 BASE_DIR = Path(__file__).resolve().parent
 import os
@@ -363,7 +363,7 @@ def recommendations(request: Request, sort: str = Query('score')):
         'surprise': dict(tonight_pick) if tonight_pick else None,
         'today_pick': dict(tonight_pick) if tonight_pick else None,
         'sort': sort,
-        'last_updated': datetime.now().strftime('%H:%M'),
+        'last_updated': (datetime.now() + timedelta(hours=8)).strftime('%H:%M'),
         'site_stats': get_site_stats(),
     })
 

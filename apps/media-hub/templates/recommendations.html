@@ -4,7 +4,7 @@
   <div class="hero-copy">
     <div class="eyebrow"><span class="live-dot"></span> 不知道看什么的时候</div>
     <h1>今晚看什么</h1>
-    {% if last_updated %}<div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px">🔄 本次刷新于 {{ last_updated }} UTC</div>{% endif %}
+    {% if last_updated %}<div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px">🔄 本次刷新于 {{ last_updated }} 北京时间</div>{% endif %}
     {% if today_pick %}
     <div class="tonight-card">
       <div class="tonight-cover" style="{{ today_pick._cover_style }}">
@@ -47,6 +47,14 @@
     </div>
     <span class="count">{{ recs|length }} 部</span>
   </div>
+  {% if site_stats %}
+  <div class="lib-quick-stats">
+    <span>📋 {{ site_stats.wish }}部在看</span>
+    <span class="sep">·</span>
+    <span>✅ {{ site_stats.watched }}部已看</span>
+    {% if site_stats.avg_rating %}<span class="sep">·</span><span>⭐ 均分 {{ site_stats.avg_rating }}</span>{% endif %}
+  </div>
+  {% endif %}
 </section>
 
 <div class="rec-grid" id="recGrid">
