@@ -6,8 +6,6 @@
     <p>{% if source == 'tmdb' %}{% if mode == 'search' %}TMDB 实时搜索{% else %}TMDB 热门推荐{% endif %}{% else %}本地影视库{% endif %}</p>
   </div>
   <div class="page-intro-stats">
-    <div class="intro-stat"><span>当前</span><strong>{{ items|length }}</strong></div>
-    <div class="intro-stat"><span>{% if kind=='movie' %}电影{% elif kind=='tv' %}电视剧{% else %}综艺{% endif %}</span></div>
     {% if tmdb_probe.ok %}<div class="intro-stat"><span>TMDB</span><strong style="color:#4caf50">在线</strong></div>{% endif %}
   </div>
 </section>

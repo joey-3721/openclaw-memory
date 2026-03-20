@@ -2,11 +2,9 @@
 {% block content %}
 <section class="page-intro compact muted">
   <div>
-    <h1>{% if page_mode == 'watchlist' %}待看片库{% else %}影视库{% endif %}</h1>
-    <p>{% if page_mode == 'watchlist' %}这里是你所有还没看、但准备看的内容。{% else %}共 {{ items|length }} 条记录，按状态、类型和排序快速筛选。{% endif %}</p>
+    <h1>{% if page_mode == 'watchlist' %}待看{% else %}影视库{% endif %}</h1>
   </div>
   <div class="page-intro-stats">
-    <div class="intro-stat"><span>当前结果</span><strong>{{ items|length }}</strong></div>
     <div class="intro-stat"><span>全部库存</span><strong>{{ site_stats.total if site_stats else items|length }}</strong></div>
   </div>
 </section>
@@ -131,11 +129,11 @@
 <!-- Delete confirm Modal -->
 <div class="modal" id="deleteModal" style="display:none">
   <div class="modal-content" style="max-width:360px">
-    <button class="modal-close" id="cancel-delete">✕</button>
+    <button class="modal-close" id="delete-modal-close">✕</button>
     <h3 style="margin-bottom:12px">确认删除</h3>
     <p style="color:var(--text-secondary);font-size:14px;margin-bottom:20px">确定要删除「<span id="delete-item-title"></span>」吗？此操作不可恢复。</p>
     <div style="display:flex;gap:10px;justify-content:flex-end">
-      <button class="btn" id="cancel-delete">取消</button>
+      <button class="btn" id="cancel-delete-btn">取消</button>
       <button class="btn primary" id="confirm-delete" style="background:#e53935">删除</button>
     </div>
   </div>
@@ -214,9 +212,7 @@ function attachCardEvents() {
         .then(function(data) {
           if (data.ok) {
             if (action === 'watch') {
-              btn.textContent = '已标记 ✓';
-              btn.disabled = true;
-              btn.classList.add('primary');
+              if (data.status === 'wish') { btn.textContent = '看过'; btn.classList.remove('primary'); } else { btn.textContent = '已看'; btn.classList.add('primary'); }
               if (window.showToast) showToast('已标记为看过 🎉', 'success');
             } else {
               btn.textContent = '再看 ' + data.watch_count + '次';
@@ -366,7 +362,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // Delete modal
   var pendingDeleteId = null;
-  document.getElementById('cancel-delete').addEventListener('click', function() {
+  document.getElementById('delete-modal-close').addEventListener('click', function() { document.getElementById('deleteModal').style.display = 'none'; pendingDeleteId = null; });
+  document.getElementById('cancel-delete-btn').addEventListener('click', function() {
     document.getElementById('deleteModal').style.display = 'none';
     pendingDeleteId = null;
   });
