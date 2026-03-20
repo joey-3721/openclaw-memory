@@ -2,44 +2,58 @@
 {% block content %}
 <section class="page-intro compact muted">
   <div>
-    <h1>{% if mode == 'search' %}豆瓣搜索{% else %}豆瓣发现{% endif %}</h1>
-    <p>{% if source == 'tmdb' %}{% if mode == 'search' %}当前搜索结果已切到 TMDB 实时搜索源。{% else %}当前发现页已切到 TMDB 实时发现源。{% endif %}{% else %}{% if mode == 'search' %}当前搜索结果先用本地库兜底，等待真实源可用。{% else %}当前发现页先用本地库兜底，等待真实源可用。{% endif %}{% endif %}</p>
+    <h1>{% if mode == 'search' %}搜索结果{% else %}发现{% endif %}</h1>
+    <p>{% if source == 'tmdb' %}{% if mode == 'search' %}TMDB 实时搜索{% else %}TMDB 热门推荐{% endif %}{% else %}本地影视库{% endif %}</p>
   </div>
   <div class="page-intro-stats">
-    <div class="intro-stat"><span>当前结果</span><strong>{{ items|length }}</strong></div>
-    <div class="intro-stat"><span>分类</span><strong>{% if kind=='movie' %}电影{% elif kind=='tv' %}电视剧{% else %}综艺{% endif %}</strong></div>
+    <div class="intro-stat"><span>当前</span><strong>{{ items|length }}</strong></div>
+    <div class="intro-stat"><span>{% if kind=='movie' %}电影{% elif kind=='tv' %}电视剧{% else %}综艺{% endif %}</span></div>
+    {% if tmdb_probe.ok %}<div class="intro-stat"><span>TMDB</span><strong style="color:#4caf50">在线</strong></div>{% endif %}
   </div>
 </section>
 
-<section class="panel" style="max-width:1200px;margin:0 auto 20px;">
-  <div class="panel-header">
-    <div>
-      <h2>Douban Cookie</h2>
-      <div class="section-sub">Douban：{% if douban_probe.ok %}✅ {{ douban_probe.message }}{% else %}⚠️ {{ douban_probe.message }}{% endif %}</div>
-      <div class="section-sub" style="margin-top:4px;">TMDB：{% if tmdb_probe.ok %}✅ {{ tmdb_probe.message }}{% else %}⚠️ {{ tmdb_probe.message }}{% endif %}</div>
-    </div>
-    <button class="btn" id="open-cookie-modal">更新 Cookie</button>
-  </div>
-  <p style="color:var(--text-secondary);font-size:13px;line-height:1.7;">TMDB 已作为更稳定的发现/搜索主数据源接入；Douban Cookie 这边先保留，后面用于补充同步、评分或其他扩展能力。</p>
-</section>
-
-<section class="filter-bar">
+<section class="filter-bar" style="flex-wrap:wrap;gap:8px;">
+  {# 分类 #}
   <div class="filter-group">
     <span class="filter-label">分类</span>
-    <a class="filter-chip {% if kind=='movie' %}active{% endif %}" href="?kind=movie&q={{ q }}&sort={{ sort }}">电影</a>
-    <a class="filter-chip {% if kind=='tv' %}active{% endif %}" href="?kind=tv&q={{ q }}&sort={{ sort }}">电视剧</a>
-    <a class="filter-chip {% if kind=='variety' %}active{% endif %}" href="?kind=variety&q={{ q }}&sort={{ sort }}">综艺</a>
+    <a class="filter-chip {% if kind=='movie' %}active{% endif %}" href="?kind=movie&q={{ q }}&sort={{ sort }}&region={{ region }}&year={{ year }}">电影</a>
+    <a class="filter-chip {% if kind=='tv' %}active{% endif %}" href="?kind=tv&q={{ q }}&sort={{ sort }}&region={{ region }}&year={{ year }}">电视剧</a>
+    <a class="filter-chip {% if kind=='variety' %}active{% endif %}" href="?kind=variety&q={{ q }}&sort={{ sort }}&region={{ region }}&year={{ year }}">综艺</a>
   </div>
+  {# 排序 #}
   <div class="filter-group">
     <span class="filter-label">排序</span>
-    <a class="filter-chip {% if sort=='hot' %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort=hot">热门优先</a>
-    <a class="filter-chip {% if sort=='rating' %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort=rating">豆瓣评分</a>
-    <a class="filter-chip {% if sort=='year' %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort=year">年份</a>
+    <a class="filter-chip {% if sort=='popularity' %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort=popularity&region={{ region }}&year={{ year }}">🔥 热门</a>
+    <a class="filter-chip {% if sort=='rating' %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort=rating&region={{ region }}&year={{ year }}">⭐ 评分</a>
+    <a class="filter-chip {% if sort=='year' %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort=year&region={{ region }}&year={{ year }}">📅 最新</a>
+    <a class="filter-chip {% if sort=='trending' %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort=trending&region={{ region }}&year={{ year }}">📈 话题</a>
   </div>
+  {# 国家 #}
+  <div class="filter-group">
+    <span class="filter-label">地区</span>
+    <a class="filter-chip {% if not region %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort={{ sort }}&region=&year={{ year }}">全部</a>
+    <a class="filter-chip {% if region=='US' %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort={{ sort }}&region=US&year={{ year }}">🇺🇸 美国</a>
+    <a class="filter-chip {% if region=='KR' %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort={{ sort }}&region=KR&year={{ year }}">🇰🇷 韩国</a>
+    <a class="filter-chip {% if region=='JP' %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort={{ sort }}&region=JP&year={{ year }}">🇯🇵 日本</a>
+    <a class="filter-chip {% if region=='CN' %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort={{ sort }}&region=CN&year={{ year }}">🇨🇳 中国</a>
+    <a class="filter-chip {% if region=='TH' %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort={{ sort }}&region=TH&year={{ year }}">🇹🇭 泰国</a>
+  </div>
+  {# 年份 #}
+  <div class="filter-group">
+    <span class="filter-label">年份</span>
+    <a class="filter-chip {% if not year %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort={{ sort }}&region={{ region }}&year=">全部</a>
+    <a class="filter-chip {% if year=='2025' %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort={{ sort }}&region={{ region }}&year=2025">2025</a>
+    <a class="filter-chip {% if year=='2024' %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort={{ sort }}&region={{ region }}&year=2024">2024</a>
+    <a class="filter-chip {% if year=='2023' %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort={{ sort }}&region={{ region }}&year=2023">2023</a>
+    <a class="filter-chip {% if year=='2020' %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort={{ sort }}&region={{ region }}&year=2020">2020s</a>
+  </div>
+  {# 搜索框 #}
   <form class="search-form" method="get">
     <input type="hidden" name="kind" value="{{ kind }}">
     <input type="hidden" name="sort" value="{{ sort }}">
-    <input type="text" name="q" value="{{ q }}" placeholder="搜索标题、演员、导演...">
+    <input type="hidden" name="region" value="{{ region }}">
+    <input type="hidden" name="year" value="{{ year }}">
+    <input type="text" name="q" value="{{ q }}" placeholder="搜索标题...">
     <button type="submit" class="btn small">🔍</button>
   </form>
 </section>
@@ -48,8 +62,8 @@
   {% if not items %}
   <div class="empty-state">
     <div class="empty-icon">🎞️</div>
-    <p>当前分类下还没有结果</p>
-    <a class="btn primary" href="/discover">返回默认发现页</a>
+    <p>没有找到相关结果</p>
+    <a class="btn primary" href="/discover">返回发现页</a>
   </div>
   {% else %}
   {% for item in items %}
@@ -59,7 +73,7 @@
       {% if item.status == 'collect' %}<div class="cover-watched-overlay"><span>已看</span></div>{% elif item.status == 'wish' %}<div class="cover-watched-overlay"><span>待看</span></div>{% endif %}
       <div class="media-cover-info">
         <span class="media-badge">{{ item.kind or '?' }}</span>
-        {% if item._stars %}<span class="media-douban-stars">{{ item._stars }}</span>{% else %}<span class="media-douban-rating">豆瓣 {{ item.douban_rating or '-' }}</span>{% endif %}
+        {% if item._stars %}<span class="media-douban-stars">{{ item._stars }}</span>{% else %}<span class="media-douban-rating">TMDB {{ (item.douban_rating * 10)|round|int }}%</span>{% endif %}
       </div>
     </div>
     <div class="media-info">
@@ -68,34 +82,19 @@
         {% if item._first_genre %}<span class="rec-genre-chip">{{ item._first_genre }}</span>{% endif %}
       </div>
       <div class="media-meta">
-        <span>{{ item.year }}</span>
+        <span>{{ item.year or '-' }}</span>
         <span>·</span>
-        <span>{{ item.douban_rating or '-' }} 分</span>
+        <span>{% if item.douban_rating %}{{ (item.douban_rating * 10)|round|int }}%{% else %}-{% endif %}</span>
       </div>
       {% if item.summary %}<p class="media-comment">{{ item.summary[:72] }}{% if item.summary|length > 72 %}...{% endif %}</p>{% elif item.intro %}<p class="media-comment">{{ item.intro[:72] }}{% if item.intro|length > 72 %}...{% endif %}</p>{% endif %}
       <div class="media-actions">
-        <a class="btn small" href="{{ item.url }}" target="_blank">豆瓣</a>
+        <a class="btn small" href="{{ item.url }}" target="_blank">TMDB</a>
         <button class="btn small add-watchlist-btn {% if item.status=='wish' %}primary{% endif %}" data-id="{{ item.subject_id }}" data-title="{{ item.title|e }}" data-kind="{{ item.kind }}" data-year="{{ item.year }}" data-url="{{ item.url|e }}" data-intro="{{ (item.intro or '')|e }}" data-summary="{{ (item.summary or '')|e }}" data-rating="{{ item.douban_rating or '' }}" data-rating-count="{{ item.douban_rating_count or '' }}" data-cover="{{ (item._cover_url or item.cover_url or '')|e }}">{% if item.status=='wish' %}已在待看{% else %}加入待看{% endif %}</button>
       </div>
     </div>
   </article>
   {% endfor %}
   {% endif %}
-</div>
-
-<div class="modal" id="cookieModal" style="display:none">
-  <div class="modal-content">
-    <button class="modal-close" id="cookie-modal-close">✕</button>
-    <h3>更新 Douban Cookie</h3>
-    <div class="form-group">
-      <label>Cookie 内容</label>
-      <textarea id="douban-cookie-input" rows="6" placeholder="把浏览器里的 Douban Cookie 粘到这里"></textarea>
-    </div>
-    <div class="modal-actions">
-      <button class="btn primary" id="save-cookie-btn">保存并探测</button>
-      <button class="btn" id="cancel-cookie-btn">取消</button>
-    </div>
-  </div>
 </div>
 
 <script>
@@ -131,24 +130,6 @@ document.addEventListener('DOMContentLoaded', function() {
           btn.classList.add('primary');
           if (window.showToast) showToast('已加入待看片库 🎬', 'success');
         });
-    });
-  });
-
-  var modal = document.getElementById('cookieModal');
-  document.getElementById('open-cookie-modal').addEventListener('click', function() {
-    modal.style.display = 'flex';
-  });
-  document.getElementById('cookie-modal-close').addEventListener('click', function() { modal.style.display = 'none'; });
-  document.getElementById('cancel-cookie-btn').addEventListener('click', function() { modal.style.display = 'none'; });
-  document.getElementById('save-cookie-btn').addEventListener('click', function() {
-    var cookie = document.getElementById('douban-cookie-input').value.trim();
-    fetch('/api/douban-cookie', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cookie: cookie })
-    }).then(function(r) { return r.json(); }).then(function(data) {
-      if (window.showToast) showToast(data.message || 'Cookie 已保存', data.ok ? 'success' : 'warn');
-      setTimeout(function() { location.reload(); }, 600);
     });
   });
 });

@@ -172,24 +172,49 @@ def tmdb_to_item(raw: dict, media_type: str):
     }
 
 
-def tmdb_discover(kind: str = 'movie', query: str = '', page: int = 1, limit: int = 20):
+def tmdb_discover(kind: str = 'movie', query: str = '', sort: str = 'popularity',
+                   region: str = '', year: str = '', page: int = 1, limit: int = 60):
     key = read_tmdb_key()
     if not key:
         return []
     cfg = tmdb_kind_config(kind)
+
+    # Build sort_by mapping (TMDB v3 sort options)
+    sort_map = {
+        'popularity': 'popularity.desc',
+        'rating':    'vote_average.desc',
+        'year':      'primary_release_date.desc' if kind == 'movie' else 'first_air_date.desc',
+        'trending':  'vote_count.desc',
+    }
+    sort_by = sort_map.get(sort, 'popularity.desc')
+
     if query:
         path = f'/search/{cfg["media_type"]}'
-        params = {'api_key': key, 'query': query, 'language': 'zh-CN', 'page': page, 'include_adult': 'false'}
+        params = {
+            'api_key': key,
+            'query': query,
+            'language': 'zh-CN',
+            'page': page,
+            'include_adult': 'false',
+        }
     else:
         path = cfg['discover_path']
         params = {
             'api_key': key,
             'language': 'zh-CN',
-            'sort_by': 'popularity.desc',
+            'sort_by': sort_by,
             'page': page,
             'vote_count.gte': 20,
         }
+        if region:
+            params['with_origin_country'] = region.upper()
+        if year and year.isdigit():
+            if kind == 'movie':
+                params['primary_release_year'] = year
+            else:
+                params['first_air_date_year'] = year
         params.update(cfg['discover_params'])
+
     r = requests.get(f'https://api.themoviedb.org/3{path}', params=params, timeout=20)
     r.raise_for_status()
     data = r.json()
@@ -564,11 +589,16 @@ async def save_douban_cookie(request: Request):
 
 
 @app.get('/discover', response_class=HTMLResponse)
-def discover(request: Request, kind: str = Query('movie'), q: str = Query(''), sort: str = Query('hot')):
+def discover(request: Request,
+             kind: str   = Query('movie'),
+             q: str      = Query(''),
+             sort: str   = Query('popularity'),
+             region: str = Query(''),
+             year: str   = Query('')):
     tmdb_status = tmdb_probe()
     source = 'tmdb' if tmdb_status.get('ok') else 'local'
     if source == 'tmdb':
-        items = tmdb_discover(kind=kind, query=q, limit=60)
+        items = tmdb_discover(kind=kind, query=q, sort=sort, region=region, year=year, limit=60)
         mode = 'search' if q else 'discover'
     else:
         if q:
@@ -606,9 +636,10 @@ def discover(request: Request, kind: str = Query('movie'), q: str = Query(''), s
         'kind': kind,
         'q': q,
         'sort': sort,
+        'region': region,
+        'year': year,
         'mode': mode,
         'source': source,
-        'douban_probe': douban_probe(),
         'tmdb_probe': tmdb_status,
         'site_stats': get_site_stats(),
     })
