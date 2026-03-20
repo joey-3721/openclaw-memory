@@ -311,16 +311,27 @@ def match_local_status_batch(conn, items: list) -> list:
     return item
 
 
+# 佳奕口味画像排序（按个人观看历史频率）
+MOVIE_GENRE_ORDER = [
+    ('动作', '28'), ('冒险', '12'), ('奇幻', '14'), ('喜剧', '35'), ('科幻', '878'),
+    ('剧情', '18'), ('动画', '16'), ('惊悚', '53'), ('悬疑', '9648'), ('爱情', '10749'),
+    ('犯罪', '80'), ('古装', '36|10768'), ('恐怖', '27'),
+    ('家庭', '10751'), ('灾难', '10752'), ('传记', '36'), ('战争', '10752'), ('纪录片', '99'),
+    ('音乐', '10402'), ('同性', '10749'), ('历史', '36'), ('歌舞', '10402'), ('武侠', '10768'),
+    ('运动', '18'), ('儿童', '10762'),
+]
+TV_GENRE_ORDER = [
+    ('剧情', '18'), ('悬疑', '9648'), ('奇幻', '10765'), ('动作', '10759'), ('惊悚', '53'),
+    ('古装', '10768'), ('恐怖', '27'), ('科幻', '10765'), ('爱情', '10749'), ('犯罪', '80'),
+    ('冒险', '12'), ('家庭', '10751'), ('喜剧', '35'), ('真人秀', '10764'), ('脱口秀', '10767'),
+    ('动画', '16'), ('纪录片', '99'), ('历史', '10768'), ('战争', '10768'), ('武侠', '10768'),
+    ('同性', '10767'), ('音乐', '10402'), ('儿童', '10762'), ('运动', '18'),
+]
+
 def tmdb_genre_map(kind: str):
     if kind == 'movie':
-        return {
-            '动画': '16', '奇幻': '14', '科幻': '878', '悬疑': '9648', '爱情': '10749',
-            '喜剧': '35', '动作': '28', '历史': '36', '战争': '10752', '犯罪': '80', '纪录片': '99'
-        }
-    return {
-        '动漫': '16', '科幻玄幻': '10765', '悬疑': '9648', '犯罪': '80', '喜剧': '35',
-        '动作': '10759', '家庭': '10751', '综艺': '10764|10767', '真人秀': '10764', '脱口秀': '10767'
-    }
+        return dict(MOVIE_GENRE_ORDER)
+    return dict(TV_GENRE_ORDER)
 
 
 def tmdb_discover(kind: str = 'movie', query: str = '', sort: str = 'popularity',
@@ -809,6 +820,13 @@ def discover(request: Request,
             mode = 'discover'
         total_pages = 1
         total_results = len(items)
+
+    genre_map = tmdb_genre_map(kind)
+    ordered = MOVIE_GENRE_ORDER if kind == 'movie' else TV_GENRE_ORDER
+    all_genres = [(label, gid) for label, gid in ordered if label in genre_map]
+    top_genres = all_genres[:7]
+    extra_genres = all_genres[7:]
+
     return templates.TemplateResponse('discover.html', {
         'request': request,
         'items': items,
@@ -818,7 +836,8 @@ def discover(request: Request,
         'region': region,
         'year': year,
         'genre': genre,
-        'genre_options': list(tmdb_genre_map(kind).keys()),
+        'top_genres': top_genres,
+        'extra_genres': extra_genres,
         'year_options': [str(y) for y in range(2026, 2019, -1)],
         'page': page,
         'total_pages': total_pages,

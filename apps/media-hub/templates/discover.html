@@ -37,13 +37,21 @@
     <a class="filter-chip {% if region=='TH' %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort={{ sort }}&region=TH&year={{ year }}">🇹🇭 泰国</a>
   </div>
   {# 题材 #}
-  <div class="filter-group"> 
+  <div class="filter-group">
     <span class="filter-label">题材</span>
     <a class="filter-chip {% if not genre %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort={{ sort }}&region={{ region }}&year={{ year }}&genre=">全部</a>
-    {% for g in genre_options %}
-    <a class="filter-chip {% if genre==g %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort={{ sort }}&region={{ region }}&year={{ year }}&genre={{ g }}">{{ g }}</a>
+    {% for label, gid in top_genres %}
+    <a class="filter-chip {% if genre==label %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort={{ sort }}&region={{ region }}&year={{ year }}&genre={{ label }}">{{ label }}</a>
     {% endfor %}
+    <button class="filter-chip" id="show-more-genres" onclick="document.getElementById('extra-genres').style.display='flex';this.style.display='none';this.nextElementSibling.style.display='flex';">更多 ▾</button>
+    <span id="hide-extra-genres" style="display:none">
+    {% for label, gid in extra_genres %}
+    <a class="filter-chip {% if genre==label %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort={{ sort }}&region={{ region }}&year={{ year }}&genre={{ label }}">{{ label }}</a>
+    {% endfor %}
+    <button class="filter-chip" onclick="document.getElementById('extra-genres').style.display='none';document.getElementById('show-more-genres').style.display='inline-flex';this.parentElement.style.display='none';">收起 ▴</button>
+    </span>
   </div>
+  <div class="filter-group" id="extra-genres" style="display:none;flex-wrap:wrap;">
   {# 年份 #}
   <div class="filter-group">
     <span class="filter-label">年份</span>
