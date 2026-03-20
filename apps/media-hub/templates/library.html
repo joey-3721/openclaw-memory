@@ -15,23 +15,23 @@
   {% if page_mode != 'watchlist' %}
   <div class="filter-group">
     <span class="filter-label">状态</span>
-    <a class="filter-chip {% if status=='all' %}active{% endif %}" href="?status=all&kind={{ kind }}&q={{ q }}&sort={{ sort }}">全部</a>
-    <a class="filter-chip {% if status=='collect' %}active{% endif %}" href="?status=collect&kind={{ kind }}&q={{ q }}&sort={{ sort }}">看过</a>
-    <a class="filter-chip {% if status=='wish' %}active{% endif %}" href="?status=wish&kind={{ kind }}&q={{ q }}&sort={{ sort }}">想看</a>
+    <a class="filter-chip {% if status=='all' %}active{% endif %}" href="?status=all&kind={{ kind }}&q={{ q }}&sort={{ sort }}&page=1">全部</a>
+    <a class="filter-chip {% if status=='collect' %}active{% endif %}" href="?status=collect&kind={{ kind }}&q={{ q }}&sort={{ sort }}&page=1">看过</a>
+    <a class="filter-chip {% if status=='wish' %}active{% endif %}" href="?status=wish&kind={{ kind }}&q={{ q }}&sort={{ sort }}&page=1">想看</a>
   </div>
   {% endif %}
   <div class="filter-group">
     <span class="filter-label">类型</span>
-    <a class="filter-chip {% if kind=='all' %}active{% endif %}" href="?status={{ status }}&kind=all&q={{ q }}&sort={{ sort }}{% if page_mode == 'watchlist' %}&added_order={{ added_order }}{% endif %}">全部</a>
-    <a class="filter-chip {% if kind=='movie' %}active{% endif %}" href="?status={{ status }}&kind=movie&q={{ q }}&sort={{ sort }}{% if page_mode == 'watchlist' %}&added_order={{ added_order }}{% endif %}">电影</a>
-    <a class="filter-chip {% if kind=='tv' %}active{% endif %}" href="?status={{ status }}&kind=tv&q={{ q }}&sort={{ sort }}{% if page_mode == 'watchlist' %}&added_order={{ added_order }}{% endif %}">剧集</a>
+    <a class="filter-chip {% if kind=='all' %}active{% endif %}" href="?status={{ status }}&kind=all&q={{ q }}&sort={{ sort }}{% if page_mode == 'watchlist' %}&added_order={{ added_order }}{% endif %}&page=1">全部</a>
+    <a class="filter-chip {% if kind=='movie' %}active{% endif %}" href="?status={{ status }}&kind=movie&q={{ q }}&sort={{ sort }}{% if page_mode == 'watchlist' %}&added_order={{ added_order }}{% endif %}&page=1">电影</a>
+    <a class="filter-chip {% if kind=='tv' %}active{% endif %}" href="?status={{ status }}&kind=tv&q={{ q }}&sort={{ sort }}{% if page_mode == 'watchlist' %}&added_order={{ added_order }}{% endif %}&page=1">剧集</a>
   </div>
   <div class="filter-group">
     <span class="filter-label">排序</span>
-    <a class="filter-chip {% if sort=='date' %}active{% endif %}" href="?status={{ status }}&kind={{ kind }}&q={{ q }}&sort=date{% if page_mode == 'watchlist' %}&added_order={% if added_order=='desc' %}asc{% else %}desc{% endif %}{% endif %}">{% if page_mode == 'watchlist' %}加入顺序{% else %}最近看过{% endif %}</a>
-    <a class="filter-chip {% if sort=='rating' %}active{% endif %}" href="?status={{ status }}&kind={{ kind }}&q={{ q }}&sort=rating{% if page_mode == 'watchlist' %}&added_order={{ added_order }}{% endif %}">评分</a>
-    <a class="filter-chip {% if sort=='year' %}active{% endif %}" href="?status={{ status }}&kind={{ kind }}&q={{ q }}&sort=year{% if page_mode == 'watchlist' %}&added_order={{ added_order }}{% endif %}">年份</a>
-    <a class="filter-chip {% if sort=='title' %}active{% endif %}" href="?status={{ status }}&kind={{ kind }}&q={{ q }}&sort=title{% if page_mode == 'watchlist' %}&added_order={{ added_order }}{% endif %}">标题</a>
+    <a class="filter-chip {% if sort=='date' %}active{% endif %}" href="?status={{ status }}&kind={{ kind }}&q={{ q }}&sort=date{% if page_mode == 'watchlist' %}&added_order={% if added_order=='desc' %}asc{% else %}desc{% endif %}{% endif %}&page=1">{% if page_mode == 'watchlist' %}加入顺序{% else %}最近看过{% endif %}</a>
+    <a class="filter-chip {% if sort=='rating' %}active{% endif %}" href="?status={{ status }}&kind={{ kind }}&q={{ q }}&sort=rating{% if page_mode == 'watchlist' %}&added_order={{ added_order }}{% endif %}&page=1">评分</a>
+    <a class="filter-chip {% if sort=='year' %}active{% endif %}" href="?status={{ status }}&kind={{ kind }}&q={{ q }}&sort=year{% if page_mode == 'watchlist' %}&added_order={{ added_order }}{% endif %}&page=1">年份</a>
+    <a class="filter-chip {% if sort=='title' %}active{% endif %}" href="?status={{ status }}&kind={{ kind }}&q={{ q }}&sort=title{% if page_mode == 'watchlist' %}&added_order={{ added_order }}{% endif %}&page=1">标题</a>
   </div>
   <form class="search-form" method="get">
     <input type="hidden" name="status" value="{{ status }}">
@@ -43,7 +43,7 @@
   </form>
 </section>
 
-<div class="media-grid">
+<div class="media-grid" id="library-grid">
   {% if not items %}
   <div class="empty-state">
     <div class="empty-icon">🎬</div>
@@ -123,6 +123,11 @@
   {% endif %}
 </div>
 
+<div id="scroll-sentinel" style="height:1px;"></div>
+<div id="load-more-bar" style="display:none;text-align:center;padding:16px;color:var(--text-secondary);font-size:13px;">
+  <span id="load-more-msg"></span>
+</div>
+
 <!-- Delete confirm Modal -->
 <div class="modal" id="deleteModal" style="display:none">
   <div class="modal-content" style="max-width:360px">
@@ -170,14 +175,100 @@
 </div>
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-  // Staggered media-card entry animation
-  document.querySelectorAll('.media-card').forEach(function(card, i) {
-    card.style.animationDelay = (i * 35) + 'ms';
-  });
+var _libPage = {{ page or 1 }};
+var _libTotal = {{ total or 0 }};
+var _libPageSize = {{ page_size or 40 }};
+var _libLoading = false;
+var _libFilters = {
+  status: '{{ status }}',
+  kind: '{{ kind }}',
+  q: '{{ q }}',
+  sort: '{{ sort }}',
+  added_order: '{{ added_order if page_mode == 'watchlist' else '' }}',
+  page_mode: '{{ page_mode }}'
+};
 
-  // Interactive star rating in library
+function buildFilterUrl(nextPage) {
+  var base = _libFilters.page_mode === 'watchlist' ? '/watchlist' : '/library';
+  var params = [];
+  params.push('status=' + encodeURIComponent(_libFilters.status));
+  params.push('kind=' + encodeURIComponent(_libFilters.kind));
+  params.push('q=' + encodeURIComponent(_libFilters.q));
+  params.push('sort=' + encodeURIComponent(_libFilters.sort));
+  if (_libFilters.page_mode === 'watchlist' && _libFilters.added_order) {
+    params.push('added_order=' + encodeURIComponent(_libFilters.added_order));
+  }
+  params.push('page=' + nextPage);
+  return base + '?' + params.join('&');
+}
+
+function attachCardEvents() {
+  document.querySelectorAll('.watch-btn, .rewatch-btn').forEach(function(btn) {
+    if (btn._hasClick) return;
+    btn._hasClick = true;
+    btn.addEventListener('click', function() {
+      var id = this.dataset.id;
+      var action = this.dataset.action;
+      fetch('/api/' + action + '/' + id, { method: 'POST' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data.ok) {
+            if (action === 'watch') {
+              btn.textContent = '已标记 ✓';
+              btn.disabled = true;
+              btn.classList.add('primary');
+              if (window.showToast) showToast('已标记为看过 🎉', 'success');
+            } else {
+              btn.textContent = '再看 ' + data.watch_count + '次';
+              if (window.showToast) showToast('观看次数 +1 🔁', 'success');
+            }
+          }
+        });
+    });
+  });
+  document.querySelectorAll('.edit-btn').forEach(function(btn) {
+    if (btn._hasClick) return;
+    btn._hasClick = true;
+    btn.addEventListener('click', function() {
+      var id = this.dataset.id;
+      document.getElementById('edit-subject-id').value = id;
+      document.getElementById('editModal').style.display = 'flex';
+      fetch('/api/item/' + id)
+        .then(function(r) { return r.json(); })
+        .then(function(item) {
+          document.getElementById('edit-rating').value = item.my_rating || '';
+          document.getElementById('edit-date').value = item.watched_date ? item.watched_date.slice(0, 10) : '';
+          document.getElementById('edit-count').value = item.watch_count || 1;
+          document.getElementById('edit-comment').value = item.comment || '';
+          document.getElementById('edit-cover-url').value = item.cover_url || '';
+        });
+    });
+  });
+  document.querySelectorAll('.expand-lib-btn').forEach(function(btn) {
+    if (btn._hasClick) return;
+    btn._hasClick = true;
+    btn.addEventListener('click', function() {
+      var id = this.dataset.id;
+      var detailRow = document.getElementById('lib-detail-' + id);
+      if (!detailRow) return;
+      var isOpen = detailRow.style.display !== 'none';
+      detailRow.style.display = isOpen ? 'none' : 'block';
+      this.textContent = isOpen ? '▾ 详情' : '▴ 收起';
+    });
+  });
+  document.querySelectorAll('.delete-btn').forEach(function(btn) {
+    if (btn._hasClick) return;
+    btn._hasClick = true;
+    btn.addEventListener('click', function() {
+      var id = this.dataset.id;
+      document.getElementById('delete-item-title').textContent = this.dataset.title || '';
+      document.getElementById('deleteModal').style.display = 'flex';
+      pendingDeleteId = id;
+    });
+  });
   document.querySelectorAll('.media-my-stars').forEach(function(stars) {
+    if (stars._hasClick) return;
+    stars._hasClick = true;
     stars.addEventListener('click', function() {
       var id = this.dataset.id;
       var currentRating = (this.textContent.trim().match(/★/g) || []).length;
@@ -192,75 +283,67 @@ document.addEventListener('DOMContentLoaded', function() {
       });
     });
   });
+}
 
-  document.querySelectorAll('.watch-btn, .rewatch-btn').forEach(function(btn) {
-    btn.addEventListener('click', function() {
-      var id = this.dataset.id;
-      var action = this.dataset.action;
-      fetch('/api/' + action + '/' + id, { method: 'POST' })
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-          if (data.ok) {
-            var card = document.querySelector('.media-card[data-subject="' + id + '"]');
-            if (action === 'watch') {
-              btn.textContent = '已标记 ✓';
-              btn.disabled = true;
-              btn.classList.add('primary');
-              if (card && !card.classList.contains('watched')) {
-                card.classList.add('watched');
-                var cover = card.querySelector('.media-cover');
-                if (cover && !cover.querySelector('.cover-watched-overlay')) {
-                  var overlay = document.createElement('div');
-                  overlay.className = 'cover-watched-overlay';
-                  overlay.innerHTML = '<span>已看</span>';
-                  cover.appendChild(overlay);
-                }
-              }
-              if (window.showToast) showToast('已标记为看过 🎉', 'success');
-            } else {
-              btn.textContent = '再看 ' + data.watch_count + '次';
-              if (window.showToast) showToast('观看次数 +1 🔁', 'success');
-            }
-          }
+function loadNextPage() {
+  if (_libLoading || _libPage * _libPageSize >= _libTotal) return;
+  _libLoading = true;
+  document.getElementById('load-more-bar').style.display = 'block';
+  document.getElementById('load-more-msg').textContent = '加载中...';
+  var nextPage = _libPage + 1;
+  var url = buildFilterUrl(nextPage);
+  fetch(url)
+    .then(function(r) { return r.text(); })
+    .then(function(html) {
+      var parser = new DOMParser();
+      var doc = parser.parseFromString(html, 'text/html');
+      var cards = doc.querySelectorAll('#library-grid article.media-card');
+      if (cards.length > 0) {
+        cards.forEach(function(c) { document.getElementById('library-grid').insertAdjacentHTML('beforeend', c.outerHTML); });
+        _libPage = nextPage;
+        attachCardEvents();
+        // Re-apply stagger animation to new cards
+        document.querySelectorAll('#library-grid .media-card').forEach(function(card, i) {
+          card.style.animation = 'none'; card.offsetHeight; card.style.animation = '';
         });
-    });
+      }
+      var hasMore = _libPage * _libPageSize < _libTotal;
+      document.getElementById('load-more-bar').style.display = hasMore ? 'block' : 'none';
+      if (hasMore) document.getElementById('load-more-msg').textContent = '上滑加载更多';
+      _libLoading = false;
+    })
+    .catch(function() { _libLoading = false; document.getElementById('load-more-bar').style.display = 'none'; });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  // Staggered entry animation for initial cards
+  document.querySelectorAll('.media-card').forEach(function(card, i) {
+    card.style.animationDelay = (i * 35) + 'ms';
   });
 
-  document.querySelectorAll('.edit-btn').forEach(function(btn) {
-    btn.addEventListener('click', function() {
-      var id = this.dataset.id;
-      document.getElementById('edit-subject-id').value = id;
-      document.getElementById('editModal').style.display = 'flex';
-      fetch('/api/item/' + id)
-        .then(function(r) { return r.json(); })
-        .then(function(item) {
-          document.getElementById('edit-rating').value = item.my_rating || '';
-          document.getElementById('edit-date').value = item.watched_date || '';
-          document.getElementById('edit-count').value = item.watch_count || 1;
-          document.getElementById('edit-comment').value = item.comment || '';
-          document.getElementById('edit-cover-url').value = item.cover_url || '';
-        });
-    });
-  });
+  attachCardEvents();
 
-  document.querySelectorAll('.expand-lib-btn').forEach(function(btn) {
-    btn.addEventListener('click', function() {
-      var id = this.dataset.id;
-      var detailRow = document.getElementById('lib-detail-' + id);
-      if (!detailRow) return;
-      var isOpen = detailRow.style.display !== 'none';
-      detailRow.style.display = isOpen ? 'none' : 'block';
-      this.textContent = isOpen ? '▾ 详情' : '▴ 收起';
-    });
-  });
+  // Infinite scroll via IntersectionObserver
+  if (_libTotal > _libPage * _libPageSize) {
+    var sentinel = document.getElementById('scroll-sentinel');
+    if (sentinel) {
+      var observer = new IntersectionObserver(function(entries) {
+        if (entries[0].isIntersecting) loadNextPage();
+      }, { rootMargin: '300px' });
+      observer.observe(sentinel);
+    }
+    document.getElementById('load-more-bar').style.display = 'block';
+    document.getElementById('load-more-msg').textContent = '上滑加载更多';
+  }
 
+  // Edit modal
   document.getElementById('cancel-edit').addEventListener('click', function() {
     document.getElementById('editModal').style.display = 'none';
   });
-  document.getElementById('modal-close-btn').addEventListener('click', function() {
+  var modalCloseBtn = document.getElementById('modal-close-btn');
+  if (modalCloseBtn) modalCloseBtn.addEventListener('click', function() {
     document.getElementById('editModal').style.display = 'none';
   });
-
   document.getElementById('save-edit').addEventListener('click', function() {
     var id = document.getElementById('edit-subject-id').value;
     var payload = {
@@ -280,18 +363,9 @@ document.addEventListener('DOMContentLoaded', function() {
       setTimeout(function() { location.reload(); }, 600);
     });
   });
-});
 
-  // Delete button with confirm
+  // Delete modal
   var pendingDeleteId = null;
-  document.querySelectorAll('.delete-btn').forEach(function(btn) {
-    btn.addEventListener('click', function() {
-      pendingDeleteId = this.dataset.id;
-      var title = this.dataset.title || '';
-      document.getElementById('delete-item-title').textContent = title;
-      document.getElementById('deleteModal').style.display = 'flex';
-    });
-  });
   document.getElementById('cancel-delete').addEventListener('click', function() {
     document.getElementById('deleteModal').style.display = 'none';
     pendingDeleteId = null;
@@ -303,9 +377,11 @@ document.addEventListener('DOMContentLoaded', function() {
       .then(function() {
         if (window.showToast) showToast('已删除', 'success');
         document.getElementById('deleteModal').style.display = 'none';
+        var card = document.querySelector('.media-card[data-subject="' + pendingDeleteId + '"]');
+        if (card) card.remove();
         pendingDeleteId = null;
-        setTimeout(function() { location.reload(); }, 400);
       });
   });
+});
 </script>
 {% endblock %}

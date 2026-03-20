@@ -801,9 +801,10 @@ def discover(request: Request,
 
 
 @app.get('/watchlist', response_class=HTMLResponse)
-def watchlist(request: Request, kind: str = Query('all'), q: str = Query(''), sort: str = Query('date'), added_order: str = Query('desc')):
+def watchlist(request: Request, kind: str = Query('all'), q: str = Query(''), sort: str = Query('date'), added_order: str = Query('desc'), page: int = Query(1)):
+    PAGE_SIZE = 40
     conn = get_conn()
-    items = build_library_items_wish(conn, kind=kind, q=q, sort=sort, added_order=added_order, limit=300)
+    items, total = build_wish_items_paged(conn, kind=kind, q=q, sort=sort, added_order=added_order, page=page, page_size=PAGE_SIZE)
     return templates.TemplateResponse('library.html', {
         'request': request,
         'items': items,
@@ -812,9 +813,47 @@ def watchlist(request: Request, kind: str = Query('all'), q: str = Query(''), so
         'q': q,
         'sort': sort,
         'added_order': added_order,
+        'page': page,
+        'total': total,
+        'page_size': PAGE_SIZE,
         'page_mode': 'watchlist',
         'site_stats': get_site_stats(),
     })
+
+
+def build_wish_items_paged(conn, kind='all', q='', sort='date', added_order='desc', page=1, page_size=40):
+    offset = (page - 1) * page_size
+    sql = 'SELECT * FROM douban_watch_history WHERE status="wish"'
+    params = []
+    if kind != 'all':
+        sql += ' AND kind=?'
+        params.append(kind)
+    if q:
+        sql += ' AND (title LIKE ? OR genres LIKE ? OR countries LIKE ? OR actors LIKE ? OR directors LIKE ?)'
+        like = f'%{q}%'
+        params += [like] * 5
+    order_dir = 'DESC' if added_order == 'desc' else 'ASC'
+    if sort == 'rating':
+        order = f'douban_rating DESC, added_at {order_dir}'
+    elif sort == 'year':
+        order = f'year DESC, added_at {order_dir}'
+    elif sort == 'title':
+        order = 'title ASC'
+    else:
+        order = f'added_at {order_dir}'
+    where = sql.replace('SELECT *', 'SELECT COUNT(*)')
+    total = conn.execute(where, params).fetchone()[0]
+    sql += f' ORDER BY {order} LIMIT ? OFFSET ?'
+    rows = conn.execute(sql, params + [page_size, offset]).fetchall()
+    items = []
+    for r in rows:
+        item = dict(r)
+        item['_cover_style'] = cover_style(r)
+        item['_cover_url'] = cover_url(r)
+        item['_stars'] = rating_stars(item.get('douban_rating'))
+        item['_first_genre'] = first_genre(item)
+        items.append(item)
+    return items, total
 
 
 def build_library_items_wish(conn, kind='all', q='', sort='date', added_order='desc', limit=300):
@@ -850,10 +889,56 @@ def build_library_items_wish(conn, kind='all', q='', sort='date', added_order='d
     return items
 
 
+def build_library_items_paged(conn, status='all', kind='all', q='', sort='date', page=1, page_size=40):
+    """Paginated version of library items builder. Returns (items, total_count)."""
+    offset = (page - 1) * page_size
+
+    # Build WHERE clause
+    where = ['1=1']
+    params = []
+    if status != 'all':
+        where.append('status=?')
+        params.append(status)
+    if kind != 'all':
+        where.append('kind=?')
+        params.append(kind)
+    if q:
+        where.append('(title LIKE ? OR genres LIKE ? OR countries LIKE ? OR actors LIKE ? OR directors LIKE ?)')
+        like = f'%{q}%'
+        params += [like] * 5
+    where_clause = ' AND '.join(where)
+
+    # Total count
+    total = conn.execute(f'SELECT COUNT(*) FROM douban_watch_history WHERE {where_clause}', params).fetchone()[0]
+
+    # Order
+    if sort == 'rating':
+        order = 'douban_rating DESC, watched_date DESC'
+    elif sort == 'year':
+        order = 'year DESC, watched_date DESC'
+    elif sort == 'title':
+        order = 'title ASC'
+    else:
+        order = 'watched_date DESC, douban_rating DESC'
+
+    sql = f'SELECT * FROM douban_watch_history WHERE {where_clause} ORDER BY {order} LIMIT ? OFFSET ?'
+    rows = conn.execute(sql, params + [page_size, offset]).fetchall()
+    items = []
+    for r in rows:
+        item = dict(r)
+        item['_cover_style'] = cover_style(r)
+        item['_cover_url'] = cover_url(r)
+        item['_stars'] = rating_stars(item.get('douban_rating'))
+        item['_first_genre'] = first_genre(item)
+        items.append(item)
+    return items, total
+
+
 @app.get('/library', response_class=HTMLResponse)
-def library(request: Request, status: str = Query('collect'), kind: str = Query('all'), q: str = Query(''), sort: str = Query('date')):
+def library(request: Request, status: str = Query('collect'), kind: str = Query('all'), q: str = Query(''), sort: str = Query('date'), page: int = Query(1)):
+    PAGE_SIZE = 40
     conn = get_conn()
-    items = build_library_items(conn, status=status, kind=kind, q=q, sort=sort, limit=200)
+    items, total = build_library_items_paged(conn, status=status, kind=kind, q=q, sort=sort, page=page, page_size=PAGE_SIZE)
     return templates.TemplateResponse('library.html', {
         'request': request,
         'items': items,
@@ -861,6 +946,9 @@ def library(request: Request, status: str = Query('collect'), kind: str = Query(
         'kind': kind,
         'q': q,
         'sort': sort,
+        'page': page,
+        'total': total,
+        'page_size': PAGE_SIZE,
         'page_mode': 'library',
         'site_stats': get_site_stats(),
     })

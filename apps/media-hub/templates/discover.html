@@ -128,7 +128,7 @@
     <div id="watched-step-merge" style="display:none;">
       <p style="color:var(--text-secondary);font-size:14px;margin-bottom:12px;">在本地片库搜索要合并的条目：</p>
       <input type="text" id="merge-search-input" placeholder="搜索本地片库标题..." style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--bg-secondary);color:var(--text-primary);margin-bottom:12px;">
-      <div id="merge-results" style="max-height:260px;overflow-y:auto;"></div>
+      <div id="merge-results" style="height:260px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;padding-right:4px;"></div>
       <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end;">
         <button class="btn" id="merge-back-btn">上一步</button>
         <button class="btn primary" id="merge-confirm-btn" disabled>确认合并</button>
@@ -264,14 +264,19 @@ document.addEventListener('DOMContentLoaded', function() {
           });
           if (!html) html = '<p style="color:var(--text-secondary);font-size:13px;text-align:center;padding:12px;">没有找到</p>';
           document.getElementById('merge-results').innerHTML = html;
-          document.querySelectorAll('.merge-result-item').forEach(function(el) {
-            el.addEventListener('click', function() {
-              document.querySelectorAll('.merge-result-item').forEach(function(e) { e.style.background = 'var(--bg-secondary)'; });
-              el.style.background = 'var(--primary-alpha)';
-              selectedMergeSid = el.dataset.sid;
-              document.getElementById('merge-confirm-btn').disabled = false;
+          // Event delegation for merge result items (handles dynamically rendered items)
+          document.getElementById('merge-results').onclick = function(e) {
+            var el = e.target.closest('.merge-result-item');
+            if (!el) return;
+            Array.from(document.querySelectorAll('.merge-result-item')).forEach(function(e) {
+              e.style.background = 'var(--bg-secondary)';
+              e.style.border = '';
             });
-          });
+            el.style.background = 'rgba(76,175,80,0.15)';
+            el.style.border = '1px solid #4caf50';
+            selectedMergeSid = el.dataset.sid;
+            document.getElementById('merge-confirm-btn').disabled = false;
+          };
         });
     }, 300);
   });
