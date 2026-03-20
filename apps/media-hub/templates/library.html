@@ -1,9 +1,14 @@
 {% extends 'base.html' %}
 {% block content %}
-<section class="hero small">
-  <div class="hero-copy">
+<section class="page-intro compact">
+  <div>
+    <div class="page-kicker">LIBRARY</div>
     <h1>影视库</h1>
-    <p>共 {{ items|length }} 条记录</p>
+    <p>共 {{ items|length }} 条记录，按状态、类型和排序快速筛。</p>
+  </div>
+  <div class="page-intro-stats">
+    <div class="intro-stat"><span>当前结果</span><strong>{{ items|length }}</strong></div>
+    <div class="intro-stat"><span>全部库存</span><strong>{{ site_stats.total if site_stats else items|length }}</strong></div>
   </div>
 </section>
 
