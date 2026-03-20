@@ -2,8 +2,8 @@
 {% block content %}
 <section class="page-intro compact muted">
   <div>
-    <h1>影视库</h1>
-    <p>共 {{ items|length }} 条记录，按状态、类型和排序快速筛选。</p>
+    <h1>{% if page_mode == 'watchlist' %}待看片库{% else %}影视库{% endif %}</h1>
+    <p>{% if page_mode == 'watchlist' %}这里是你所有还没看、但准备看的内容。{% else %}共 {{ items|length }} 条记录，按状态、类型和排序快速筛选。{% endif %}</p>
   </div>
   <div class="page-intro-stats">
     <div class="intro-stat"><span>当前结果</span><strong>{{ items|length }}</strong></div>
@@ -12,12 +12,14 @@
 </section>
 
 <section class="filter-bar">
+  {% if page_mode != 'watchlist' %}
   <div class="filter-group">
     <span class="filter-label">状态</span>
     <a class="filter-chip {% if status=='all' %}active{% endif %}" href="?status=all&kind={{ kind }}&q={{ q }}&sort={{ sort }}">全部</a>
     <a class="filter-chip {% if status=='collect' %}active{% endif %}" href="?status=collect&kind={{ kind }}&q={{ q }}&sort={{ sort }}">看过</a>
     <a class="filter-chip {% if status=='wish' %}active{% endif %}" href="?status=wish&kind={{ kind }}&q={{ q }}&sort={{ sort }}">想看</a>
   </div>
+  {% endif %}
   <div class="filter-group">
     <span class="filter-label">类型</span>
     <a class="filter-chip {% if kind=='all' %}active{% endif %}" href="?status={{ status }}&kind=all&q={{ q }}&sort={{ sort }}">全部</a>
@@ -45,7 +47,7 @@
   <div class="empty-state">
     <div class="empty-icon">🎬</div>
     <p>没有找到符合条件的条目</p>
-    <a class="btn primary" href="/library">重置筛选</a>
+    <a class="btn primary" href="{% if page_mode == 'watchlist' %}/watchlist{% else %}/library{% endif %}">重置筛选</a>
   </div>
   {% else %}
   {% for item in items %}

@@ -360,9 +360,7 @@ def home(request: Request):
     })
 
 
-@app.get('/library', response_class=HTMLResponse)
-def library(request: Request, status: str = Query('collect'), kind: str = Query('all'), q: str = Query(''), sort: str = Query('date')):
-    conn = get_conn()
+def build_library_items(conn, status='all', kind='all', q='', sort='date', limit=200):
     sql = 'SELECT * FROM douban_watch_history WHERE 1=1'
     params = []
     if status != 'all':
@@ -374,15 +372,16 @@ def library(request: Request, status: str = Query('collect'), kind: str = Query(
     if q:
         sql += ' AND (title LIKE ? OR genres LIKE ? OR countries LIKE ? OR actors LIKE ? OR directors LIKE ?)'
         like = f'%{q}%'
-        params += [like]*5
+        params += [like] * 5
     if sort == 'rating':
-        sql += ' ORDER BY douban_rating DESC, watched_date DESC LIMIT 200'
+        sql += ' ORDER BY douban_rating DESC, watched_date DESC LIMIT ?'
     elif sort == 'year':
-        sql += ' ORDER BY year DESC, watched_date DESC LIMIT 200'
+        sql += ' ORDER BY year DESC, watched_date DESC LIMIT ?'
     elif sort == 'title':
-        sql += ' ORDER BY title ASC LIMIT 200'
+        sql += ' ORDER BY title ASC LIMIT ?'
     else:
-        sql += ' ORDER BY watched_date DESC, douban_rating DESC LIMIT 200'
+        sql += ' ORDER BY watched_date DESC, douban_rating DESC LIMIT ?'
+    params.append(limit)
     rows = conn.execute(sql, params).fetchall()
     items = []
     for r in rows:
@@ -392,6 +391,29 @@ def library(request: Request, status: str = Query('collect'), kind: str = Query(
         item['_stars'] = rating_stars(item.get('douban_rating'))
         item['_first_genre'] = first_genre(item)
         items.append(item)
+    return items
+
+
+@app.get('/watchlist', response_class=HTMLResponse)
+def watchlist(request: Request, kind: str = Query('all'), q: str = Query(''), sort: str = Query('date')):
+    conn = get_conn()
+    items = build_library_items(conn, status='wish', kind=kind, q=q, sort=sort, limit=300)
+    return templates.TemplateResponse('library.html', {
+        'request': request,
+        'items': items,
+        'status': 'wish',
+        'kind': kind,
+        'q': q,
+        'sort': sort,
+        'page_mode': 'watchlist',
+        'site_stats': get_site_stats(),
+    })
+
+
+@app.get('/library', response_class=HTMLResponse)
+def library(request: Request, status: str = Query('collect'), kind: str = Query('all'), q: str = Query(''), sort: str = Query('date')):
+    conn = get_conn()
+    items = build_library_items(conn, status=status, kind=kind, q=q, sort=sort, limit=200)
     return templates.TemplateResponse('library.html', {
         'request': request,
         'items': items,
@@ -399,6 +421,7 @@ def library(request: Request, status: str = Query('collect'), kind: str = Query(
         'kind': kind,
         'q': q,
         'sort': sort,
+        'page_mode': 'library',
         'site_stats': get_site_stats(),
     })
 
