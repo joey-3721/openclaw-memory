@@ -736,6 +736,9 @@ def load_cached_recommendations(conn, cache_key='default', max_age_hours=12):
     items = []
     for r in rows:
         item = dict(r)
+        title = str(item.get('title') or '')
+        if not re.search(r'[一-鿿]', title):
+            continue
         item['douban_rating'] = item.get('tmdb_rating')
         item['douban_rating_count'] = item.get('tmdb_vote_count')
         item['_reason'] = item.get('reason')
@@ -752,7 +755,7 @@ def home(request: Request):
     conn = get_conn()
     counts = dict(conn.execute('SELECT status, COUNT(*) FROM douban_watch_history GROUP BY status').fetchall())
     profile = load_profile(conn)
-    recs = tmdb_recommendation_candidates(conn, limit=6)
+    recs = load_cached_recommendations(conn, cache_key='default', max_age_hours=9999)[:6]
     recent_rows = conn.execute('SELECT * FROM douban_watch_history WHERE status="collect" ORDER BY watched_date DESC LIMIT 8').fetchall()
     recent = []
     for r in recent_rows:
@@ -1056,7 +1059,7 @@ def library(request: Request, status: str = Query('collect'), kind: str = Query(
 @app.get('/recommendations', response_class=HTMLResponse)
 def recommendations(request: Request, sort: str = Query('score')):
     conn = get_conn()
-    recs_with_reason = tmdb_recommendation_candidates(conn, limit=20)
+    recs_with_reason = load_cached_recommendations(conn, cache_key='default', max_age_hours=9999)
     if sort == 'rating':
         recs_with_reason.sort(key=lambda x: x.get('douban_rating') or 0, reverse=True)
     elif sort == 'year':
