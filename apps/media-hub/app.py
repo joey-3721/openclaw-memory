@@ -1038,7 +1038,7 @@ def mark_watched(subject_id: str):
     item = conn.execute('SELECT * FROM douban_watch_history WHERE subject_id=?', (subject_id,)).fetchone()
     if not item:
         raise HTTPException(404, 'Item not found')
-    now = datetime.now().strftime('%Y-%m-%d')
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     current_count = (item['watch_count'] or 1)
     # If user is marking as watched via this button, record it as a watch action
     conn.execute(
@@ -1056,7 +1056,7 @@ def add_rewatch(subject_id: str):
     item = conn.execute('SELECT * FROM douban_watch_history WHERE subject_id=?', (subject_id,)).fetchone()
     if not item:
         raise HTTPException(404, 'Item not found')
-    now = datetime.now().strftime('%Y-%m-%d')
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     current_count = (item['watch_count'] or 1)
     conn.execute(
         'UPDATE douban_watch_history SET status="collect", watched_date=?, watch_count=? WHERE subject_id=?',
@@ -1198,7 +1198,7 @@ async def api_mark_watched(request: Request):
     conn = get_conn()
     item = conn.execute('SELECT * FROM douban_watch_history WHERE subject_id=?', (subject_id,)).fetchone()
 
-    now = datetime.now().strftime('%Y-%m-%d')
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     if item:
         # Update existing
         if item['status'] != 'collect':
@@ -1253,4 +1253,18 @@ async def api_mark_watched(request: Request):
     updated = conn.execute('SELECT * FROM douban_watch_history WHERE subject_id=?', (subject_id,)).fetchone()
     conn.close()
     return {'ok': True, 'item': dict(updated)}
+
+
+@app.delete('/api/delete/{subject_id}', response_class=JSONResponse)
+def delete_item(subject_id: str):
+    """Delete a local item by subject_id."""
+    conn = get_conn()
+    item = conn.execute('SELECT * FROM douban_watch_history WHERE subject_id=?', (subject_id,)).fetchone()
+    if not item:
+        conn.close()
+        raise HTTPException(404, 'Item not found')
+    conn.execute('DELETE FROM douban_watch_history WHERE subject_id=?', (subject_id,))
+    conn.commit()
+    conn.close()
+    return {'ok': True, 'subject_id': subject_id}
 

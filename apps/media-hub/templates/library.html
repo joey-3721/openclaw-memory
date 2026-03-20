@@ -101,12 +101,12 @@
       <p class="rec-credits" style="font-size:11px;margin:4px 0 2px;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ item.directors[:30] }}{% if item.directors and item.actors %} · {% endif %}{{ item.actors[:40] }}</p>
       {% endif %}
       <div class="media-actions">
-        {% if item.url %}<a class="btn small" href="{{ item.url }}" target="_blank">详情</a>{% endif %}
         <button class="btn small watch-btn {% if item.status=='collect' %}primary{% endif %}" data-id="{{ item.subject_id }}" data-action="watch">
           {% if item.status == 'collect' %}已看{% else %}看过{% endif %}
         </button>
         <button class="btn small rewatch-btn" data-id="{{ item.subject_id }}" data-action="rewatch">再看</button>
         <button class="btn small edit-btn" data-id="{{ item.subject_id }}">✏️</button>
+        <button class="btn small delete-btn" data-id="{{ item.subject_id }}" data-title="{{ item.title|e }}">🗑️</button>
         <button class="btn small expand-lib-btn" data-id="{{ item.subject_id }}" title="展开详情">▾ 详情</button>
       </div>
       <div class="lib-detail-row" id="lib-detail-{{ item.subject_id }}" style="display:none;margin-top:8px;padding:10px;background:rgba(255,255,255,0.04);border-radius:8px;font-size:12px;color:var(--text-secondary);line-height:1.7;">
@@ -121,6 +121,19 @@
   </article>
   {% endfor %}
   {% endif %}
+</div>
+
+<!-- Delete confirm Modal -->
+<div class="modal" id="deleteModal" style="display:none">
+  <div class="modal-content" style="max-width:360px">
+    <button class="modal-close" id="cancel-delete">✕</button>
+    <h3 style="margin-bottom:12px">确认删除</h3>
+    <p style="color:var(--text-secondary);font-size:14px;margin-bottom:20px">确定要删除「<span id="delete-item-title"></span>」吗？此操作不可恢复。</p>
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button class="btn" id="cancel-delete">取消</button>
+      <button class="btn primary" id="confirm-delete" style="background:#e53935">删除</button>
+    </div>
+  </div>
 </div>
 
 <!-- Edit Modal -->
@@ -268,5 +281,31 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   });
 });
+
+  // Delete button with confirm
+  var pendingDeleteId = null;
+  document.querySelectorAll('.delete-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      pendingDeleteId = this.dataset.id;
+      var title = this.dataset.title || '';
+      document.getElementById('delete-item-title').textContent = title;
+      document.getElementById('deleteModal').style.display = 'flex';
+    });
+  });
+  document.getElementById('cancel-delete').addEventListener('click', function() {
+    document.getElementById('deleteModal').style.display = 'none';
+    pendingDeleteId = null;
+  });
+  document.getElementById('confirm-delete').addEventListener('click', function() {
+    if (!pendingDeleteId) return;
+    fetch('/api/delete/' + pendingDeleteId, { method: 'DELETE' })
+      .then(function(r) { return r.json(); })
+      .then(function() {
+        if (window.showToast) showToast('已删除', 'success');
+        document.getElementById('deleteModal').style.display = 'none';
+        pendingDeleteId = null;
+        setTimeout(function() { location.reload(); }, 400);
+      });
+  });
 </script>
 {% endblock %}
