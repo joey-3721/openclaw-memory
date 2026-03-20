@@ -358,11 +358,21 @@ def tmdb_discover(kind: str = 'movie', query: str = '', sort: str = 'popularity'
         }
         if region:
             params['with_origin_country'] = region.upper()
-        if year and year.isdigit():
-            if kind == 'movie':
-                params['primary_release_year'] = year
-            else:
-                params['first_air_date_year'] = year
+        if year:
+            if year.isdigit():
+                if kind == 'movie':
+                    params['primary_release_year'] = year
+                else:
+                    params['first_air_date_year'] = year
+            elif year.endswith('s') and year[:-1].isdigit():
+                start = int(year[:-1])
+                end = start + 9
+                if kind == 'movie':
+                    params['primary_release_date.gte'] = f'{start}-01-01'
+                    params['primary_release_date.lte'] = f'{end}-12-31'
+                else:
+                    params['first_air_date.gte'] = f'{start}-01-01'
+                    params['first_air_date.lte'] = f'{end}-12-31'
         if genre:
             genre_id = tmdb_genre_map(kind).get(genre)
             if genre_id:
@@ -809,6 +819,7 @@ def discover(request: Request,
         'year': year,
         'genre': genre,
         'genre_options': list(tmdb_genre_map(kind).keys()),
+        'year_options': [str(y) for y in range(2026, 2019, -1)],
         'page': page,
         'total_pages': total_pages,
         'total_results': total_results,

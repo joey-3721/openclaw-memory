@@ -44,6 +44,17 @@
     <a class="filter-chip {% if genre==g %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort={{ sort }}&region={{ region }}&year={{ year }}&genre={{ g }}">{{ g }}</a>
     {% endfor %}
   </div>
+  {# 年份 #}
+  <div class="filter-group">
+    <span class="filter-label">年份</span>
+    <a class="filter-chip {% if not year %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort={{ sort }}&region={{ region }}&genre={{ genre }}&year=">全部</a>
+    {% for y in year_options %}
+    <a class="filter-chip {% if year==y %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort={{ sort }}&region={{ region }}&genre={{ genre }}&year={{ y }}">{{ y }}</a>
+    {% endfor %}
+    <a class="filter-chip {% if year=='2010s' %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort={{ sort }}&region={{ region }}&genre={{ genre }}&year=2010s">2010s</a>
+    <a class="filter-chip {% if year=='2000s' %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort={{ sort }}&region={{ region }}&genre={{ genre }}&year=2000s">2000s</a>
+    <a class="filter-chip {% if year=='1990s' %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort={{ sort }}&region={{ region }}&genre={{ genre }}&year=1990s">1990s</a>
+  </div>
   {# 搜索框 #}
   <form class="search-form" method="get">
     <input type="hidden" name="kind" value="{{ kind }}">
@@ -52,7 +63,6 @@
     <input type="hidden" name="year" value="{{ year }}">
     <input type="hidden" name="genre" value="{{ genre }}">
     <input type="text" name="q" value="{{ q }}" placeholder="搜索标题...">
-    <input type="number" name="year" value="{{ year }}" placeholder="年份，如 2024" min="1900" max="2100" style="width:140px">
     <button type="submit" class="btn small">🔍</button>
   </form>
 </section>
