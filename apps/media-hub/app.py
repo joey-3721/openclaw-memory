@@ -802,7 +802,7 @@ def discover(request: Request,
 
 @app.get('/watchlist', response_class=HTMLResponse)
 def watchlist(request: Request, kind: str = Query('all'), q: str = Query(''), sort: str = Query('date'), added_order: str = Query('desc'), page: int = Query(1)):
-    PAGE_SIZE = 40
+    PAGE_SIZE = 20
     conn = get_conn()
     items, total = build_wish_items_paged(conn, kind=kind, q=q, sort=sort, added_order=added_order, page=page, page_size=PAGE_SIZE)
     return templates.TemplateResponse('library.html', {
@@ -936,7 +936,7 @@ def build_library_items_paged(conn, status='all', kind='all', q='', sort='date',
 
 @app.get('/library', response_class=HTMLResponse)
 def library(request: Request, status: str = Query('collect'), kind: str = Query('all'), q: str = Query(''), sort: str = Query('date'), page: int = Query(1)):
-    PAGE_SIZE = 40
+    PAGE_SIZE = 20
     conn = get_conn()
     items, total = build_library_items_paged(conn, status=status, kind=kind, q=q, sort=sort, page=page, page_size=PAGE_SIZE)
     return templates.TemplateResponse('library.html', {

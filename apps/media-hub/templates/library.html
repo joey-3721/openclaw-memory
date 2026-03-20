@@ -121,10 +121,14 @@
   {% endif %}
 </div>
 
-<div id="scroll-sentinel" style="height:1px;"></div>
-<div id="load-more-bar" style="display:none;text-align:center;padding:16px;color:var(--text-secondary);font-size:13px;">
-  <span id="load-more-msg"></span>
-</div>
+{% set total_pages = ((total + page_size - 1) // page_size) if total and page_size else 1 %}
+{% if total_pages > 1 %}
+<nav class="pagination-bar" style="display:flex;justify-content:center;align-items:center;gap:12px;padding:20px 0 8px;">
+  <a class="btn{% if page <= 1 %} disabled{% endif %}" href="?status={{ status }}&kind={{ kind }}&q={{ q }}&sort={{ sort }}{% if page_mode == 'watchlist' %}&added_order={{ added_order }}{% endif %}&page={{ page-1 }}">‹ 上一页</a>
+  <span style="color:var(--text-secondary);font-size:14px;">第 {{ page }} / {{ total_pages }} 页</span>
+  <a class="btn{% if page >= total_pages %} disabled{% endif %}" href="?status={{ status }}&kind={{ kind }}&q={{ q }}&sort={{ sort }}{% if page_mode == 'watchlist' %}&added_order={{ added_order }}{% endif %}&page={{ page+1 }}">下一页 ›</a>
+</nav>
+{% endif %}
 
 <!-- Delete confirm Modal -->
 <div class="modal" id="deleteModal" style="display:none">
@@ -173,33 +177,6 @@
 </div>
 
 <script>
-var _libPage = {{ page or 1 }};
-var _libTotal = {{ total or 0 }};
-var _libPageSize = {{ page_size or 40 }};
-var _libLoading = false;
-var _libFilters = {
-  status: '{{ status }}',
-  kind: '{{ kind }}',
-  q: '{{ q }}',
-  sort: '{{ sort }}',
-  added_order: '{{ added_order if page_mode == 'watchlist' else '' }}',
-  page_mode: '{{ page_mode }}'
-};
-
-function buildFilterUrl(nextPage) {
-  var base = _libFilters.page_mode === 'watchlist' ? '/watchlist' : '/library';
-  var params = [];
-  params.push('status=' + encodeURIComponent(_libFilters.status));
-  params.push('kind=' + encodeURIComponent(_libFilters.kind));
-  params.push('q=' + encodeURIComponent(_libFilters.q));
-  params.push('sort=' + encodeURIComponent(_libFilters.sort));
-  if (_libFilters.page_mode === 'watchlist' && _libFilters.added_order) {
-    params.push('added_order=' + encodeURIComponent(_libFilters.added_order));
-  }
-  params.push('page=' + nextPage);
-  return base + '?' + params.join('&');
-}
-
 function attachCardEvents() {
   document.querySelectorAll('.watch-btn, .rewatch-btn').forEach(function(btn) {
     if (btn._hasClick) return;
@@ -212,8 +189,7 @@ function attachCardEvents() {
         .then(function(data) {
           if (data.ok) {
             if (action === 'watch') {
-              if (data.status === 'wish') { btn.textContent = '看过'; btn.classList.remove('primary'); } else { btn.textContent = '已看'; btn.classList.add('primary'); }
-              if (window.showToast) showToast('已标记为看过 🎉', 'success');
+              if (data.status === 'wish') { btn.textContent = '看过'; btn.classList.remove('primary'); if (window.showToast) showToast('已撤销 ↩️', 'warn'); } else { btn.textContent = '已看'; btn.classList.add('primary'); if (window.showToast) showToast('已标记为看过 🎉', 'success'); }
             } else {
               btn.textContent = '再看 ' + data.watch_count + '次';
               if (window.showToast) showToast('观看次数 +1 🔁', 'success');
@@ -281,36 +257,6 @@ function attachCardEvents() {
   });
 }
 
-function loadNextPage() {
-  if (_libLoading || _libPage * _libPageSize >= _libTotal) return;
-  _libLoading = true;
-  document.getElementById('load-more-bar').style.display = 'block';
-  document.getElementById('load-more-msg').textContent = '加载中...';
-  var nextPage = _libPage + 1;
-  var url = buildFilterUrl(nextPage);
-  fetch(url)
-    .then(function(r) { return r.text(); })
-    .then(function(html) {
-      var parser = new DOMParser();
-      var doc = parser.parseFromString(html, 'text/html');
-      var cards = doc.querySelectorAll('#library-grid article.media-card');
-      if (cards.length > 0) {
-        cards.forEach(function(c) { document.getElementById('library-grid').insertAdjacentHTML('beforeend', c.outerHTML); });
-        _libPage = nextPage;
-        attachCardEvents();
-        // Re-apply stagger animation to new cards
-        document.querySelectorAll('#library-grid .media-card').forEach(function(card, i) {
-          card.style.animation = 'none'; card.offsetHeight; card.style.animation = '';
-        });
-      }
-      var hasMore = _libPage * _libPageSize < _libTotal;
-      document.getElementById('load-more-bar').style.display = hasMore ? 'block' : 'none';
-      if (hasMore) document.getElementById('load-more-msg').textContent = '上滑加载更多';
-      _libLoading = false;
-    })
-    .catch(function() { _libLoading = false; document.getElementById('load-more-bar').style.display = 'none'; });
-}
-
 document.addEventListener('DOMContentLoaded', function() {
   // Staggered entry animation for initial cards
   document.querySelectorAll('.media-card').forEach(function(card, i) {
@@ -318,19 +264,6 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   attachCardEvents();
-
-  // Infinite scroll via IntersectionObserver
-  if (_libTotal > _libPage * _libPageSize) {
-    var sentinel = document.getElementById('scroll-sentinel');
-    if (sentinel) {
-      var observer = new IntersectionObserver(function(entries) {
-        if (entries[0].isIntersecting) loadNextPage();
-      }, { rootMargin: '300px' });
-      observer.observe(sentinel);
-    }
-    document.getElementById('load-more-bar').style.display = 'block';
-    document.getElementById('load-more-msg').textContent = '上滑加载更多';
-  }
 
   // Edit modal
   document.getElementById('cancel-edit').addEventListener('click', function() {
