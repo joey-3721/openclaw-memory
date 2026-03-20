@@ -14,27 +14,27 @@
   {# 分类 #}
   <div class="filter-group">
     <span class="filter-label">分类</span>
-    <a class="filter-chip {% if kind=='movie' %}active{% endif %}" href="?kind=movie&q={{ q }}&sort={{ sort }}&region={{ region }}&year={{ year }}">电影</a>
-    <a class="filter-chip {% if kind=='tv' %}active{% endif %}" href="?kind=tv&q={{ q }}&sort={{ sort }}&region={{ region }}&year={{ year }}">电视剧</a>
-    <a class="filter-chip {% if kind=='variety' %}active{% endif %}" href="?kind=variety&q={{ q }}&sort={{ sort }}&region={{ region }}&year={{ year }}">综艺</a>
+    <a class="filter-chip {% if kind=='movie' %}active{% endif %}" href="?kind=movie&q={{ q }}&sort={{ sort }}&region={{ region }}&year={{ year }}&genre={{ genre }}">电影</a>
+    <a class="filter-chip {% if kind=='tv' %}active{% endif %}" href="?kind=tv&q={{ q }}&sort={{ sort }}&region={{ region }}&year={{ year }}&genre={{ genre }}">电视剧</a>
+    <a class="filter-chip {% if kind=='variety' %}active{% endif %}" href="?kind=variety&q={{ q }}&sort={{ sort }}&region={{ region }}&year={{ year }}&genre={{ genre }}">综艺</a>
   </div>
   {# 排序 #}
   <div class="filter-group">
     <span class="filter-label">排序</span>
-    <a class="filter-chip {% if sort=='popularity' %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort=popularity&region={{ region }}&year={{ year }}">🔥 热门</a>
-    <a class="filter-chip {% if sort=='rating' %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort=rating&region={{ region }}&year={{ year }}">⭐ 评分</a>
-    <a class="filter-chip {% if sort=='year' %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort=year&region={{ region }}&year={{ year }}">📅 最新</a>
-    <a class="filter-chip {% if sort=='trending' %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort=trending&region={{ region }}&year={{ year }}">📈 话题</a>
+    <a class="filter-chip {% if sort=='popularity' %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort=popularity&region={{ region }}&year={{ year }}&genre={{ genre }}">🔥 热门</a>
+    <a class="filter-chip {% if sort=='rating' %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort=rating&region={{ region }}&year={{ year }}&genre={{ genre }}">⭐ 评分</a>
+    <a class="filter-chip {% if sort=='year' %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort=year&region={{ region }}&year={{ year }}&genre={{ genre }}">📅 最新</a>
+    <a class="filter-chip {% if sort=='trending' %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort=trending&region={{ region }}&year={{ year }}&genre={{ genre }}">📈 话题</a>
   </div>
   {# 国家 #}
   <div class="filter-group">
     <span class="filter-label">地区</span>
-    <a class="filter-chip {% if not region %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort={{ sort }}&region=&year={{ year }}">全部</a>
-    <a class="filter-chip {% if region=='US' %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort={{ sort }}&region=US&year={{ year }}">🇺🇸 美国</a>
-    <a class="filter-chip {% if region=='KR' %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort={{ sort }}&region=KR&year={{ year }}">🇰🇷 韩国</a>
-    <a class="filter-chip {% if region=='JP' %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort={{ sort }}&region=JP&year={{ year }}">🇯🇵 日本</a>
-    <a class="filter-chip {% if region=='CN' %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort={{ sort }}&region=CN&year={{ year }}">🇨🇳 中国</a>
-    <a class="filter-chip {% if region=='TH' %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort={{ sort }}&region=TH&year={{ year }}">🇹🇭 泰国</a>
+    <a class="filter-chip {% if not region %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort={{ sort }}&region=&year={{ year }}&genre={{ genre }}">全部</a>
+    <a class="filter-chip {% if region=='US' %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort={{ sort }}&region=US&year={{ year }}&genre={{ genre }}">🇺🇸 美国</a>
+    <a class="filter-chip {% if region=='KR' %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort={{ sort }}&region=KR&year={{ year }}&genre={{ genre }}">🇰🇷 韩国</a>
+    <a class="filter-chip {% if region=='JP' %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort={{ sort }}&region=JP&year={{ year }}&genre={{ genre }}">🇯🇵 日本</a>
+    <a class="filter-chip {% if region=='CN' %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort={{ sort }}&region=CN&year={{ year }}&genre={{ genre }}">🇨🇳 中国</a>
+    <a class="filter-chip {% if region=='TH' %}active{% endif %}" href="?kind={{ kind }}&q={{ q }}&sort={{ sort }}&region=TH&year={{ year }}&genre={{ genre }}">🇹🇭 泰国</a>
   </div>
   {# 题材 #}
   <div class="filter-group" style="width:100%;align-items:flex-start;">
