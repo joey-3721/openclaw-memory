@@ -25,6 +25,7 @@
         <a href="/" class="nav-link {% if request and request.url.path == '/' %}active{% endif %}">首页</a>
         <a href="/recommendations" class="nav-link {% if request and request.url.path.startswith('/recommendations') %}active{% endif %}">推荐</a>
         <a href="/watchlist" class="nav-link {% if request and request.url.path.startswith('/watchlist') %}active{% endif %}">待看片库</a>
+        <a href="/discover" class="nav-link {% if request and request.url.path.startswith('/discover') %}active{% endif %}">豆瓣发现</a>
         <a href="/library" class="nav-link {% if request and request.url.path.startswith('/library') %}active{% endif %}">影视库</a>
       </nav>
 

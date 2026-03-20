@@ -394,6 +394,46 @@ def build_library_items(conn, status='all', kind='all', q='', sort='date', limit
     return items
 
 
+@app.get('/discover', response_class=HTMLResponse)
+def discover(request: Request, kind: str = Query('movie'), q: str = Query(''), sort: str = Query('hot')):
+    conn = get_conn()
+    sql = 'SELECT * FROM douban_watch_history WHERE 1=1'
+    params = []
+    if kind == 'movie':
+        sql += ' AND kind="movie"'
+    elif kind == 'tv':
+        sql += ' AND kind="tv" AND genres NOT LIKE "%综艺%"'
+    elif kind == 'variety':
+        sql += ' AND (genres LIKE "%综艺%" OR title LIKE "%脱口秀%" OR title LIKE "%歌手%")'
+    if q:
+        sql += ' AND (title LIKE ? OR genres LIKE ? OR actors LIKE ? OR directors LIKE ?)'
+        like = f'%{q}%'
+        params += [like] * 4
+    if sort == 'rating':
+        sql += ' ORDER BY douban_rating DESC, year DESC LIMIT 60'
+    elif sort == 'year':
+        sql += ' ORDER BY year DESC, douban_rating DESC LIMIT 60'
+    else:
+        sql += ' ORDER BY douban_rating DESC, douban_rating_count DESC, year DESC LIMIT 60'
+    rows = conn.execute(sql, params).fetchall()
+    items = []
+    for r in rows:
+        item = dict(r)
+        item['_cover_style'] = cover_style(r)
+        item['_cover_url'] = cover_url(r)
+        item['_stars'] = rating_stars(item.get('douban_rating'))
+        item['_first_genre'] = first_genre(item)
+        items.append(item)
+    return templates.TemplateResponse('discover.html', {
+        'request': request,
+        'items': items,
+        'kind': kind,
+        'q': q,
+        'sort': sort,
+        'site_stats': get_site_stats(),
+    })
+
+
 @app.get('/watchlist', response_class=HTMLResponse)
 def watchlist(request: Request, kind: str = Query('all'), q: str = Query(''), sort: str = Query('date')):
     conn = get_conn()
@@ -515,6 +555,19 @@ def get_item(subject_id: str):
     if not item:
         raise HTTPException(404, 'Item not found')
     return dict(item)
+
+
+@app.post('/api/watchlist/add/{subject_id}', response_class=JSONResponse)
+def add_to_watchlist(subject_id: str):
+    conn = get_conn()
+    item = conn.execute('SELECT * FROM douban_watch_history WHERE subject_id=?', (subject_id,)).fetchone()
+    if not item:
+        raise HTTPException(404, 'Item not found')
+    if item['status'] != 'collect':
+        conn.execute('UPDATE douban_watch_history SET status="wish" WHERE subject_id=?', (subject_id,))
+    conn.commit()
+    updated = conn.execute('SELECT * FROM douban_watch_history WHERE subject_id=?', (subject_id,)).fetchone()
+    return {'ok': True, 'item': dict(updated)}
 
 
 @app.post('/api/feedback/{subject_id}', response_class=JSONResponse)
