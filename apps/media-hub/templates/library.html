@@ -61,7 +61,7 @@
         {% elif item.my_rating %}
         <span class="media-my-rating">{{ item.my_rating }}★</span>
         {% else %}
-        <span class="media-douban-rating">豆瓣 {{ item.douban_rating or '-' }}</span>
+        <span class="media-douban-rating">豆瓣 {{ item._display_rating or '-' }}</span>
         {% endif %}
       </div>
     </div>
@@ -115,7 +115,7 @@
         {% if item.genres %}<div style="margin-bottom:4px">🏷️ {{ item.genres }}</div>{% endif %}
         {% if item.directors %}<div style="margin-bottom:4px">🎬 导演：{{ item.directors }}</div>{% endif %}
         {% if item.actors %}<div style="margin-bottom:4px">🎭 演员：{{ item.actors }}</div>{% endif %}
-        {% if item.douban_rating %}<div style="margin-bottom:4px">⭐ 豆瓣评分：{{ item._stars }}（{{ item.douban_rating }}）</div>{% endif %}
+        {% if item.douban_rating %}<div style="margin-bottom:4px">⭐ 豆瓣评分：{{ item._stars }}（{{ item._display_rating }}）</div>{% endif %}
         {% if item.comment %}<div style="margin-top:4px">💬 {{ item.comment }}</div>{% endif %}
       </div>
     </div>

@@ -18,10 +18,10 @@
               <h2 class="tonight-title">{{ today_pick.title }}</h2>
               {% if today_pick._first_genre %}<span class="rec-genre-chip" style="font-size:11px;padding:3px 10px">{{ today_pick._first_genre }}</span>{% endif %}
             </div>
-            <div class="tonight-meta">{{ today_pick.year }} · {{ today_pick.kind }} · TMDB {{ today_pick.douban_rating or '-' }}</div>
+            <div class="tonight-meta">{{ today_pick.year }} · {{ today_pick.kind }} · TMDB {{ today_pick._display_rating or '-' }}</div>
             {% if today_pick._stars %}<div class="tonight-stars">{{ today_pick._stars }} <span style="font-size:12px;color:var(--text-secondary)">TMDB</span></div>{% endif %}
           </div>
-          <div class="rating-badge-lg">{{ today_pick.douban_rating or '-' }}</div>
+          <div class="rating-badge-lg">{{ today_pick._display_rating or '-' }}</div>
         </div>
         <p class="reason-text">{{ today_pick._reason }}</p>
         {% if today_pick.directors or today_pick.actors %}
@@ -73,7 +73,7 @@
       {% if item.status == 'collect' %}<div class="cover-watched-overlay"><span>已看</span></div>{% endif %}
       <div class="rec-cover-overlay">
         <span class="rec-badge">{{ item.kind or 'unknown' }}</span>
-        <div class="rec-rating-badge">{{ item.douban_rating or '-' }}</div>
+        <div class="rec-rating-badge">{{ item._display_rating or '-' }}</div>
       </div>
       {% if item.watch_count and item.watch_count > 1 %}
       <div class="rec-watch-count-badge">🔁 {{ item.watch_count }}次</div>

@@ -706,11 +706,26 @@ def rating_stars(rating):
 
 
 def first_genre(item):
-    """Return the first genre from a slash-separated genres string."""
+    """Return the first genre from a slash-separated genres string, mapping TMDB ids to labels when needed."""
     genres = (item.get('genres') or '').strip()
     if not genres:
         return ''
-    return genres.split('/')[0].strip()
+    first = genres.split('/')[0].strip()
+    if first.isdigit():
+        kind = item.get('kind') or 'movie'
+        for label, gid in (MOVIE_GENRE_ORDER if kind == 'movie' else TV_GENRE_ORDER):
+            if first in gid.split('|'):
+                return label
+    return first
+
+
+def display_rating(value):
+    if value in (None, '', 0):
+        return '-'
+    try:
+        return f"{float(value):.1f}"
+    except Exception:
+        return str(value)
 
 
 
@@ -753,6 +768,7 @@ def load_recommended_items(conn):
         item['_cover_style'] = cover_style(item)
         item['_stars'] = rating_stars(item.get('douban_rating'))
         item['_first_genre'] = first_genre(item)
+        item['_display_rating'] = display_rating(item.get('douban_rating'))
         items.append(item)
     return items
 
@@ -776,6 +792,7 @@ def load_cached_recommendations(conn, cache_key='default', max_age_hours=12):
         item['_cover_style'] = cover_style(item)
         item['_stars'] = rating_stars(item.get('tmdb_rating'))
         item['_first_genre'] = first_genre(item)
+        item['_display_rating'] = display_rating(item.get('tmdb_rating'))
         local = conn.execute(
             'SELECT subject_id,status,my_rating,comment,watched_date,watch_count,recommendation_note FROM douban_watch_history WHERE subject_id=? OR tmdb_id=? LIMIT 1',
             (item.get('subject_id'), str(item.get('tmdb_id') or '')),
