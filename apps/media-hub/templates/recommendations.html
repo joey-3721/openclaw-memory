@@ -130,9 +130,15 @@
     <div class="form-group">
       <label>评分</label>
       <div class="rating-slider-shell" id="rating-slider-shell">
-        <input type="range" id="watch-rating" min="0" max="5" step="1" value="0">
-        <div class="rating-stars" id="watch-rating-stars">☆☆☆☆☆</div>
-        <div class="rating-hint" id="watch-rating-hint">拖动选择，越高越绚丽</div>
+        <input type="hidden" id="watch-rating" value="0">
+        <div class="rating-star-picker" id="watch-rating-picker">
+          <button type="button" class="star-choice" data-value="1">★</button>
+          <button type="button" class="star-choice" data-value="2">★</button>
+          <button type="button" class="star-choice" data-value="3">★</button>
+          <button type="button" class="star-choice" data-value="4">★</button>
+          <button type="button" class="star-choice" data-value="5">★</button>
+        </div>
+        <div class="rating-hint" id="watch-rating-hint">点右边就是更高分，5 星会发光</div>
       </div>
     </div>
     <div class="form-group">
@@ -243,16 +249,23 @@ document.addEventListener('DOMContentLoaded', function() {
 
   var watchModal = document.getElementById('watchModal');
   var watchRating = document.getElementById('watch-rating');
-  var watchRatingStars = document.getElementById('watch-rating-stars');
   var watchRatingHint = document.getElementById('watch-rating-hint');
+  var watchRatingPicker = document.getElementById('watch-rating-picker');
   function paintRating(value) {
     var v = parseInt(value || 0);
-    watchRatingStars.textContent = '★'.repeat(v) + '☆'.repeat(5 - v);
-    watchRatingStars.dataset.level = String(v);
-    watchRatingHint.textContent = v ? ('已选 ' + v + ' 星') : '拖动选择，越高越绚丽';
+    watchRating.value = v;
+    watchRatingPicker.dataset.level = String(v);
+    watchRatingPicker.querySelectorAll('.star-choice').forEach(function(btn) {
+      btn.classList.toggle('active', parseInt(btn.dataset.value) <= v);
+    });
+    watchRatingHint.textContent = v ? ('已选 ' + v + ' 星') : '点右边就是更高分，5 星会发光';
   }
-  if (watchRating) {
-    watchRating.addEventListener('input', function() { paintRating(this.value); });
+  if (watchRatingPicker) {
+    watchRatingPicker.querySelectorAll('.star-choice').forEach(function(btn) {
+      btn.addEventListener('click', function() { paintRating(this.dataset.value); });
+      btn.addEventListener('mouseenter', function() { watchRatingPicker.dataset.preview = this.dataset.value; });
+    });
+    watchRatingPicker.addEventListener('mouseleave', function() { watchRatingPicker.dataset.preview = ''; });
     paintRating(watchRating.value);
   }
 

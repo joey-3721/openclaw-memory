@@ -52,6 +52,12 @@ def ensure_schema(conn):
         conn.execute("UPDATE douban_watch_history SET tmdb_id = substr(subject_id, 6) WHERE subject_id LIKE 'tmdb:%'")
     if 'recommendation_note' not in cols:
         conn.execute('ALTER TABLE douban_watch_history ADD COLUMN recommendation_note TEXT')
+    if 'recommended_at' not in cols:
+        conn.execute('ALTER TABLE douban_watch_history ADD COLUMN recommended_at TEXT')
+    if 'recommend_rank' not in cols:
+        conn.execute('ALTER TABLE douban_watch_history ADD COLUMN recommend_rank INTEGER')
+    if 'recommend_source' not in cols:
+        conn.execute('ALTER TABLE douban_watch_history ADD COLUMN recommend_source TEXT')
     cache_cols = {row[1] for row in conn.execute("PRAGMA table_info(recommendation_cache)").fetchall()} if 'recommendation_cache' in {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()} else set()
     if not cache_cols or 'rank_order' not in cache_cols:
         conn.execute('DROP TABLE IF EXISTS recommendation_cache')
@@ -439,6 +445,8 @@ def get_site_stats():
     watched = c.fetchone()[0]
     c.execute('SELECT COUNT(*) FROM douban_watch_history WHERE status="wish"')
     wish = c.fetchone()[0]
+    c.execute('SELECT COUNT(*) FROM douban_watch_history WHERE status="recommended"')
+    recommended = c.fetchone()[0]
     c.execute('SELECT ROUND(AVG(douban_rating),1) FROM douban_watch_history WHERE status="collect" AND douban_rating IS NOT NULL')
     row = c.fetchone()
     avg_rating = row[0] if row else None
@@ -456,7 +464,7 @@ def get_site_stats():
             'pct': round(count / max_count * 100)
         })
     conn.close()
-    return {'total': total, 'watched': watched, 'wish': wish, 'avg_rating': avg_rating, 'rating_dist': rating_dist}
+    return {'total': total, 'watched': watched, 'wish': wish, 'recommended': recommended, 'avg_rating': avg_rating, 'rating_dist': rating_dist}
 
 
 def split_multi(v):
@@ -734,6 +742,21 @@ def cache_recommendations(conn, items, cache_key='default'):
     conn.commit()
 
 
+def load_recommended_items(conn):
+    rows = conn.execute('SELECT * FROM douban_watch_history WHERE status="recommended" ORDER BY COALESCE(recommend_rank, 9999), COALESCE(recommended_at, "") DESC').fetchall()
+    items = []
+    for r in rows:
+        item = dict(r)
+        item['_reason'] = item.get('recommendation_note') or make_recommendation_reason(item, load_profile(conn))
+        item['_score'] = item.get('recommend_rank') or 0
+        item['_cover_url'] = cover_url(item)
+        item['_cover_style'] = cover_style(item)
+        item['_stars'] = rating_stars(item.get('douban_rating'))
+        item['_first_genre'] = first_genre(item)
+        items.append(item)
+    return items
+
+
 def load_cached_recommendations(conn, cache_key='default', max_age_hours=12):
     rows = conn.execute(
         "SELECT * FROM recommendation_cache WHERE cache_key=? AND generated_at >= datetime('now', ?) ORDER BY rank_order ASC",
@@ -774,14 +797,19 @@ def upsert_recommendation_item(conn, payload: dict, target_status: str | None = 
         raise HTTPException(400, 'subject_id required')
     existing = conn.execute('SELECT * FROM douban_watch_history WHERE subject_id=? OR (tmdb_id=? AND tmdb_id!="") LIMIT 1', (subject_id, tmdb_id)).fetchone()
     rec_note = (payload.get('recommendation_note') or payload.get('_reason') or '').strip() or None
-    final_cover_url = normalize_cover_url(payload.get('cover_url') or payload.get('_cover_url'))
-    if final_cover_url and final_cover_url.startswith('http'):
+    raw_cover_url = normalize_cover_url(payload.get('cover_url') or payload.get('_cover_url'))
+    final_cover_url = raw_cover_url or (existing['cover_url'] if existing else None)
+    should_download_cover = bool(raw_cover_url and raw_cover_url.startswith('http') and not (existing and existing['cover_url']))
+    if should_download_cover:
         try:
-            final_cover_url = download_cover_to_local(final_cover_url, subject_id)
+            final_cover_url = download_cover_to_local(raw_cover_url, subject_id)
         except Exception:
-            final_cover_url = normalize_cover_url(payload.get('cover_url') or payload.get('_cover_url'))
+            final_cover_url = raw_cover_url
     final_watch_count = watch_count if watch_count is not None else (existing['watch_count'] if existing and existing['watch_count'] else (1 if target_status == 'collect' else None))
     final_status = target_status or (existing['status'] if existing else 'wish')
+    recommended_at = payload.get('recommended_at') or (existing['recommended_at'] if existing and final_status == 'recommended' else None)
+    recommend_rank = payload.get('recommend_rank') if payload.get('recommend_rank') is not None else (existing['recommend_rank'] if existing and final_status == 'recommended' else None)
+    recommend_source = payload.get('recommend_source') or (existing['recommend_source'] if existing and final_status == 'recommended' else None)
     if existing:
         conn.execute(
             '''UPDATE douban_watch_history SET
@@ -789,6 +817,7 @@ def upsert_recommendation_item(conn, payload: dict, target_status: str | None = 
                 genres=?, countries=?, directors=?, actors=?, status=?, watched_date=COALESCE(?, watched_date),
                 watch_count=COALESCE(?, watch_count), my_rating=COALESCE(?, my_rating), comment=COALESCE(?, comment),
                 tmdb_id=COALESCE(?, tmdb_id), cover_url=COALESCE(?, cover_url), recommendation_note=COALESCE(?, recommendation_note),
+                recommended_at=?, recommend_rank=?, recommend_source=?,
                 rating_source=CASE WHEN ? IS NOT NULL THEN "user" ELSE rating_source END,
                 comment_source=CASE WHEN ? IS NOT NULL THEN "user" ELSE comment_source END
                WHERE subject_id=?''',
@@ -796,7 +825,7 @@ def upsert_recommendation_item(conn, payload: dict, target_status: str | None = 
                 title, payload.get('kind'), payload.get('year'), payload.get('url'), payload.get('intro'), payload.get('summary'),
                 payload.get('douban_rating'), payload.get('douban_rating_count'), payload.get('genres'), payload.get('countries'),
                 payload.get('directors'), payload.get('actors'), final_status, watched_date, final_watch_count, my_rating, comment,
-                tmdb_id or None, final_cover_url, rec_note, my_rating, comment, existing['subject_id']
+                tmdb_id or None, final_cover_url, rec_note, recommended_at, recommend_rank, recommend_source, my_rating, comment, existing['subject_id']
             )
         )
         subject_id = existing['subject_id']
@@ -804,14 +833,15 @@ def upsert_recommendation_item(conn, payload: dict, target_status: str | None = 
         conn.execute(
             '''INSERT INTO douban_watch_history (
                 subject_id,title,kind,year,url,intro,watched_date,my_rating,comment,douban_rating,douban_rating_count,
-                directors,actors,countries,genres,summary,status,cover_url,watch_count,rating_source,comment_source,tmdb_id,recommendation_note,added_at
-            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))''',
+                directors,actors,countries,genres,summary,status,cover_url,watch_count,rating_source,comment_source,tmdb_id,recommendation_note,
+                recommended_at,recommend_rank,recommend_source,added_at
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))''',
             (
                 subject_id, title, payload.get('kind'), payload.get('year'), payload.get('url'), payload.get('intro'),
                 watched_date, my_rating, comment, payload.get('douban_rating'), payload.get('douban_rating_count'), payload.get('directors'),
                 payload.get('actors'), payload.get('countries'), payload.get('genres'), payload.get('summary'), final_status,
                 final_cover_url, final_watch_count, 'user' if my_rating is not None else 'douban',
-                'user' if comment is not None else 'douban', tmdb_id or None, rec_note
+                'user' if comment is not None else 'douban', tmdb_id or None, rec_note, recommended_at, recommend_rank, recommend_source
             )
         )
     conn.commit()
@@ -823,7 +853,7 @@ def home(request: Request):
     conn = get_conn()
     counts = dict(conn.execute('SELECT status, COUNT(*) FROM douban_watch_history GROUP BY status').fetchall())
     profile = load_profile(conn)
-    recs = load_cached_recommendations(conn, cache_key='default', max_age_hours=9999)[:6]
+    recs = load_recommended_items(conn)[:6]
     recent_rows = conn.execute('SELECT * FROM douban_watch_history WHERE status="collect" ORDER BY watched_date DESC LIMIT 8').fetchall()
     recent = []
     for r in recent_rows:
@@ -1127,7 +1157,7 @@ def library(request: Request, status: str = Query('collect'), kind: str = Query(
 @app.get('/recommendations', response_class=HTMLResponse)
 def recommendations(request: Request, sort: str = Query('score')):
     conn = get_conn()
-    recs_with_reason = load_cached_recommendations(conn, cache_key='default', max_age_hours=9999)
+    recs_with_reason = load_recommended_items(conn)
     if sort == 'rating':
         recs_with_reason.sort(key=lambda x: x.get('douban_rating') or 0, reverse=True)
     elif sort == 'year':

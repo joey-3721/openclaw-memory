@@ -1,0 +1,9 @@
+Traceback (most recent call last):
+  File "/home/node/.openclaw/workspace-user1/apps/media-hub/scripts/cron_add_recommendation.py", line 17, in <module>
+    import app
+  File "/home/node/.openclaw/workspace-user1/apps/media-hub/app.py", line 1, in <module>
+    from fastapi import FastAPI, Request, Query, HTTPException
+ModuleNotFoundError: No module named 'fastapi'
+[cron] fetch error: HTTPSConnectionPool(host='api.themoviedb.org', port=443): Max retries exceeded with url: /3/discover/tv?api_key=32d4dddf241a2fc45d6a084825532a87&sort_by=vote_average.desc&language=zh-CN&include_adult=false&page=3&first_air_date.gte=2023-01-01&vote_count.gte=800 (Caused by SSLError(SSLEOFError(8, '[SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1016)')))
+[cron] added: 疾速追杀4 | rank 21 | reason: 高桌组织的首席执行官格拉蒙特（比尔·斯卡斯加德饰）不断提高对约翰·威克（基努·里...
+--- ran at Fri Mar 20 14:56:29 UTC 2026 ---

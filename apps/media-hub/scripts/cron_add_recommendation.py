@@ -173,8 +173,8 @@ def main():
     conn = app.get_conn()
     profile = load_profile(conn)
 
-    # 已有缓存里已有哪些标题
-    existing = app.load_cached_recommendations(conn, cache_key='default', max_age_hours=9999)
+    # 已有推荐里已有哪些标题
+    existing = app.load_recommended_items(conn)
     existing_titles = {r.get('title') for r in existing}
     next_rank = len(existing) + 1
 
@@ -218,20 +218,12 @@ def main():
         item['cover_url'] = ''
 
     now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    conn.execute(
-        """INSERT OR REPLACE INTO recommendation_cache
-           (cache_key, rank_order, tmdb_id, subject_id, title, kind, year, url, intro, summary,
-            tmdb_rating, tmdb_vote_count, genres, countries, poster_url, cover_url,
-            score, reason, generated_at)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-        ('default', next_rank,
-         item.get('tmdb_id', ''), item.get('subject_id', ''),
-         title, item.get('kind'), item.get('year'),
-         item.get('url', ''), item.get('intro', ''), item.get('summary', ''),
-         rating, votes, item.get('genres', ''), item.get('countries', ''),
-         poster_url or '', item.get('cover_url', ''),
-         rating, reason, now)
-    )
+    item['recommendation_note'] = reason
+    item['recommended_at'] = now
+    item['recommend_rank'] = next_rank
+    item['recommend_source'] = 'cron'
+    saved = app.upsert_recommendation_item(conn, item, target_status='recommended')
+    conn.execute('UPDATE douban_watch_history SET recommended_at=?, recommend_rank=?, recommend_source=? WHERE subject_id=?', (now, next_rank, 'cron', saved['subject_id']))
     conn.commit()
     print(f'[cron] added: {title} | rank {next_rank} | reason: {reason[:40]}...')
 
