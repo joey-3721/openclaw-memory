@@ -50,6 +50,8 @@ def ensure_schema(conn):
         conn.execute("ALTER TABLE douban_watch_history ADD COLUMN tmdb_id TEXT")
         # Backfill: extract existing tmdb:* subject_ids
         conn.execute("UPDATE douban_watch_history SET tmdb_id = substr(subject_id, 6) WHERE subject_id LIKE 'tmdb:%'")
+    if 'recommendation_note' not in cols:
+        conn.execute('ALTER TABLE douban_watch_history ADD COLUMN recommendation_note TEXT')
     cache_cols = {row[1] for row in conn.execute("PRAGMA table_info(recommendation_cache)").fetchall()} if 'recommendation_cache' in {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()} else set()
     if not cache_cols or 'rank_order' not in cache_cols:
         conn.execute('DROP TABLE IF EXISTS recommendation_cache')
@@ -751,8 +753,70 @@ def load_cached_recommendations(conn, cache_key='default', max_age_hours=12):
         item['_cover_style'] = cover_style(item)
         item['_stars'] = rating_stars(item.get('tmdb_rating'))
         item['_first_genre'] = first_genre(item)
+        local = conn.execute(
+            'SELECT subject_id,status,my_rating,comment,watched_date,watch_count,recommendation_note FROM douban_watch_history WHERE subject_id=? OR tmdb_id=? LIMIT 1',
+            (item.get('subject_id'), str(item.get('tmdb_id') or '')),
+        ).fetchone()
+        if local:
+            local = dict(local)
+            item.update({k: v for k, v in local.items() if v is not None})
+            if local.get('recommendation_note'):
+                item['_reason'] = local['recommendation_note']
         items.append(item)
     return items
+
+
+def upsert_recommendation_item(conn, payload: dict, target_status: str | None = None, watched_date: str | None = None, my_rating=None, comment=None, watch_count=None):
+    subject_id = str(payload.get('subject_id') or '').strip()
+    tmdb_id = str(payload.get('tmdb_id') or '').strip()
+    title = (payload.get('title') or '未命名').strip()
+    if not subject_id:
+        raise HTTPException(400, 'subject_id required')
+    existing = conn.execute('SELECT * FROM douban_watch_history WHERE subject_id=? OR (tmdb_id=? AND tmdb_id!="") LIMIT 1', (subject_id, tmdb_id)).fetchone()
+    rec_note = (payload.get('recommendation_note') or payload.get('_reason') or '').strip() or None
+    final_cover_url = normalize_cover_url(payload.get('cover_url') or payload.get('_cover_url'))
+    if final_cover_url and final_cover_url.startswith('http'):
+        try:
+            final_cover_url = download_cover_to_local(final_cover_url, subject_id)
+        except Exception:
+            final_cover_url = normalize_cover_url(payload.get('cover_url') or payload.get('_cover_url'))
+    final_watch_count = watch_count if watch_count is not None else (existing['watch_count'] if existing and existing['watch_count'] else (1 if target_status == 'collect' else None))
+    final_status = target_status or (existing['status'] if existing else 'wish')
+    if existing:
+        conn.execute(
+            '''UPDATE douban_watch_history SET
+                title=?, kind=?, year=?, url=?, intro=?, summary=?, douban_rating=?, douban_rating_count=?,
+                genres=?, countries=?, directors=?, actors=?, status=?, watched_date=COALESCE(?, watched_date),
+                watch_count=COALESCE(?, watch_count), my_rating=COALESCE(?, my_rating), comment=COALESCE(?, comment),
+                tmdb_id=COALESCE(?, tmdb_id), cover_url=COALESCE(?, cover_url), recommendation_note=COALESCE(?, recommendation_note),
+                rating_source=CASE WHEN ? IS NOT NULL THEN "user" ELSE rating_source END,
+                comment_source=CASE WHEN ? IS NOT NULL THEN "user" ELSE comment_source END
+               WHERE subject_id=?''',
+            (
+                title, payload.get('kind'), payload.get('year'), payload.get('url'), payload.get('intro'), payload.get('summary'),
+                payload.get('douban_rating'), payload.get('douban_rating_count'), payload.get('genres'), payload.get('countries'),
+                payload.get('directors'), payload.get('actors'), final_status, watched_date, final_watch_count, my_rating, comment,
+                tmdb_id or None, final_cover_url, rec_note, my_rating, comment, existing['subject_id']
+            )
+        )
+        subject_id = existing['subject_id']
+    else:
+        conn.execute(
+            '''INSERT INTO douban_watch_history (
+                subject_id,title,kind,year,url,intro,watched_date,my_rating,comment,douban_rating,douban_rating_count,
+                directors,actors,countries,genres,summary,status,cover_url,watch_count,rating_source,comment_source,tmdb_id,recommendation_note,added_at
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))''',
+            (
+                subject_id, title, payload.get('kind'), payload.get('year'), payload.get('url'), payload.get('intro'),
+                watched_date, my_rating, comment, payload.get('douban_rating'), payload.get('douban_rating_count'), payload.get('directors'),
+                payload.get('actors'), payload.get('countries'), payload.get('genres'), payload.get('summary'), final_status,
+                final_cover_url, final_watch_count, 'user' if my_rating is not None else 'douban',
+                'user' if comment is not None else 'douban', tmdb_id or None, rec_note
+            )
+        )
+    conn.commit()
+    row = conn.execute('SELECT * FROM douban_watch_history WHERE subject_id=?', (subject_id,)).fetchone()
+    return dict(row) if row else None
 
 @app.get('/', response_class=HTMLResponse)
 def home(request: Request):
@@ -1199,27 +1263,58 @@ def set_feedback(subject_id: str, feedback: str = Query(...)):
 
 
 @app.post('/api/watch/{subject_id}', response_class=JSONResponse)
-def mark_watched(subject_id: str):
-    """Toggle watch status: wish -> collect, collect -> wish (undo misclick)."""
+async def mark_watched(subject_id: str, request: Request):
+    """Mark an item as watched; recommendation items are first persisted into the library."""
     conn = get_conn()
-    item = conn.execute('SELECT * FROM douban_watch_history WHERE subject_id=?', (subject_id,)).fetchone()
-    if not item:
-        raise HTTPException(404, 'Item not found')
-    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    current_count = (item['watch_count'] or 1)
-    if item['status'] == 'collect':
+    item = conn.execute('SELECT * FROM douban_watch_history WHERE subject_id=? OR tmdb_id=? LIMIT 1', (subject_id, subject_id.replace('tmdb:', ''))).fetchone()
+    payload = {}
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+    now = payload.get('watched_date') or datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    watch_count = payload.get('watch_count')
+    if watch_count is None:
+        watch_count = (item['watch_count'] if item and item['watch_count'] else 1)
+    else:
+        watch_count = max(int(watch_count), 1)
+    my_rating = payload.get('my_rating')
+    comment = payload.get('comment')
+    if item and not payload:
+        if item['status'] == 'collect':
+            conn.execute('UPDATE douban_watch_history SET status="wish" WHERE subject_id=?', (item['subject_id'],))
+            conn.commit()
+            return {'ok': True, 'subject_id': item['subject_id'], 'status': 'wish'}
         conn.execute(
-            'UPDATE douban_watch_history SET status="wish" WHERE subject_id=?',
-            (subject_id,)
+            'UPDATE douban_watch_history SET status="collect", watched_date=?, watch_count=? WHERE subject_id=?',
+            (now, max(watch_count, 1), item['subject_id'])
         )
         conn.commit()
-        return {'ok': True, 'subject_id': subject_id, 'status': 'wish'}
-    conn.execute(
-        'UPDATE douban_watch_history SET status="collect", watched_date=?, watch_count=? WHERE subject_id=?',
-        (now, max(current_count, 1), subject_id)
-    )
-    conn.commit()
-    return {'ok': True, 'subject_id': subject_id, 'status': 'collect', 'watched_date': now, 'watch_count': max(current_count, 1)}
+        return {'ok': True, 'subject_id': item['subject_id'], 'status': 'collect', 'watched_date': now, 'watch_count': max(watch_count, 1)}
+
+    data = dict(item) if item else {'subject_id': subject_id}
+    data.update(payload or {})
+    if 'recommendation_note' not in data:
+        data['recommendation_note'] = payload.get('_reason') or payload.get('reason')
+    saved = upsert_recommendation_item(conn, data, target_status='collect', watched_date=now, my_rating=my_rating, comment=comment, watch_count=watch_count)
+    return {'ok': True, 'subject_id': saved['subject_id'], 'status': 'collect', 'watched_date': saved['watched_date'], 'watch_count': saved.get('watch_count') or 1, 'item': saved}
+
+
+@app.post('/api/want/{subject_id}', response_class=JSONResponse)
+async def add_to_wishlist(subject_id: str, request: Request):
+    conn = get_conn()
+    existing = conn.execute('SELECT * FROM douban_watch_history WHERE subject_id=? OR tmdb_id=? LIMIT 1', (subject_id, subject_id.replace('tmdb:', ''))).fetchone()
+    payload = {}
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+    data = dict(existing) if existing else {'subject_id': subject_id}
+    data.update(payload or {})
+    if 'recommendation_note' not in data:
+        data['recommendation_note'] = payload.get('_reason') or payload.get('reason')
+    saved = upsert_recommendation_item(conn, data, target_status='wish')
+    return {'ok': True, 'subject_id': saved['subject_id'], 'status': 'wish', 'item': saved}
 
 
 @app.post('/api/rewatch/{subject_id}', response_class=JSONResponse)
@@ -1271,6 +1366,7 @@ async def edit_item(subject_id: str, request: Request):
     watched_date = payload.get('watched_date')
     watch_count = payload.get('watch_count')
     cover_url = payload.get('cover_url')
+    recommendation_note = payload.get('recommendation_note')
 
     if my_rating is not None:
         conn.execute('UPDATE douban_watch_history SET my_rating=?, rating_source="user" WHERE subject_id=?', (my_rating, subject_id))
@@ -1289,6 +1385,8 @@ async def edit_item(subject_id: str, request: Request):
                 # Fallback to remote URL if local caching fails.
                 final_cover_url = normalize_cover_url(cover_url)
         conn.execute('UPDATE douban_watch_history SET cover_url=? WHERE subject_id=?', (final_cover_url, subject_id))
+    if recommendation_note is not None:
+        conn.execute('UPDATE douban_watch_history SET recommendation_note=? WHERE subject_id=?', (recommendation_note, subject_id))
 
     conn.commit()
     updated = conn.execute('SELECT * FROM douban_watch_history WHERE subject_id=?', (subject_id,)).fetchone()

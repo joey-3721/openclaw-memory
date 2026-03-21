@@ -95,6 +95,9 @@
       {% if item.comment %}
       <p class="media-comment">"{{ item.comment[:60] }}"</p>
       {% endif %}
+      {% if item.recommendation_note %}
+      <p class="media-rec-note">💡 {{ item.recommendation_note[:90] }}</p>
+      {% endif %}
       {% if item.directors or item.actors %}
       <p class="rec-credits" style="font-size:11px;margin:4px 0 2px;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ item.directors[:30] }}{% if item.directors and item.actors %} · {% endif %}{{ item.actors[:40] }}</p>
       {% endif %}
@@ -166,6 +169,10 @@
       <textarea id="edit-comment" rows="3" placeholder="写点什么..."></textarea>
     </div>
     <div class="form-group">
+      <label>推荐语（保留在影视库）</label>
+      <textarea id="edit-rec-note" rows="3" placeholder="这部为什么值得你看"></textarea>
+    </div>
+    <div class="form-group">
       <label>封面图 URL（手动覆盖）</label>
       <input type="url" id="edit-cover-url" placeholder="https://img9.doubanio.com/view/photo/s_ratio_poster/...">
     </div>
@@ -213,6 +220,7 @@ function attachCardEvents() {
           document.getElementById('edit-date').value = item.watched_date ? item.watched_date.slice(0, 10) : '';
           document.getElementById('edit-count').value = item.watch_count || 1;
           document.getElementById('edit-comment').value = item.comment || '';
+          document.getElementById('edit-rec-note').value = item.recommendation_note || '';
           document.getElementById('edit-cover-url').value = item.cover_url || '';
         });
     });
@@ -281,6 +289,7 @@ document.addEventListener('DOMContentLoaded', function() {
       watched_date: document.getElementById('edit-date').value || null,
       watch_count: parseInt(document.getElementById('edit-count').value) || 1,
       comment: document.getElementById('edit-comment').value || null,
+      recommendation_note: document.getElementById('edit-rec-note').value || null,
       cover_url: document.getElementById('edit-cover-url').value || null,
     };
     fetch('/api/edit/' + id, {
