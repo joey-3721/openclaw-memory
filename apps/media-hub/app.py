@@ -231,6 +231,7 @@ def tmdb_to_item(raw: dict, media_type: str):
         '_first_genre': '',
         'status': None,
         'source': 'tmdb',
+        'countries': '',
     }
 
 
@@ -626,6 +627,8 @@ def tmdb_recommendation_candidates(conn, limit=20):
             title = item.get('title') or ''
             if any(token in title for token in profile['low_rated_franchises']):
                 continue
+            # Use the discovered region as the country hint for scoring
+            item['countries'] = region
             score = (item.get('douban_rating') or 0) * 0.9
             year = int(item.get('year') or 0) if str(item.get('year') or '').isdigit() else 0
             votes = item.get('douban_rating_count') or 0
@@ -1300,7 +1303,7 @@ def surprise_me():
     """Return a random recommendation from the top candidates."""
     conn = get_conn()
     profile = load_profile(conn)
-    recs = recommendation_candidates(conn, limit=30)
+    recs = tmdb_recommendation_candidates(conn, limit=30)
     if not recs:
         raise HTTPException(404, 'No recommendations available')
     high_rated = [dict(r) for r in conn.execute(
