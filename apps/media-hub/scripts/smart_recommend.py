@@ -342,7 +342,14 @@ def main():
         plot_info = search_plot(c['title'], c.get('year', ''))
         note = write_recommendation_note(c, taste, plot_info)
         if not note:
-            note = f'值得一看的{c.get("media_type", "影视")}作品。'
+            # Fallback: use smart template instead of generic
+            recent_high = taste.get('recent_high', [])[:3]
+            prefer_genres = taste.get('top_genres', [])[:2]
+            genres_str = ','.join(c.get('genres', [])) if isinstance(c.get('genres'), list) else str(c.get('genres', ''))
+            plot_hook = plot_info.get('plot', '') or ''
+            note = _build_note(c.get('media_type', '影视'), c.get('title', ''), genres_str,
+                               c.get('vote_average', 0), c.get('year', ''), plot_hook,
+                               recent_high, prefer_genres)
         item = {
             'subject_id': f'tmdb:{c["media_type"]}:{c["tmdb_id"]}',
             'tmdb_id': c['tmdb_id'],
