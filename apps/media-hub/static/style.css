@@ -367,14 +367,6 @@ body::before {
   border-color: rgba(190, 156, 255, 0.34);
   background: linear-gradient(180deg, rgba(255,255,255,0.07), rgba(150,120,220,0.12));
 }
-.dislike-glyph {
-  width: 14px; height: 14px; display: inline-flex; align-items: center; justify-content: center;
-  border-radius: 999px; background: rgba(165,132,255,0.16); border: 1px solid rgba(190,156,255,0.35);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 0 10px rgba(165,132,255,0.16); flex: 0 0 14px;
-}
-.dislike-glyph::before {
-  content: ''; width: 6px; height: 6px; border-radius: 50%; background: linear-gradient(180deg, #e2d3ff, #ac87ff);
-}
 
 .media-grid {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(196px, 1fr)); gap: 18px;
@@ -458,12 +450,21 @@ body::before {
 .tonight-meta { display: flex; gap: 10px; flex-wrap: wrap; color: var(--text-secondary); font-size: 13px; margin-bottom: 6px; }
 .reason-text, .tonight-reason {
   background: rgba(255,209,102,0.10); color: #ffe8a0; border: 1px solid rgba(255,209,102,0.16);
-  padding: 12px 14px; border-radius: 14px; font-size: 14px; line-height: 1.6; margin: 0;
+  padding: 10px 14px; border-radius: 14px; font-size: 14px; line-height: 1.6; margin: 0;
 }
-.tonight-actions { display: flex; flex-wrap: wrap; gap: 10px; row-gap: 12px; margin-top: 4px; }
-.tonight-actions .btn { margin: 0; }
+.tonight-actions { display: flex; flex-wrap: wrap; gap: 10px; row-gap: 14px; align-items: center; margin-top: 4px; }
+.tonight-actions .btn { margin: 0; align-items: center; justify-content: center; }
 .tonight-credits { font-size: 13px; color: var(--text-secondary); margin-top: -8px; }
 .tonight-stars { font-size: 16px; color: var(--gold); letter-spacing: 2px; text-shadow: 0 0 10px rgba(255,200,80,0.4); }
+
+.last-updated-label { font-size: 11px; color: var(--text-secondary); margin-bottom: 8px; font-weight: 500; letter-spacing: 0.3px; }
+
+.dislike-btn.icon-only { width: 36px; min-width: 36px; height: 36px; padding: 0; border-radius: 50%; }
+.dislike-icon { font-size: 14px; color: rgba(190,156,255,0.85); font-weight: 700; line-height: 1; }
+.dislike-btn.icon-only:hover .dislike-icon { color: #e2d3ff; }
+.shuffle-btn.icon-only { width: 36px; min-width: 36px; height: 36px; padding: 0; border-radius: 50%; }
+.shuffle-icon { font-size: 16px; color: var(--text-secondary); font-weight: 600; line-height: 1; }
+.shuffle-btn.icon-only:hover .shuffle-icon { color: var(--accent); }
 
 .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; padding: 0 48px 48px; max-width: 1200px; margin: 0 auto; }
 .rec-card.compact .rec-cover { aspect-ratio: 3 / 4; }

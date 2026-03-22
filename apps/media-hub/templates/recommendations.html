@@ -4,7 +4,7 @@
   <div class="hero-copy">
     <div class="eyebrow"><span class="live-dot"></span> 今日推荐</div>
     <h1>今日推荐</h1>
-    {% if last_updated %}<div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px">🔄 本次刷新于 {{ last_updated }} 北京时间</div>{% endif %}
+    {% if last_updated %}<div class="last-updated-label">第{{ recs|length }}部 · {{ last_updated }} 更新</div>{% endif %}
     {% if today_pick %}
     <div class="tonight-card">
       <div class="tonight-cover" style="{{ today_pick._cover_style }}">
@@ -31,11 +31,12 @@
           <a class="btn" href="{{ today_pick.url }}" target="_blank">TMDB</a>
           <button class="btn want-btn" data-id="{{ today_pick.subject_id }}">想看</button>
           <button class="btn watch-btn" data-id="{{ today_pick.subject_id }}" data-action="watch">看过</button>
-          <button class="btn dislike-btn" data-id="{{ today_pick.subject_id }}" aria-label="不喜欢" title="不喜欢">
-            <span class="dislike-glyph" aria-hidden="true"></span>
-            <span>不喜欢</span>
+          <button class="btn dislike-btn icon-only" data-id="{{ today_pick.subject_id }}" aria-label="不喜欢" title="不喜欢">
+            <span class="dislike-icon" aria-hidden="true">✕</span>
           </button>
-          <button class="btn" id="shuffle-tonight" title="换一个推荐">换一部</button>
+          <button class="btn shuffle-btn icon-only" id="shuffle-tonight" aria-label="换一部" title="换一部">
+            <span class="shuffle-icon" aria-hidden="true">↻</span>
+          </button>
         </div>
       </div>
     </div>
@@ -99,9 +100,8 @@
         <button class="btn small watch-btn" data-id="{{ item.subject_id }}">
           {% if item.status == 'collect' %}已看 ✓{% else %}看过{% endif %}
         </button>
-        <button class="btn small dislike-btn" data-id="{{ item.subject_id }}" aria-label="不喜欢" title="不喜欢">
-          <span class="dislike-glyph" aria-hidden="true"></span>
-          <span>不喜欢</span>
+        <button class="btn small dislike-btn icon-only" data-id="{{ item.subject_id }}" aria-label="不喜欢" title="不喜欢">
+          <span class="dislike-icon" aria-hidden="true">✕</span>
         </button>
       </div>
     </div>
@@ -247,7 +247,6 @@ document.addEventListener('DOMContentLoaded', function() {
   if (shuffleBtn) {
     shuffleBtn.addEventListener('click', function() {
       shuffleBtn.classList.add('loading');
-      shuffleBtn.textContent = '🎲 换一部...';
       fetch('/api/surprise').then(function() { window.location.reload(); }).catch(function() { window.location.reload(); });
     });
   }
