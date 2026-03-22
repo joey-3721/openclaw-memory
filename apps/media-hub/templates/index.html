@@ -7,7 +7,7 @@
     <p>基于你的历史评分、评语、想看列表与口味画像，结合 TMDB 数据推荐。</p>
     <div class="actions">
       <a class="btn primary" href="/recommendations">看今日推荐</a>
-      <a class="btn accent" href="/recommendations?sort=random">🎲 随机一部</a>
+      <a class="btn accent" href="/recommendations?sort=random">随机一部</a>
       <a class="btn" href="/library">逛影视库</a>
     </div>
   </div>
@@ -49,7 +49,6 @@
               {% if surprise._first_genre %}<span class="rec-genre-chip" style="font-size:11px;padding:3px 10px">{{ surprise._first_genre }}</span>{% endif %}
             </div>
             <div class="tonight-meta">{{ surprise.year }} · {{ surprise._display_kind or surprise.kind }} · TMDB {{ surprise._display_rating or '-' }}</div>
-            {% if surprise._stars %}<div class="tonight-stars">{{ surprise._stars }} <span style="font-size:12px;color:var(--text-secondary)">TMDB</span></div>{% endif %}
           </div>
           <div class="rating-badge-lg">{{ surprise._display_rating or '-' }}</div>
         </div>
@@ -60,9 +59,13 @@
         <div class="tonight-actions">
           <a class="btn" href="{{ surprise.url }}" target="_blank">TMDB</a>
           <button class="btn want-btn" data-id="{{ surprise.subject_id }}">想看</button>
-          <button class="btn watch-btn" data-id="{{ surprise.subject_id }}" data-action="watch">看过</button>
-          <button class="btn dislike-btn" data-id="{{ surprise.subject_id }}">👎</button>
-          <a class="btn" href="/recommendations?sort=random">🎲 换一部</a>
+          <button class="btn watch-btn" data-id="{{ surprise.subject_id }}" data-title="{{ surprise.title|e }}" data-year="{{ surprise.year }}" data-kind="{{ surprise._display_kind or surprise.kind }}" data-url="{{ surprise.url|e }}" data-cover="{{ (surprise._cover_url or '')|e }}" data-reason="{{ (surprise._reason or '')|e }}" data-rating="{{ surprise.douban_rating|default(0) }}">看过</button>
+          <button class="btn dislike-btn icon-only" data-id="{{ surprise.subject_id }}" aria-label="不喜欢" title="不喜欢">
+            <span class="dislike-icon" aria-hidden="true">✕</span>
+          </button>
+          <a class="btn shuffle-btn icon-only" href="/recommendations?sort=random" aria-label="换一部" title="换一部">
+            <span class="shuffle-icon" aria-hidden="true">↻</span>
+          </a>
         </div>
       </div>
     </div>
@@ -70,60 +73,44 @@
 </section>
 {% endif %}
 
-{% if recs %}
-<section class="panel">
-  <div class="panel-header">
-    <h2>今日推荐</h2>
-    <a href="/recommendations" class="link">查看更多 →</a>
+<section class="panel analytics-panel">
+  <div class="panel-header analytics-head">
+    <div>
+      <h2>观影趋势</h2>
+      <div class="analytics-sub">可以切换查看每年 / 每月看了多少部</div>
+    </div>
+    <div class="analytics-toggle" id="trendToggle">
+      <button class="analytics-tab active" data-target="year">按年</button>
+      <button class="analytics-tab" data-target="month">按月</button>
+    </div>
   </div>
-  <div class="rec-grid">
-    {% for item in recs %}
-    <article class="rec-card compact {% if item.status=='collect' %}watched{% endif %}">
-      <div class="rec-cover" style="{{ item._cover_style if item._cover_style else 'background: linear-gradient(135deg,#243060,#10182e)' }}">
-        {% if item._cover_url %}<img src="{{ item._cover_url }}" alt="{{ item.title }}" loading="lazy" onerror="this.style.display='none'; this.parentElement.classList.add('cover-img-failed')">{% else %}<div class="cover-fallback-title">{{ item.title[:8] }}</div>{% endif %}
-        {% if item.status == 'collect' %}<div class="cover-watched-overlay"><span>已看</span></div>{% endif %}
-        <div class="rec-cover-overlay">
-          <span class="rec-badge">{{ item._display_kind or '内容' }}</span>
-          <div class="rec-rating-badge">{{ item._display_rating or '-' }}</div>
-        </div>
-        {% if item.watch_count and item.watch_count > 1 %}
-        <div class="rec-watch-count-badge">🔁 {{ item.watch_count }}次</div>
-        {% endif %}
+
+  <div class="trend-panel active" id="trend-year">
+    <div class="trend-chart">
+      {% set year_max = (yearly_stats | map(attribute='total') | max) if yearly_stats else 1 %}
+      {% for item in yearly_stats %}
+      <div class="trend-bar-wrap">
+        <div class="trend-bar" style="height: {{ ((item.total / year_max) * 180)|round(0, 'ceil')|int if year_max else 0 }}px"></div>
+        <div class="trend-value">{{ item.total }}</div>
+        <div class="trend-label">{{ item.period }}</div>
       </div>
-      <div class="rec-body">
-        <div class="rec-title-row">
-          <h3 class="rec-title">{{ item.title }}</h3>
-          {% if item._first_genre %}<span class="rec-genre-chip">{{ item._first_genre }}</span>{% endif %}
-        </div>
-        <div class="rec-meta-row">
-          <span class="rec-year">{{ item.year }}</span>
-          {% if item._stars %}<span class="rec-stars">{{ item._stars }}</span>{% endif %}
-          <span class="rec-my-stars" data-id="{{ item.subject_id }}" title="点击评分">
-            {% if item.my_rating %}{{ '★' * item.my_rating }}{{ '☆' * (5 - item.my_rating) }}{% else %}☆☆☆☆☆{% endif %}
-          </span>
-        </div>
-        {% if item._reason %}
-        <div class="rec-reason-wrap">
-          <span class="rec-reason-icon">💡</span>
-          <p class="rec-reason">{{ item._reason }}</p>
-        </div>
-        {% endif %}
-        {% if item.directors or item.actors %}
-        <p class="rec-credits">{{ item.directors[:30] }}{% if item.directors and item.actors %} · {% endif %}{{ item.actors[:40] }}</p>
-        {% endif %}
-        <div class="rec-actions">
-          {% if item.tmdb_id and item.url %}<a class="btn small" href="{{ item.url }}" target="_blank">TMDB</a>{% endif %}
-          <button class="btn small want-btn" data-id="{{ item.subject_id }}">想看</button>
-          <button class="btn small watch-btn" data-id="{{ item.subject_id }}" data-action="watch" {% if item.status=='collect' %}disabled{% endif %}>
-            {% if item.status == 'collect' %}已看 ✓{% else %}看过{% endif %}</button>
-          <button class="btn small dislike-btn" data-id="{{ item.subject_id }}">👎</button>
-        </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="trend-panel" id="trend-month">
+    <div class="trend-chart compact">
+      {% set month_max = (monthly_stats | map(attribute='total') | max) if monthly_stats else 1 %}
+      {% for item in monthly_stats %}
+      <div class="trend-bar-wrap">
+        <div class="trend-bar month" style="height: {{ ((item.total / month_max) * 180)|round(0, 'ceil')|int if month_max else 0 }}px"></div>
+        <div class="trend-value">{{ item.total }}</div>
+        <div class="trend-label">{{ item.period[2:] }}</div>
       </div>
-    </article>
-    {% endfor %}
+      {% endfor %}
+    </div>
   </div>
 </section>
-{% endif %}
 
 <section class="two-col">
   <div class="panel">
@@ -167,50 +154,66 @@ document.addEventListener('DOMContentLoaded', function() {
     el.style.animationDelay = (i * 45) + 'ms';
   });
 
-  // Watch / Rewatch buttons in tonight card and compact cards
-  document.querySelectorAll('.watch-btn, .rewatch-btn').forEach(function(btn) {
+  function cardPayload(card) {
+    return {
+      subject_id: card.dataset.subject,
+      title: (card.querySelector('.rec-title') || {}).textContent?.trim(),
+      year: parseInt((card.querySelector('.rec-year') || {}).textContent || '0') || null,
+      kind: ((card.querySelector('.rec-badge') || {}).textContent || '').trim(),
+      cover_url: (card.querySelector('.rec-cover img') || {}).src || null,
+      recommendation_note: (card.querySelector('.rec-reason') || {}).textContent?.trim() || null,
+      douban_rating: parseFloat(card.dataset.rating || '0') || null,
+      tmdb_id: (card.dataset.subject || '').replace('tmdb:', ''),
+      url: (card.querySelector('.rec-actions a') || {}).href || null
+    };
+  }
+
+  function applyWatchState(id, watchedText) {
+    var card = document.querySelector('.rec-card[data-subject="' + id + '"]');
+    if (!card) return;
+    card.classList.add('watched');
+    var cover = card.querySelector('.rec-cover');
+    if (cover && !cover.querySelector('.cover-watched-overlay')) {
+      var overlay = document.createElement('div');
+      overlay.className = 'cover-watched-overlay';
+      overlay.innerHTML = '<span>已看</span>';
+      cover.appendChild(overlay);
+    }
+    var btn = card.querySelector('.watch-btn');
+    if (btn) btn.textContent = watchedText || '已看 ✓';
+  }
+
+  var watchModal = document.getElementById('watchModal');
+  var watchRating = document.getElementById('watch-rating');
+  var watchRatingHint = document.getElementById('watch-rating-hint');
+  var watchRatingPicker = document.getElementById('watch-rating-picker');
+  function paintRating(value) {
+    var v = parseInt(value || 0);
+    watchRating.value = v;
+    watchRatingPicker.dataset.level = String(v);
+    watchRatingPicker.querySelectorAll('.star-choice').forEach(function(btn) {
+      btn.classList.toggle('active', parseInt(btn.dataset.value) <= v);
+    });
+    watchRatingHint.textContent = v ? ('已选 ' + v + ' 星') : '点右边就是更高分，5 星会发光';
+  }
+  if (watchRatingPicker) {
+    watchRatingPicker.querySelectorAll('.star-choice').forEach(function(btn) {
+      btn.addEventListener('click', function() { paintRating(this.dataset.value); });
+      btn.addEventListener('mouseenter', function() { watchRatingPicker.dataset.preview = this.dataset.value; });
+    });
+    watchRatingPicker.addEventListener('mouseleave', function() { watchRatingPicker.dataset.preview = ''; });
+    paintRating(watchRating.value);
+  }
+
+  document.querySelectorAll('.watch-btn').forEach(function(btn) {
     btn.addEventListener('click', function() {
       var id = this.dataset.id;
-      var action = this.dataset.action;
-      fetch('/api/' + action + '/' + id, { method: 'POST' })
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-          if (data.ok) {
-            if (action === 'watch') {
-              btn.textContent = '已看 ✓';
-              btn.disabled = true;
-              // Update compact card state
-              var card = document.querySelector('.rec-card[data-subject="' + id + '"]');
-              if (card) {
-                card.classList.add('watched');
-                var cover = card.querySelector('.rec-cover');
-                if (cover && !cover.querySelector('.cover-watched-overlay')) {
-                  var overlay = document.createElement('div');
-                  overlay.className = 'cover-watched-overlay';
-                  overlay.innerHTML = '<span>已看</span>';
-                  cover.appendChild(overlay);
-                }
-              }
-              if (window.showToast) showToast('已标记为看过 🎉', 'success');
-            } else {
-              btn.textContent = '再看 ' + data.watch_count + '次 ✓';
-              // Update watch count badge on compact card
-              var card2 = document.querySelector('.rec-card[data-subject="' + id + '"]');
-              if (card2) {
-                var badge = card2.querySelector('.rec-watch-count-badge');
-                if (badge) {
-                  badge.textContent = '🔁 ' + data.watch_count + '次';
-                } else {
-                  var newBadge = document.createElement('div');
-                  newBadge.className = 'rec-watch-count-badge';
-                  newBadge.textContent = '🔁 ' + data.watch_count + '次';
-                  card2.querySelector('.rec-cover').appendChild(newBadge);
-                }
-              }
-              if (window.showToast) showToast('观看次数 +1 🔁', 'success');
-            }
-          }
-        }).catch(function(e) { console.error(e); });
+      document.getElementById('watch-subject-id').value = id;
+      document.getElementById('watch-date').value = new Date().toISOString().slice(0, 10);
+      document.getElementById('watch-comment').value = '';
+      document.getElementById('watch-rating').value = 0;
+      paintRating(0);
+      watchModal.style.display = 'flex';
     });
   });
 
@@ -239,105 +242,85 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   });
 
-  // Interactive star rating in compact cards
-  document.querySelectorAll('.rec-my-stars').forEach(function(stars) {
-    stars.style.cursor = 'pointer';
-    stars.style.color = '#ffd166';
-    stars.style.letterSpacing = '1px';
-    stars.style.fontSize = '13px';
-    stars.addEventListener('click', function() {
-      var id = this.dataset.id;
-      var currentRating = (this.textContent.trim().match(/★/g) || []).length;
-      var newRating = currentRating >= 5 ? 1 : currentRating + 1;
-      this.textContent = '★'.repeat(newRating) + '☆'.repeat(5 - newRating);
-      this.classList.remove('star-pop-anim');
-      void this.offsetWidth;
-      this.classList.add('star-pop-anim');
-      setTimeout(function() { if (stars) stars.classList.remove('star-pop-anim'); }, 350);
-      fetch('/api/edit/' + id, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ my_rating: newRating })
-      }).then(function() {
-        if (window.showToast) showToast('评分 ' + newRating + '★ 已保存 ✨', 'success');
-      });
-    });
-  });
 
-  // Edit button (compact cards) - reuse edit modal
-  document.querySelectorAll('.edit-btn').forEach(function(btn) {
-    btn.addEventListener('click', function() {
-      var id = this.dataset.id;
-      document.getElementById('edit-subject-id').value = id;
-      document.getElementById('editModal').style.display = 'flex';
-      fetch('/api/item/' + id)
-        .then(function(r) { return r.json(); })
-        .then(function(item) {
-          document.getElementById('edit-rating').value = item.my_rating || '';
-          document.getElementById('edit-date').value = item.watched_date || '';
-          document.getElementById('edit-count').value = item.watch_count || 1;
-          document.getElementById('edit-comment').value = item.comment || '';
-          document.getElementById('edit-cover-url').value = item.cover_url || '';
-        });
-    });
-  });
 
-  document.getElementById('cancel-edit').addEventListener('click', function() {
-    document.getElementById('editModal').style.display = 'none';
-  });
-  document.getElementById('modal-close-btn').addEventListener('click', function() {
-    document.getElementById('editModal').style.display = 'none';
-  });
-  document.getElementById('save-edit').addEventListener('click', function() {
-    var id = document.getElementById('edit-subject-id').value;
+  document.getElementById('cancel-watch').addEventListener('click', function() { watchModal.style.display = 'none'; });
+  document.getElementById('watch-modal-close').addEventListener('click', function() { watchModal.style.display = 'none'; });
+
+  document.getElementById('save-watch').addEventListener('click', function() {
+    var id = document.getElementById('watch-subject-id').value;
+    var btn = document.querySelector('.watch-btn[data-id="' + id + '"]');
     var payload = {
-      my_rating: parseInt(document.getElementById('edit-rating').value) || null,
-      watched_date: document.getElementById('edit-date').value || null,
-      watch_count: parseInt(document.getElementById('edit-count').value) || 1,
-      comment: document.getElementById('edit-comment').value || null,
-      cover_url: document.getElementById('edit-cover-url').value || null,
+      subject_id: id,
+      title: btn ? btn.dataset.title : '',
+      year: btn ? parseInt(btn.dataset.year) || null : null,
+      kind: btn ? btn.dataset.kind : '',
+      cover_url: btn ? btn.dataset.cover : null,
+      recommendation_note: btn ? btn.dataset.reason : null,
+      douban_rating: btn ? parseFloat(btn.dataset.rating) || null : null,
+      tmdb_id: id.replace('tmdb:', ''),
+      url: btn ? btn.dataset.url : null,
+      my_rating: parseInt(document.getElementById('watch-rating').value) || null,
+      comment: document.getElementById('watch-comment').value || null,
+      watched_date: document.getElementById('watch-date').value || null,
+      watch_count: 1,
     };
-    fetch('/api/edit/' + id, {
+    fetch('/api/watch/' + encodeURIComponent(id), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
-    }).then(function() {
-      document.getElementById('editModal').style.display = 'none';
-      location.reload();
+    }).then(function(r) { return r.json(); }).then(function() {
+      watchModal.style.display = 'none';
+      if (window.showToast) showToast('已保存到影视库 🌈', 'success');
+      setTimeout(function() { window.location.reload(); }, 600);
+    });
+  });
+
+  // Trend chart toggle
+  document.querySelectorAll('.analytics-tab').forEach(function(tab) {
+    tab.addEventListener('click', function() {
+      var target = this.dataset.target;
+      document.querySelectorAll('.analytics-tab').forEach(function(t) { t.classList.remove('active'); });
+      this.classList.add('active');
+      document.querySelectorAll('.trend-panel').forEach(function(p) { p.classList.remove('active'); });
+      document.getElementById('trend-' + target).classList.add('active');
     });
   });
 });
 </script>
 
-<!-- Edit Modal -->
-<div class="modal" id="editModal" style="display:none">
-  <div class="modal-content">
-    <button class="modal-close" id="modal-close-btn">✕</button>
-    <h3>编辑条目</h3>
-    <input type="hidden" id="edit-subject-id">
+<!-- Watch Modal -->
+<div class="modal" id="watchModal" style="display:none">
+  <div class="modal-content rec-watch-modal">
+    <button class="modal-close" id="watch-modal-close">✕</button>
+    <h3>标记为看过</h3>
+    <p class="watch-modal-sub">保存到影视库，并保留推荐语</p>
+    <input type="hidden" id="watch-subject-id">
     <div class="form-group">
-      <label>我的评分 (1-5)</label>
-      <input type="number" id="edit-rating" min="1" max="5" placeholder="1-5">
+      <label>评分</label>
+      <div class="rating-slider-shell" id="rating-slider-shell">
+        <input type="hidden" id="watch-rating" value="0">
+        <div class="rating-star-picker" id="watch-rating-picker">
+          <button type="button" class="star-choice" data-value="1">★</button>
+          <button type="button" class="star-choice" data-value="2">★</button>
+          <button type="button" class="star-choice" data-value="3">★</button>
+          <button type="button" class="star-choice" data-value="4">★</button>
+          <button type="button" class="star-choice" data-value="5">★</button>
+        </div>
+        <div class="rating-hint" id="watch-rating-hint">点右边就是更高分，5 星会发光</div>
+      </div>
     </div>
     <div class="form-group">
       <label>观看日期</label>
-      <input type="date" id="edit-date">
-    </div>
-    <div class="form-group">
-      <label>观看次数</label>
-      <input type="number" id="edit-count" min="1" value="1">
+      <input type="date" id="watch-date">
     </div>
     <div class="form-group">
       <label>我的评语</label>
-      <textarea id="edit-comment" rows="3" placeholder="写点什么..."></textarea>
-    </div>
-    <div class="form-group">
-      <label>封面图 URL（手动覆盖）</label>
-      <input type="url" id="edit-cover-url" placeholder="https://img9.doubanio.com/view/photo/s_ratio_poster/...">
+      <textarea id="watch-comment" rows="3" placeholder="比如：节奏很稳、角色很立体、结尾很喜欢"></textarea>
     </div>
     <div class="modal-actions">
-      <button class="btn primary" id="save-edit">保存</button>
-      <button class="btn" id="cancel-edit">取消</button>
+      <button class="btn primary" id="save-watch">保存到影视库</button>
+      <button class="btn" id="cancel-watch">取消</button>
     </div>
   </div>
 </div>

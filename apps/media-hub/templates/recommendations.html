@@ -19,7 +19,6 @@
               {% if today_pick._first_genre %}<span class="rec-genre-chip" style="font-size:11px;padding:3px 10px">{{ today_pick._first_genre }}</span>{% endif %}
             </div>
             <div class="tonight-meta">{{ today_pick.year }} · {{ today_pick.kind }} · TMDB {{ today_pick._display_rating or '-' }}</div>
-            {% if today_pick._stars %}<div class="tonight-stars">{{ today_pick._stars }} <span style="font-size:12px;color:var(--text-secondary)">TMDB</span></div>{% endif %}
           </div>
           <div class="rating-badge-lg">{{ today_pick._display_rating or '-' }}</div>
         </div>
@@ -141,6 +140,24 @@
     <div class="modal-actions">
       <button class="btn primary" id="save-watch">保存到影视库</button>
       <button class="btn" id="cancel-watch">取消</button>
+    </div>
+  </div>
+</div>
+
+<!-- Dislike Modal -->
+<div class="modal" id="dislikeModal" style="display:none">
+  <div class="modal-content rec-watch-modal">
+    <button class="modal-close" id="dislike-modal-close">✕</button>
+    <h3>不喜欢这条推荐</h3>
+    <p class="watch-modal-sub">写下原因，我后续推荐时会参考并尽量避免</p>
+    <input type="hidden" id="dislike-subject-id">
+    <div class="form-group">
+      <label>不喜欢的理由</label>
+      <textarea id="dislike-reason" rows="4" placeholder="比如：不喜欢太幼稚 / 看过类似题材很多了 / 节奏太慢 / 不喜欢这个演员"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn primary" id="save-dislike">确认保存</button>
+      <button class="btn" id="cancel-dislike">取消</button>
     </div>
   </div>
 </div>
@@ -300,19 +317,35 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   });
 
+  var dislikeModal = document.getElementById('dislikeModal');
+  var dislikeReasonInput = document.getElementById('dislike-reason');
   document.querySelectorAll('.dislike-btn').forEach(function(btn) {
     btn.addEventListener('click', function() {
-      if (!window.confirm('确定标记为“不喜欢”吗？标记后默认不会再展示。')) return;
-      var card = this.closest('.rec-card');
-      var id = this.dataset.id;
-      fetch('/api/feedback/' + encodeURIComponent(id) + '?feedback=dislike', { method: 'POST' })
-        .then(function(r) { return r.json(); })
-        .then(function() {
-          if (card) card.remove();
-          if (window.showToast) showToast('已标记不喜欢，后面不再展示 👎', 'success');
-        });
+      document.getElementById('dislike-subject-id').value = this.dataset.id;
+      dislikeReasonInput.value = '';
+      dislikeModal.style.display = 'flex';
     });
   });
+
+  document.getElementById('save-dislike').addEventListener('click', function() {
+    var id = document.getElementById('dislike-subject-id').value;
+    var card = document.querySelector('.rec-card[data-subject="' + id + '"]');
+    var reason = (dislikeReasonInput.value || '').trim();
+    fetch('/api/feedback/' + encodeURIComponent(id) + '?feedback=dislike', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dislike_reason: reason })
+    })
+      .then(function(r) { return r.json(); })
+      .then(function() {
+        dislikeModal.style.display = 'none';
+        if (card) card.remove();
+        if (window.showToast) showToast(reason ? '已记录不喜欢原因，后续会避开 ✍️' : '已标记不喜欢，后面不再展示 👎', 'success');
+      });
+  });
+
+  document.getElementById('cancel-dislike').addEventListener('click', function() { dislikeModal.style.display = 'none'; });
+  document.getElementById('dislike-modal-close').addEventListener('click', function() { dislikeModal.style.display = 'none'; });
 
   document.getElementById('save-watch').addEventListener('click', function() {
     var id = document.getElementById('watch-subject-id').value;

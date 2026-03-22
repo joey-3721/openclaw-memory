@@ -59,6 +59,8 @@ def ensure_schema(conn):
         conn.execute('ALTER TABLE douban_watch_history ADD COLUMN recommend_feedback TEXT')
     if 'feedback_updated_at' not in cols:
         conn.execute('ALTER TABLE douban_watch_history ADD COLUMN feedback_updated_at TEXT')
+    if 'dislike_reason' not in cols:
+        conn.execute('ALTER TABLE douban_watch_history ADD COLUMN dislike_reason TEXT')
     if 'added_at' not in cols:
         conn.execute("ALTER TABLE douban_watch_history ADD COLUMN added_at TEXT")
         conn.execute("UPDATE douban_watch_history SET added_at = datetime('now') WHERE added_at IS NULL")
@@ -941,15 +943,32 @@ def home(request: Request):
         item['_stars'] = rating_stars(item.get('douban_rating'))
         item['_first_genre'] = first_genre(item)
         recent.append(item)
+    year_rows = conn.execute("""
+        SELECT substr(watched_date, 1, 4) AS period, COUNT(*) AS total
+        FROM douban_watch_history
+        WHERE status='collect' AND watched_date IS NOT NULL AND watched_date != '' AND COALESCE(recommend_feedback, '') != 'dislike'
+        GROUP BY substr(watched_date, 1, 4)
+        ORDER BY period ASC
+    """).fetchall()
+    month_rows = conn.execute("""
+        SELECT substr(watched_date, 1, 7) AS period, COUNT(*) AS total
+        FROM douban_watch_history
+        WHERE status='collect' AND watched_date IS NOT NULL AND watched_date != '' AND COALESCE(recommend_feedback, '') != 'dislike'
+        GROUP BY substr(watched_date, 1, 7)
+        ORDER BY period ASC
+    """).fetchall()
+    yearly_stats = [dict(r) for r in year_rows if r['period']]
+    monthly_stats = [dict(r) for r in month_rows if r['period']][-18:]
     tonight_pick = random.choice(recs[:6]) if len(recs) >= 2 else (recs[0] if recs else None)
     return templates.TemplateResponse('index.html', {
         'request': request,
         'counts': counts,
         'profile': profile,
-        'recs': recs,
         'recent': recent,
         'surprise': dict(tonight_pick) if tonight_pick else None,
         'site_stats': get_site_stats(),
+        'yearly_stats': yearly_stats,
+        'monthly_stats': monthly_stats,
     })
 
 
@@ -1357,25 +1376,35 @@ def add_to_watchlist(subject_id: str):
 
 
 @app.post('/api/feedback/{subject_id}', response_class=JSONResponse)
-def set_feedback(subject_id: str, feedback: str = Query(...)):
+async def set_feedback(subject_id: str, request: Request, feedback: str = Query(...)):
     conn = get_conn()
     item = conn.execute('SELECT * FROM douban_watch_history WHERE subject_id=?', (subject_id,)).fetchone()
     if not item:
         raise HTTPException(404, 'Item not found')
     if feedback not in {'like', 'dislike', 'clear'}:
         raise HTTPException(400, 'feedback must be like/dislike/clear')
+    payload = {}
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+    dislike_reason = (payload.get('dislike_reason') or '').strip() if isinstance(payload, dict) else ''
+    if feedback == 'dislike' and not dislike_reason:
+        dislike_reason = item['dislike_reason'] or ''
     now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     new_feedback = None if feedback == 'clear' else feedback
     new_status = item['status']
     if feedback == 'like' and item['status'] != 'collect':
         new_status = 'wish'
+    if feedback == 'clear':
+        dislike_reason = None
     conn.execute(
-        'UPDATE douban_watch_history SET recommend_feedback=?, feedback_updated_at=?, status=? WHERE subject_id=?',
-        (new_feedback, now, new_status, subject_id)
+        'UPDATE douban_watch_history SET recommend_feedback=?, feedback_updated_at=?, dislike_reason=?, status=? WHERE subject_id=?',
+        (new_feedback, now, dislike_reason, new_status, subject_id)
     )
     conn.commit()
     updated = conn.execute('SELECT * FROM douban_watch_history WHERE subject_id=?', (subject_id,)).fetchone()
-    return {'ok': True, 'item': dict(updated), 'feedback': new_feedback, 'status': updated['status']}
+    return {'ok': True, 'item': dict(updated), 'feedback': new_feedback, 'status': updated['status'], 'dislike_reason': updated['dislike_reason']}
 
 
 @app.post('/api/watch/{subject_id}', response_class=JSONResponse)
