@@ -188,7 +188,10 @@ def main():
     # 已有推荐里已有哪些标题
     existing = app.load_recommended_items(conn)
     existing_titles = {r.get('title') for r in existing}
-    next_rank = len(existing) + 1
+    max_rank = conn.execute(
+        "SELECT MAX(COALESCE(recommend_rank, 0)) FROM douban_watch_history WHERE status='recommended'"
+    ).fetchone()[0] or 0
+    next_rank = max_rank + 1
 
     # 抓候选
     candidates = fetch_candidates(profile)
