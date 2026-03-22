@@ -1,40 +1,7 @@
 {
   "lastChecks": {
-    "weather": 1774139400,
-    "feishu_heartbeat": 1774091584
+    "recommendation": "2026-03-22 02:14:22"
   },
-  "weather": {
-    "location": "Beijing",
-    "lastReportDate": "2026-03-22",
-    "lastReportTs": 1774139400,
-    "lastReportLocalTime": "2026-03-22 08:30 CST",
-    "snapshots": {
-      "2026-03-21": {
-        "location": "Beijing",
-        "condition": "Sunny",
-        "currentTempC": 12,
-        "feelsLikeC": 12,
-        "highTempC": 17,
-        "lowTempC": 4,
-        "rain": false,
-        "rainChance": 0,
-        "windKmph": 8,
-        "humidity": 50,
-        "summary": "Sunny, 12°C, feels like 12°C, 4-17°C, no rain"
-      },
-      "2026-03-22": {
-        "location": "Beijing",
-        "condition": "Clear",
-        "currentTempC": 10.3,
-        "feelsLikeC": 7.8,
-        "highTempC": 21.4,
-        "lowTempC": 8.6,
-        "rain": false,
-        "rainChance": 10,
-        "windKmph": 2.5,
-        "humidity": 50,
-        "summary": "Clear, 10.3°C, feels like 7.8°C, 8.6-21.4°C, 10% rain chance"
-      }
-    }
-  }
+  "recommendation_count": 7,
+  "last_action": "added 杀人者的难堪 (tmdb:tv:35807916)"
 }
