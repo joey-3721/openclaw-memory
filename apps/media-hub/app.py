@@ -1241,7 +1241,7 @@ def library(request: Request, status: str = Query('collect'), kind: str = Query(
 
 
 @app.get('/recommendations', response_class=HTMLResponse)
-def recommendations(request: Request, sort: str = Query('score')):
+def recommendations(request: Request, sort: str = Query('date')):
     conn = get_conn()
     recs_with_reason = load_recommended_items(conn)
     if sort == 'rating':
@@ -1251,7 +1251,7 @@ def recommendations(request: Request, sort: str = Query('score')):
     elif sort == 'random':
         random.shuffle(recs_with_reason)
     else:
-        recs_with_reason.sort(key=lambda x: x.get('_score') or 0, reverse=True)
+        recs_with_reason.sort(key=lambda x: (x.get('recommended_at') or '', x.get('recommend_rank') or 0), reverse=True)
     tonight_pick = random.choice(recs_with_reason[:8]) if len(recs_with_reason) >= 8 else (recs_with_reason[0] if recs_with_reason else None)
     return templates.TemplateResponse('recommendations.html', {
         'request': request,
