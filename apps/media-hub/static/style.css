@@ -195,8 +195,8 @@ body::before {
 .intro-stat strong { font-size: 20px; font-weight: 800; }
 
 .stats-grid {
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;
-  padding: 0 48px 36px; max-width: 900px; margin: 0 auto;
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;
+  padding: 0 28px 28px;
 }
 .stat {
   background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
@@ -690,3 +690,23 @@ input, textarea {
 
 .trend-value { font-size: 12px; font-weight: 700; color: rgba(255,255,255,0.75); margin-bottom: 4px; opacity: 0.7; transition: opacity 0.2s; }
 .trend-label { font-size: 11px; color: var(--text-muted); position: absolute; bottom: 0; white-space: nowrap; }
+.analytics-year-switch { display:flex; gap:8px; flex-wrap:wrap; margin: 0 0 16px; }
+.analytics-year-btn { padding:6px 12px; border-radius:999px; border:1px solid var(--border); background:rgba(255,255,255,0.04); color:var(--text-secondary); font-size:12px; cursor:pointer; }
+.analytics-year-btn.active { background: rgba(255,209,102,0.16); color:#fff3c2; border-color: rgba(255,209,102,0.28); }
+.month-year-panel { display:none; }
+.month-year-panel.active { display:block; }
+.trend-chart { display:flex; align-items:flex-end; gap:10px; height:260px; padding: 8px 4px 28px; border-bottom:1px solid rgba(255,255,255,0.06); }
+.trend-chart.compact { gap:8px; height:240px; overflow-x:auto; padding: 8px 4px 32px; }
+.trend-bar-wrap { display:flex; flex-direction:column; align-items:center; justify-content:flex-end; flex:1; min-width: 44px; height:100%; position:relative; }
+.trend-value { font-size:12px; font-weight:700; color:rgba(255,255,255,0.78); margin-bottom:8px; line-height:1; }
+.trend-label { font-size:11px; color:var(--text-muted); margin-top:10px; position:static; white-space:nowrap; line-height:1; }
+@media (max-width: 520px) {
+  .analytics-head { flex-direction: column; align-items: flex-start; }
+  .analytics-toggle { width: 100%; }
+  .analytics-tab { flex: 1; }
+  .trend-chart { gap: 8px; height: 220px; }
+  .trend-chart.compact { gap: 6px; height: 220px; }
+  .trend-bar-wrap { min-width: 34px; }
+  .trend-value { font-size: 11px; margin-bottom: 6px; }
+  .trend-label { font-size: 10px; }
+}

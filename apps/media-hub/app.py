@@ -958,7 +958,16 @@ def home(request: Request):
         ORDER BY period ASC
     """).fetchall()
     yearly_stats = [dict(r) for r in year_rows if r['period']]
-    monthly_stats = [dict(r) for r in month_rows if r['period']][-18:]
+    month_by_year = {}
+    for r in month_rows:
+        period = r['period']
+        if not period:
+            continue
+        year = period[:4]
+        month_by_year.setdefault(year, []).append({'period': period, 'total': r['total']})
+    month_years = sorted(month_by_year.keys())
+    selected_month_year = month_years[-1] if month_years else None
+    monthly_stats = month_by_year.get(selected_month_year, [])
     tonight_pick = random.choice(recs[:6]) if len(recs) >= 2 else (recs[0] if recs else None)
     return templates.TemplateResponse('index.html', {
         'request': request,
@@ -969,6 +978,9 @@ def home(request: Request):
         'site_stats': get_site_stats(),
         'yearly_stats': yearly_stats,
         'monthly_stats': monthly_stats,
+        'month_by_year': month_by_year,
+        'month_years': month_years,
+        'selected_month_year': selected_month_year,
     })
 
 

@@ -1,37 +1,5 @@
 {% extends 'base.html' %}
 {% block content %}
-<section class="hero">
-  <div class="hero-copy">
-    <div class="eyebrow">你的私人影音中心</div>
-    <h1>今日推荐</h1>
-    <p>基于你的历史评分、评语、想看列表与口味画像，结合 TMDB 数据推荐。</p>
-    <div class="actions">
-      <a class="btn primary" href="/recommendations">看今日推荐</a>
-      <a class="btn accent" href="/recommendations?sort=random">随机一部</a>
-      <a class="btn" href="/library">逛影视库</a>
-    </div>
-  </div>
-</section>
-
-<section class="stats-grid">
-  <div class="card stat">
-    <span class="stat-label">看过</span>
-    <strong class="stat-num">{{ counts.get('collect', 0) }}</strong>
-  </div>
-  <div class="card stat">
-    <span class="stat-label">想看</span>
-    <strong class="stat-num">{{ counts.get('wish', 0) }}</strong>
-  </div>
-  <div class="card stat">
-    <span class="stat-label">高分样本</span>
-    <strong class="stat-num">{{ profile.high_rated_count }}</strong>
-  </div>
-  <div class="card stat">
-    <span class="stat-label">已评分</span>
-    <strong class="stat-num">{{ profile.rated_count }}</strong>
-  </div>
-</section>
-
 {% if surprise %}
 <section class="hero small" id="tonight">
   <div class="hero-copy">
@@ -57,21 +25,32 @@
         <p class="tonight-credits">🎬 {{ surprise.directors[:40] }}{% if surprise.directors and surprise.actors %} · {% endif %}{{ surprise.actors[:50] }}</p>
         {% endif %}
         <div class="tonight-actions">
-          <a class="btn" href="{{ surprise.url }}" target="_blank">TMDB</a>
-          <button class="btn want-btn" data-id="{{ surprise.subject_id }}">想看</button>
-          <button class="btn watch-btn" data-id="{{ surprise.subject_id }}" data-title="{{ surprise.title|e }}" data-year="{{ surprise.year }}" data-kind="{{ surprise._display_kind or surprise.kind }}" data-url="{{ surprise.url|e }}" data-cover="{{ (surprise._cover_url or '')|e }}" data-reason="{{ (surprise._reason or '')|e }}" data-rating="{{ surprise.douban_rating|default(0) }}">看过</button>
-          <button class="btn dislike-btn icon-only" data-id="{{ surprise.subject_id }}" aria-label="不喜欢" title="不喜欢">
-            <span class="dislike-icon" aria-hidden="true">✕</span>
-          </button>
-          <a class="btn shuffle-btn icon-only" href="/recommendations?sort=random" aria-label="换一部" title="换一部">
-            <span class="shuffle-icon" aria-hidden="true">↻</span>
-          </a>
+          <a class="btn primary" href="/recommendations">去推荐页操作</a>
         </div>
       </div>
     </div>
   </div>
 </section>
 {% endif %}
+
+<section class="stats-grid">
+  <div class="card stat">
+    <span class="stat-label">看过</span>
+    <strong class="stat-num">{{ counts.get('collect', 0) }}</strong>
+  </div>
+  <div class="card stat">
+    <span class="stat-label">想看</span>
+    <strong class="stat-num">{{ counts.get('wish', 0) }}</strong>
+  </div>
+  <div class="card stat">
+    <span class="stat-label">高分样本</span>
+    <strong class="stat-num">{{ profile.high_rated_count }}</strong>
+  </div>
+  <div class="card stat">
+    <span class="stat-label">已评分</span>
+    <strong class="stat-num">{{ profile.rated_count }}</strong>
+  </div>
+</section>
 
 <section class="panel analytics-panel">
   <div class="panel-header analytics-head">
@@ -90,8 +69,8 @@
       {% set year_max = (yearly_stats | map(attribute='total') | max) if yearly_stats else 1 %}
       {% for item in yearly_stats %}
       <div class="trend-bar-wrap">
-        <div class="trend-bar" style="height: {{ ((item.total / year_max) * 180)|round(0, 'ceil')|int if year_max else 0 }}px"></div>
         <div class="trend-value">{{ item.total }}</div>
+        <div class="trend-bar" style="height: {{ ((item.total / year_max) * 180)|round(0, 'ceil')|int if year_max else 0 }}px"></div>
         <div class="trend-label">{{ item.period }}</div>
       </div>
       {% endfor %}
@@ -99,16 +78,26 @@
   </div>
 
   <div class="trend-panel" id="trend-month">
-    <div class="trend-chart compact">
-      {% set month_max = (monthly_stats | map(attribute='total') | max) if monthly_stats else 1 %}
-      {% for item in monthly_stats %}
-      <div class="trend-bar-wrap">
-        <div class="trend-bar month" style="height: {{ ((item.total / month_max) * 180)|round(0, 'ceil')|int if month_max else 0 }}px"></div>
-        <div class="trend-value">{{ item.total }}</div>
-        <div class="trend-label">{{ item.period[2:] }}</div>
-      </div>
+    <div class="analytics-year-switch">
+      {% for year in month_years|reverse %}
+      <button class="analytics-year-btn {% if year == selected_month_year %}active{% endif %}" data-year="{{ year }}">{{ year }}</button>
       {% endfor %}
     </div>
+    {% for year in month_years %}
+    <div class="month-year-panel {% if year == selected_month_year %}active{% endif %}" id="month-year-{{ year }}">
+      <div class="trend-chart compact">
+        {% set month_items = month_by_year.get(year, []) %}
+        {% set month_max = (month_items | map(attribute='total') | max) if month_items else 1 %}
+        {% for item in month_items %}
+        <div class="trend-bar-wrap">
+          <div class="trend-value">{{ item.total }}</div>
+          <div class="trend-bar month" style="height: {{ ((item.total / month_max) * 180)|round(0, 'ceil')|int if month_max else 0 }}px"></div>
+          <div class="trend-label">{{ item.period[5:] }}</div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
   </div>
 </section>
 
@@ -284,6 +273,17 @@ document.addEventListener('DOMContentLoaded', function() {
       this.classList.add('active');
       document.querySelectorAll('.trend-panel').forEach(function(p) { p.classList.remove('active'); });
       document.getElementById('trend-' + target).classList.add('active');
+    });
+  });
+
+  document.querySelectorAll('.analytics-year-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var year = this.dataset.year;
+      document.querySelectorAll('.analytics-year-btn').forEach(function(b) { b.classList.remove('active'); });
+      this.classList.add('active');
+      document.querySelectorAll('.month-year-panel').forEach(function(panel) { panel.classList.remove('active'); });
+      var target = document.getElementById('month-year-' + year);
+      if (target) target.classList.add('active');
     });
   });
 });
