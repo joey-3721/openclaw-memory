@@ -31,8 +31,11 @@
           <a class="btn" href="{{ today_pick.url }}" target="_blank">TMDB</a>
           <button class="btn want-btn" data-id="{{ today_pick.subject_id }}">想看</button>
           <button class="btn watch-btn" data-id="{{ today_pick.subject_id }}" data-action="watch">看过</button>
-          <button class="btn dislike-btn" data-id="{{ today_pick.subject_id }}">👎</button>
-          <button class="btn" id="shuffle-tonight" title="换一个推荐">🎲 换一部</button>
+          <button class="btn dislike-btn" data-id="{{ today_pick.subject_id }}" aria-label="不喜欢" title="不喜欢">
+            <span class="dislike-glyph" aria-hidden="true"></span>
+            <span>不喜欢</span>
+          </button>
+          <button class="btn" id="shuffle-tonight" title="换一个推荐">换一部</button>
         </div>
       </div>
     </div>
@@ -46,11 +49,7 @@
     <span class="filter-label">排序</span>
     <div class="sort-chips">
       <a class="sort-btn {% if sort=='date' or sort=='score' %}active{% endif %}" href="/recommendations?sort=date" data-sort="date">最新推荐</a>
-      <a class="sort-btn {% if sort=='rating' %}active{% endif %}" href="/recommendations?sort=rating" data-sort="rating">TMDB 口碑</a>
       <a class="sort-btn {% if sort=='year' %}active{% endif %}" href="/recommendations?sort=year" data-sort="year">最近年份</a>
-      <a class="sort-btn icon-only {% if sort=='random' %}active{% endif %}" href="/recommendations?sort=random" data-sort="random" aria-label="随机推荐" title="随机推荐">
-        <span class="sort-icon">✦</span>
-      </a>
     </div>
     <span class="count">{{ recs|length }} 部</span>
   </div>
@@ -87,9 +86,6 @@
       </div>
       <div class="rec-meta-row">
         <span class="rec-year">{{ item.year }}</span>
-        {% if item._stars %}
-        <span class="rec-stars" title="TMDB 口碑 {{ item.douban_rating }}">{{ item._stars }}</span>
-        {% endif %}
       </div>
       <div class="rec-reason-wrap">
         <p class="rec-reason"><span class="rec-reason-icon" aria-hidden="true">✦</span>{{ item._reason }}</p>
