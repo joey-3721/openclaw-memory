@@ -1259,7 +1259,7 @@ def recommendations(request: Request, sort: str = Query('date')):
         'surprise': dict(tonight_pick) if tonight_pick else None,
         'today_pick': dict(tonight_pick) if tonight_pick else None,
         'sort': sort,
-        'last_updated': (datetime.strptime(today_pick['recommended_at'], '%Y-%m-%d %H:%M:%S') + timedelta(hours=8)).strftime('%m-%d %H:%M') if today_pick and today_pick.get('recommended_at') else '',
+        'last_updated': (datetime.strptime(tonight_pick['recommended_at'], '%Y-%m-%d %H:%M:%S') + timedelta(hours=8)).strftime('%m-%d %H:%M') if tonight_pick and tonight_pick.get('recommended_at') else '',
         'site_stats': get_site_stats(),
     })
 
