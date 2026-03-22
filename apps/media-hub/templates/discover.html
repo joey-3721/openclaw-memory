@@ -159,19 +159,27 @@
       </div>
     </div>
     <div id="watched-step-new" style="display:none;">
-      <div style="margin-bottom:16px;">
-        <label style="font-size:14px;color:var(--text-secondary);display:block;margin-bottom:8px;">我的评分</label>
-        <div class="star-picker" id="star-picker">
-          <span class="star" data-value="1">★</span>
-          <span class="star" data-value="2">★</span>
-          <span class="star" data-value="3">★</span>
-          <span class="star" data-value="4">★</span>
-          <span class="star" data-value="5">★</span>
+      <div class="form-group">
+        <label>我的评分</label>
+        <div class="rating-slider-shell">
+          <input type="hidden" id="discover-watch-rating" value="0">
+          <div class="rating-star-picker" id="discover-watch-rating-picker" data-level="0" aria-label="发现页评分">
+            <button type="button" class="star-choice" data-value="1" aria-label="1 星">★</button>
+            <button type="button" class="star-choice" data-value="2" aria-label="2 星">★</button>
+            <button type="button" class="star-choice" data-value="3" aria-label="3 星">★</button>
+            <button type="button" class="star-choice" data-value="4" aria-label="4 星">★</button>
+            <button type="button" class="star-choice" data-value="5" aria-label="5 星">★</button>
+          </div>
+          <div class="rating-hint" id="discover-watch-rating-hint">点右边就是更高分，5 星会发光</div>
         </div>
       </div>
-      <div style="margin-bottom:16px;">
-        <label style="font-size:14px;color:var(--text-secondary);display:block;margin-bottom:8px;">我的短评</label>
-        <textarea id="watched-comment-input" rows="3" placeholder="简单说两句...（可选）" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--bg-secondary);color:var(--text-primary);resize:none;"></textarea>
+      <div class="form-group">
+        <label>观看时间</label>
+        <input type="date" id="discover-watch-date">
+      </div>
+      <div class="form-group">
+        <label>我的评语</label>
+        <textarea id="watched-comment-input" rows="3" placeholder="简单说两句...（可选）"></textarea>
       </div>
       <div style="display:flex;gap:8px;justify-content:flex-end;">
         <button class="btn" id="new-back-btn">上一步</button>
@@ -220,16 +228,26 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   });
 
-  // Star picker
-  document.querySelectorAll('.star').forEach(function(star) {
-    star.addEventListener('click', function() {
-      var val = parseInt(this.dataset.value);
-      document.querySelectorAll('.star').forEach(function(s, i) {
-        s.classList.toggle('active', i < val);
-      });
-      document.getElementById('new-confirm-btn').dataset.rating = val;
+  var discoverWatchRating = document.getElementById('discover-watch-rating');
+  var discoverWatchRatingHint = document.getElementById('discover-watch-rating-hint');
+  var discoverWatchRatingPicker = document.getElementById('discover-watch-rating-picker');
+  function paintDiscoverWatchRating(value) {
+    var v = parseInt(value || 0);
+    discoverWatchRating.value = v;
+    discoverWatchRatingPicker.dataset.level = String(v);
+    discoverWatchRatingPicker.querySelectorAll('.star-choice').forEach(function(btn) {
+      btn.classList.toggle('active', parseInt(btn.dataset.value) <= v);
     });
-  });
+    discoverWatchRatingHint.textContent = v ? ('已选 ' + v + ' 星') : '点右边就是更高分，5 星会发光';
+  }
+  if (discoverWatchRatingPicker) {
+    discoverWatchRatingPicker.querySelectorAll('.star-choice').forEach(function(btn) {
+      btn.addEventListener('click', function() { paintDiscoverWatchRating(this.dataset.value); });
+      btn.addEventListener('mouseenter', function() { discoverWatchRatingPicker.dataset.preview = this.dataset.value; });
+    });
+    discoverWatchRatingPicker.addEventListener('mouseleave', function() { discoverWatchRatingPicker.dataset.preview = ''; });
+    paintDiscoverWatchRating(0);
+  }
 
   // Open watched modal
   document.querySelectorAll('.mark-watched-btn').forEach(function(btn) {
@@ -251,6 +269,9 @@ document.addEventListener('DOMContentLoaded', function() {
       document.getElementById('merge-search-input').value = '';
       document.getElementById('merge-results').innerHTML = '';
       document.getElementById('watched-modal-title').textContent = btn.dataset.title;
+      document.getElementById('watched-comment-input').value = '';
+      document.getElementById('discover-watch-date').value = new Date().toISOString().slice(0, 10);
+      paintDiscoverWatchRating(0);
       showStep(1);
       document.getElementById('watchedModal').style.display = 'flex';
     });
@@ -336,9 +357,10 @@ document.addEventListener('DOMContentLoaded', function() {
   // Confirm new
   document.getElementById('new-confirm-btn').addEventListener('click', function() {
     if (!currentWatchedItem) return;
-    var rating = parseInt(document.getElementById('new-confirm-btn').dataset.rating) || null;
+    var rating = parseInt(document.getElementById('discover-watch-rating').value) || null;
     var comment = document.getElementById('watched-comment-input').value.trim();
-    var payload = Object.assign({}, currentWatchedItem, { my_rating: rating, comment: comment, status: 'collect' });
+    var watchedDate = document.getElementById('discover-watch-date').value || null;
+    var payload = Object.assign({}, currentWatchedItem, { my_rating: rating, comment: comment, watched_date: watchedDate, status: 'collect' });
     fetch('/api/mark-watched', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

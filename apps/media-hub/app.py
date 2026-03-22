@@ -1592,7 +1592,7 @@ async def api_mark_watched(request: Request):
     conn = get_conn()
     item = conn.execute('SELECT * FROM douban_watch_history WHERE subject_id=?', (subject_id,)).fetchone()
 
-    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    now = payload.get('watched_date') or datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     if item:
         # Update existing
         if item['status'] != 'collect':
