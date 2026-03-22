@@ -664,6 +664,9 @@ def normalize_cover_url(value):
     Douban sometimes serves poster URLs as .webp in DevTools/network logs.
     Some clients/rendering paths behave more reliably with .jpg, so normalize
     known doubanio poster links back to jpg.
+    Also rewrite legacy local cover paths that used ':' in filenames, because
+    browsers request them URL-encoded (%3A) and Starlette static serving may
+    not resolve them reliably across environments.
     """
     if not value:
         return None
@@ -672,11 +675,21 @@ def normalize_cover_url(value):
         return None
     if 'doubanio.com/view/photo/' in value and value.endswith('.webp'):
         value = value[:-5] + '.jpg'
+    if value.startswith('/covers/'):
+        filename = value.split('/covers/', 1)[1]
+        if ':' in filename:
+            stem, dot, ext = filename.rpartition('.')
+            safe_name = safe_subject_id(stem) + (dot + ext if dot else '')
+            value = f'/covers/{safe_name}'
     return value
 
 
+def safe_subject_id(subject_id: str) -> str:
+    return re.sub(r'[^A-Za-z0-9._-]+', '_', str(subject_id or '').strip())
+
+
 def local_cover_path(subject_id: str, ext: str = 'jpg'):
-    return COVERS_DIR / f'{subject_id}.{ext}'
+    return COVERS_DIR / f'{safe_subject_id(subject_id)}.{ext}'
 
 
 def download_cover_to_local(url: str, subject_id: str) -> str:
