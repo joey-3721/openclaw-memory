@@ -271,6 +271,28 @@ def write_recommendation_note(candidate, taste, plot_info):
         print(f'[LLM ERR] {candidate.get("title")}: {e}')
         return None
 
+def _build_note(media_type, title, genre_str, vote_avg, year, plot_hook, recent_high, prefer_genres):
+    """Build a personalized recommendation note from template."""
+    import random
+    hook_templates = [
+        f"开局{len(plot_hook)//10*'就'}让你入局，{plot_hook[:40]}...",
+        f"它那种{plot_hook[10:30] if len(plot_hook)>30 else plot_hook}的感觉，看进去了就停不下来。",
+        f"不是那种慢慢铺垫的片——{plot_hook[:50]}...",
+    ]
+    taste_links = [
+        f"继{'、'.join(recent_high[:2])}之后，这个调调很可能会让你上头。",
+        f"如果你对{' '.join(prefer_genres[:2])}题材上瘾，这部的处理方式有点不一样。",
+        f"它的节奏和{'或'.join([t for t in recent_high[:2] if t])}是同一种逻辑，但走向更新。",
+        "",
+    ]
+    hook = random.choice(hook_templates) if plot_hook else f"{year}年的{genre_str}题材里，这部值得留意。"
+    tie = random.choice(taste_links) if recent_high or prefer_genres else ""
+    
+    full_note = (hook + " " + tie).strip()
+    if len(full_note) < 20:
+        full_note = f"{year}年的{title}，{genre_str}题材里值得注意的一部。"
+    return full_note[:100]
+
 # ─────────────────────────────────────────────────────────
 # 5. 写入数据库
 # ─────────────────────────────────────────────────────────
@@ -328,8 +350,9 @@ def main():
             'kind': c['media_type'],
             'year': c.get('year'),
             'intro': plot_info.get('plot', ''),
-            'douban_rating': round(c.get('vote_average', 0) / 10, 2) if c.get('vote_average') else None,
+            'douban_rating': round(c.get('vote_average', 0), 1) if c.get('vote_average') else None,
             'cover_url': f"https://image.tmdb.org/t/p/w500{c['poster_path']}" if c.get('poster_path') else None,
+            'url': f'https://www.themoviedb.org/{c["media_type"]}/{c["tmdb_id"]}',
             'recommendation_note': note,
             'status': 'recommended',
             'recommended_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),

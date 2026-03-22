@@ -1395,11 +1395,11 @@ async def set_feedback(subject_id: str, request: Request, feedback: str = Query(
         raise HTTPException(404, 'Item not found')
     if feedback not in {'like', 'dislike', 'clear'}:
         raise HTTPException(400, 'feedback must be like/dislike/clear')
-    payload = {}
+    payload = await request.json()
     try:
         payload = await request.json()
     except Exception:
-        payload = {}
+        payload = await request.json()
     dislike_reason = (payload.get('dislike_reason') or '').strip() if isinstance(payload, dict) else ''
     if feedback == 'dislike' and not dislike_reason:
         dislike_reason = item['dislike_reason'] or ''
@@ -1424,11 +1424,11 @@ async def mark_watched(subject_id: str, request: Request):
     """Mark an item as watched; recommendation items are first persisted into the library."""
     conn = get_conn()
     item = conn.execute('SELECT * FROM douban_watch_history WHERE subject_id=? OR tmdb_id=? LIMIT 1', (subject_id, subject_id.replace('tmdb:', ''))).fetchone()
-    payload = {}
+    payload = await request.json()
     try:
         payload = await request.json()
     except Exception:
-        payload = {}
+        payload = await request.json()
     now = payload.get('watched_date') or datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     watch_count = payload.get('watch_count')
     if watch_count is None:
@@ -1461,11 +1461,11 @@ async def mark_watched(subject_id: str, request: Request):
 async def add_to_wishlist(subject_id: str, request: Request):
     conn = get_conn()
     existing = conn.execute('SELECT * FROM douban_watch_history WHERE subject_id=? OR tmdb_id=? LIMIT 1', (subject_id, subject_id.replace('tmdb:', ''))).fetchone()
-    payload = {}
+    payload = await request.json()
     try:
         payload = await request.json()
     except Exception:
-        payload = {}
+        payload = await request.json()
     data = dict(existing) if existing else {'subject_id': subject_id}
     data.update(payload or {})
     if 'recommendation_note' not in data:
@@ -1716,3 +1716,42 @@ def delete_item(subject_id: str):
     conn.close()
     return {'ok': True, 'subject_id': subject_id}
 
+
+@app.post('/api/generate-note', response_class=JSONResponse)
+async def generate_note(request: Request):
+    import json as _json, asyncio as _asyncio, requests as _req, re as _re
+    payload = await request.json()
+
+    title = payload.get('title', '')
+    genres = payload.get('genres', '')
+    plot = payload.get('plot', '')
+    user_high_rated = payload.get('user_high_rated', [])
+    user_dislike_topics = payload.get('dislike_topics', [])
+    user_prefer_genres = payload.get('user_prefer_genres', [])
+
+    prompt = f"""为以下影视内容写一段推荐语，40-80字，只输出推荐语本身。
+
+要求：结合作者偏好来写，有观点有钩子。不写\"如果你喜欢X\"套话，不以\"该片讲述了\"开头。
+
+作者偏好 - 最近喜欢：{', '.join(user_high_rated[:6]) or '无'}；反感：{', '.join(user_dislike_topics[:6]) or '无'}；偏好题材：{', '.join(user_prefer_genres[:4]) or '无'}
+
+待推荐：{title}（{genres}）
+剧情：{plot[:200] if plot else '暂无简介'}"""
+
+    def _call_llm():
+        _proxies = {'http': 'http://192.168.50.209:7890', 'https': 'http://192.168.50.209:7890'}
+        try:
+            resp = _req.post(
+                'http://host.docker.internal:18789/api/generate',
+                json={'model': 'qwen2.5', 'prompt': prompt, 'stream': False, 'options': {'temperature': 0.8, 'num_predict': 200}},
+                proxies=_proxies, timeout=60
+            )
+            return resp.json().get('response', '').strip()
+        except Exception:
+            return None
+
+    note = await _asyncio.to_thread(_call_llm)
+    if note:
+        note = _re.sub(r'^["""\'\s]+|["""\'\s]+$', '', note)
+
+    return {'note': note, 'title': title}
