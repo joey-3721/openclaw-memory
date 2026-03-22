@@ -78,12 +78,13 @@ def load_user_taste():
                     franchise_blacklist.add(str(r['title'] or ''))
 
     for r in disliked:
+        rdict = dict(r)
         for kw in NEG_KW:
-            if kw in str(r.get('comment') or '') or kw in str(r.get('dislike_reason') or ''):
-                franchise_blacklist.add(str(r['title'] or ''))
+            if kw in str(rdict.get('comment') or '') or kw in str(rdict.get('dislike_reason') or ''):
+                franchise_blacklist.add(str(rdict.get('title') or ''))
         bad_franchises = ['哥斯拉', '金刚', '环太平洋', '流浪地球', '唐探', '柯南', '鱿鱼游戏', '复仇者联盟', '速度与激情']
         for b in bad_franchises:
-            if b in str(r.get('title') or ''):
+            if b in str(rdict.get('title') or ''):
                 franchise_blacklist.add(b)
 
     top_genres = [g for g, _ in genre_counter.most_common(6)]
@@ -92,11 +93,12 @@ def load_user_taste():
     # 构建不喜欢题材关键词
     dislike_topics = set()
     for r in disliked:
-        for kw in str(r.get('dislike_reason') or '').split():
+        rdict = dict(r)
+        for kw in str(rdict.get('dislike_reason') or '').split():
             if len(kw) >= 2:
                 dislike_topics.add(kw)
         for kw in NEG_KW:
-            if kw in str(r.get('dislike_reason') or '') or kw in str(r.get('comment') or ''):
+            if kw in str(rdict.get('dislike_reason') or '') or kw in str(rdict.get('comment') or ''):
                 dislike_topics.add(kw)
 
     return {
