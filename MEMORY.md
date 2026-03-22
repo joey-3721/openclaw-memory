@@ -39,6 +39,18 @@
   - 部署/更新 Skill：`/home/node/.openclaw/skills/media-hub-nas-deploy/SKILL.md`
   - 后续只要佳奕让我改 Media Hub 页面，我应默认执行：改代码 → 重建镜像 → 重启容器 → 验证 → git commit → git push
 
+## 媒体推荐规则（Media Hub）
+
+### 强制排除内容
+- **中国3D动漫**：一律不推荐（包括但不限于《秦时明月》《斗罗大陆》《斗破苍穹》等国产3D动画风格作品）
+- 规则更新时间：2026-03-22
+
+### 佳奕偏好
+- 喜欢：美剧、电影、以及非中国产的影视内容
+- 具体偏好可随时更新
+
+---
+
 ## Model routing
 
 - Model policy preference: default to `minimax/MiniMax-M2.5` for simple lookups, lightweight queries, and easy tasks. Switch to `duomi/gpt-5.4` for tasks that are even moderately complex, logic-heavy, multi-step, coding-related, configuration-heavy, or require stronger reasoning. Git/commit/push alone are not automatically considered complex; use judgment based on the overall task.
