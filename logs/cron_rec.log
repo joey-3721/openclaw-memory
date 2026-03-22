@@ -7,3 +7,20 @@ ModuleNotFoundError: No module named 'fastapi'
 [cron] fetch error: HTTPSConnectionPool(host='api.themoviedb.org', port=443): Max retries exceeded with url: /3/discover/tv?api_key=32d4dddf241a2fc45d6a084825532a87&sort_by=vote_average.desc&language=zh-CN&include_adult=false&page=3&first_air_date.gte=2023-01-01&vote_count.gte=800 (Caused by SSLError(SSLEOFError(8, '[SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1016)')))
 [cron] added: 疾速追杀4 | rank 21 | reason: 高桌组织的首席执行官格拉蒙特（比尔·斯卡斯加德饰）不断提高对约翰·威克（基努·里...
 --- ran at Fri Mar 20 14:56:29 UTC 2026 ---
+[cron] added: 麦迪逊河谷 | rank 9 | reason: 如果你喜欢这个题材类型的片，这部很可能让你一口气看完。开局钩子很重，该剧是《黄石...
+--- ran at Sun Mar 22 04:09:38 UTC 2026 ---
+[cron] added: 间谍过家家 | rank 21 | reason: 它有一个很危险的特点：看起来很平常，但越往后越让你放不下。为了潜入名校，西国能力...
+--- ran at Sun Mar 22 04:39:45 UTC 2026 ---
+Traceback (most recent call last):
+  File "/app/scripts/cron_add_recommendation.py", line 247, in <module>
+    main()
+  File "/app/scripts/cron_add_recommendation.py", line 185, in main
+    conn = app.get_conn()
+           ^^^^^^^^^^^^^^
+  File "/app/app.py", line 50, in get_conn
+    conn = sqlite3.connect(DB_PATH)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+sqlite3.OperationalError: unable to open database file
+--- ran at Sun Mar 22 05:09:46 UTC 2026 ---
+[cron] added: 间谍过家家 | rank 22 | reason: 如果你喜欢这个题材类型的片，这部很可能让你一口气看完。开局钩子很重，为了潜入名校...
+--- ran at Sun Mar 22 05:39:51 UTC 2026 ---

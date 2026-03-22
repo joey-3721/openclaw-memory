@@ -603,9 +603,9 @@ body::before {
   .sort-controls { overflow-x: auto; flex-wrap: nowrap; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
   .sort-controls::-webkit-scrollbar { display: none; }
   .two-col { grid-template-columns: 1fr; padding: 0 24px 32px; }
-  .tonight-card { flex-direction: column; }
-  .tonight-cover { width: 100%; max-width: 240px; }
-  .tonight-info { padding: 16px; }
+  .tonight-card { flex-direction: row; align-items: stretch; gap: 16px; }
+  .tonight-cover { width: 120px; flex-shrink: 0; }
+  .tonight-info { padding: 0; min-width: 0; }
   .tonight-head { flex-direction: column; }
   .section-header { padding: 0 24px 16px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
   .section-header::-webkit-scrollbar { display: none; }

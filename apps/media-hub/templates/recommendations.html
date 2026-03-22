@@ -4,7 +4,7 @@
   <div class="hero-copy">
     <div class="eyebrow"><span class="live-dot"></span> 今日推荐</div>
     <h1>今日推荐</h1>
-    {% if last_updated %}<div class="last-updated-label">第{{ recs|length }}部 · {{ last_updated }} 更新</div>{% endif %}
+    {% if last_updated %}<div class="last-updated-label">{{ last_updated }} 更新</div>{% endif %}
     {% if today_pick %}
     <div class="tonight-card">
       <div class="tonight-cover" style="{{ today_pick._cover_style }}">
