@@ -22,7 +22,23 @@ CONFIG_DIR = Path(os.getenv('MEDIA_HUB_CONFIG_DIR', str(BASE_DIR / 'config')))
 SECRETS_DIR = CONFIG_DIR / 'secrets'
 COOKIE_PATH = CONFIG_DIR / 'douban_cookie.json'
 TMDB_KEY_PATH = SECRETS_DIR / 'tmdb.json'
+TMDB_LOG_PATH = BASE_DIR / 'logs' / 'tmdb_failures.log'
 COVERS_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def log_tmdb_failure(stage: str, detail: str, extra: dict | None = None):
+    try:
+        TMDB_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            'ts': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC'),
+            'stage': stage,
+            'detail': detail,
+            'extra': extra or {},
+        }
+        with TMDB_LOG_PATH.open('a', encoding='utf-8') as f:
+            f.write(json.dumps(payload, ensure_ascii=False) + '\n')
+    except Exception:
+        pass
 
 app = FastAPI(title='Media Hub')
 app.mount('/static', StaticFiles(directory=str(BASE_DIR / 'static')), name='static')
@@ -113,8 +129,10 @@ def tmdb_probe():
         r = requests.get('https://api.themoviedb.org/3/configuration', params={'api_key': key}, timeout=15)
         if r.ok:
             return {'ok': True, 'configured': True, 'message': 'TMDB Key 可用'}
+        log_tmdb_failure('probe', f'TMDB 返回 {r.status_code}', {'status_code': r.status_code, 'body': r.text[:400]})
         return {'ok': False, 'configured': True, 'message': f'TMDB 返回 {r.status_code}'}
     except Exception as e:
+        log_tmdb_failure('probe', f'TMDB 探测失败：{e}')
         return {'ok': False, 'configured': True, 'message': f'TMDB 探测失败：{e}'}
 
 
@@ -423,9 +441,26 @@ def tmdb_discover(kind: str = 'movie', query: str = '', sort: str = 'popularity'
                 params['with_genres'] = genre_id
         params.update(cfg['discover_params'])
 
-    r = requests.get(f'https://api.themoviedb.org/3{path}', params=params, timeout=20)
-    r.raise_for_status()
-    data = r.json()
+    try:
+        r = requests.get(f'https://api.themoviedb.org/3{path}', params=params, timeout=20)
+        r.raise_for_status()
+        data = r.json()
+    except Exception as e:
+        status_code = getattr(getattr(e, 'response', None), 'status_code', None)
+        body = getattr(getattr(e, 'response', None), 'text', '')[:400] if getattr(e, 'response', None) is not None else ''
+        log_tmdb_failure('discover', f'{type(e).__name__}: {e}', {
+            'path': path,
+            'kind': kind,
+            'query': query,
+            'sort': sort,
+            'region': region,
+            'year': year,
+            'genre': genre,
+            'page': page,
+            'status_code': status_code,
+            'body': body,
+        })
+        raise
     media_type = cfg['media_type']
     items = [tmdb_to_item(x, media_type) for x in data.get('results', [])[:limit]]
     return {
