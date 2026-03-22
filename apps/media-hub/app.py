@@ -439,15 +439,16 @@ def tmdb_discover(kind: str = 'movie', query: str = '', sort: str = 'popularity'
 def get_site_stats():
     conn = get_conn()
     c = conn.cursor()
-    c.execute('SELECT COUNT(*) FROM douban_watch_history')
+    visible = 'COALESCE(recommend_feedback, "") != "dislike"'
+    c.execute(f'SELECT COUNT(*) FROM douban_watch_history WHERE {visible}')
     total = c.fetchone()[0]
-    c.execute('SELECT COUNT(*) FROM douban_watch_history WHERE status="collect"')
+    c.execute(f'SELECT COUNT(*) FROM douban_watch_history WHERE {visible} AND status="collect"')
     watched = c.fetchone()[0]
-    c.execute('SELECT COUNT(*) FROM douban_watch_history WHERE status="wish"')
+    c.execute(f'SELECT COUNT(*) FROM douban_watch_history WHERE {visible} AND status="wish"')
     wish = c.fetchone()[0]
-    c.execute('SELECT COUNT(*) FROM douban_watch_history WHERE status="recommended"')
+    c.execute(f'SELECT COUNT(*) FROM douban_watch_history WHERE {visible} AND status="recommended"')
     recommended = c.fetchone()[0]
-    c.execute('SELECT ROUND(AVG(douban_rating),1) FROM douban_watch_history WHERE status="collect" AND douban_rating IS NOT NULL')
+    c.execute(f'SELECT ROUND(AVG(douban_rating),1) FROM douban_watch_history WHERE {visible} AND status="collect" AND douban_rating IS NOT NULL')
     row = c.fetchone()
     avg_rating = row[0] if row else None
     # Rating distribution (my_rating: 1-5)
@@ -728,6 +729,16 @@ def display_rating(value):
         return str(value)
 
 
+def display_kind(value):
+    mapping = {
+        'movie': '电影',
+        'tv': '剧集',
+        'show': '综艺',
+        'anime': '动画',
+    }
+    return mapping.get((value or '').lower(), value or '内容')
+
+
 
 
 def cache_recommendations(conn, items, cache_key='default'):
@@ -758,7 +769,7 @@ def cache_recommendations(conn, items, cache_key='default'):
 
 
 def load_recommended_items(conn):
-    rows = conn.execute('SELECT * FROM douban_watch_history WHERE status="recommended" ORDER BY COALESCE(recommend_rank, 9999), COALESCE(recommended_at, "") DESC').fetchall()
+    rows = conn.execute('SELECT * FROM douban_watch_history WHERE status="recommended" AND COALESCE(recommend_feedback, "") != "dislike" ORDER BY COALESCE(recommend_rank, 9999), COALESCE(recommended_at, "") DESC').fetchall()
     items = []
     for r in rows:
         item = dict(r)
@@ -769,6 +780,7 @@ def load_recommended_items(conn):
         item['_stars'] = rating_stars(item.get('douban_rating'))
         item['_first_genre'] = first_genre(item)
         item['_display_rating'] = display_rating(item.get('douban_rating'))
+        item['_display_kind'] = display_kind(item.get('kind'))
         items.append(item)
     return items
 
@@ -793,6 +805,7 @@ def load_cached_recommendations(conn, cache_key='default', max_age_hours=12):
         item['_stars'] = rating_stars(item.get('tmdb_rating'))
         item['_first_genre'] = first_genre(item)
         item['_display_rating'] = display_rating(item.get('tmdb_rating'))
+        item['_display_kind'] = display_kind(item.get('kind'))
         local = conn.execute(
             'SELECT subject_id,status,my_rating,comment,watched_date,watch_count,recommendation_note FROM douban_watch_history WHERE subject_id=? OR tmdb_id=? LIMIT 1',
             (item.get('subject_id'), str(item.get('tmdb_id') or '')),
@@ -871,7 +884,7 @@ def home(request: Request):
     counts = dict(conn.execute('SELECT status, COUNT(*) FROM douban_watch_history GROUP BY status').fetchall())
     profile = load_profile(conn)
     recs = load_recommended_items(conn)[:6]
-    recent_rows = conn.execute('SELECT * FROM douban_watch_history WHERE status="collect" ORDER BY watched_date DESC LIMIT 8').fetchall()
+    recent_rows = conn.execute('SELECT * FROM douban_watch_history WHERE status="collect" AND COALESCE(recommend_feedback, "") != "dislike" ORDER BY watched_date DESC LIMIT 8').fetchall()
     recent = []
     for r in recent_rows:
         item = dict(r)
@@ -895,9 +908,13 @@ def home(request: Request):
 def build_library_items(conn, status='all', kind='all', q='', sort='date', limit=200):
     sql = 'SELECT * FROM douban_watch_history WHERE 1=1'
     params = []
-    if status != 'all':
-        sql += ' AND status=?'
-        params.append(status)
+    if status == 'dislike':
+        sql += ' AND COALESCE(recommend_feedback, "") = "dislike"'
+    else:
+        sql += ' AND COALESCE(recommend_feedback, "") != "dislike"'
+        if status != 'all':
+            sql += ' AND status=?'
+            params.append(status)
     if kind != 'all':
         sql += ' AND kind=?'
         params.append(kind)
@@ -962,7 +979,7 @@ def discover(request: Request,
             mode = 'search'
         else:
             conn = get_conn()
-            sql = 'SELECT * FROM douban_watch_history WHERE 1=1'
+            sql = 'SELECT * FROM douban_watch_history WHERE COALESCE(recommend_feedback, "") != "dislike"'
             params = []
             if kind == 'movie':
                 sql += ' AND kind="movie"'
@@ -1040,7 +1057,7 @@ def watchlist(request: Request, kind: str = Query('all'), q: str = Query(''), so
 
 def build_wish_items_paged(conn, kind='all', q='', sort='date', added_order='desc', page=1, page_size=40):
     offset = (page - 1) * page_size
-    sql = 'SELECT * FROM douban_watch_history WHERE status="wish"'
+    sql = 'SELECT * FROM douban_watch_history WHERE status="wish" AND COALESCE(recommend_feedback, "") != "dislike"'
     params = []
     if kind != 'all':
         sql += ' AND kind=?'
@@ -1111,11 +1128,15 @@ def build_library_items_paged(conn, status='all', kind='all', q='', sort='date',
     offset = (page - 1) * page_size
 
     # Build WHERE clause
-    where = ['1=1']
+    where = []
     params = []
-    if status != 'all':
-        where.append('status=?')
-        params.append(status)
+    if status == 'dislike':
+        where.append('COALESCE(recommend_feedback, "") = "dislike"')
+    else:
+        where.append('COALESCE(recommend_feedback, "") != "dislike"')
+        if status != 'all':
+            where.append('status=?')
+            params.append(status)
     if kind != 'all':
         where.append('kind=?')
         params.append(kind)
@@ -1361,7 +1382,10 @@ async def add_to_wishlist(subject_id: str, request: Request):
     if 'recommendation_note' not in data:
         data['recommendation_note'] = payload.get('_reason') or payload.get('reason')
     saved = upsert_recommendation_item(conn, data, target_status='wish')
-    return {'ok': True, 'subject_id': saved['subject_id'], 'status': 'wish', 'item': saved}
+    conn.execute('UPDATE douban_watch_history SET recommend_feedback=NULL, feedback_updated_at=? WHERE subject_id=?', (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), saved['subject_id']))
+    conn.commit()
+    saved = conn.execute('SELECT * FROM douban_watch_history WHERE subject_id=?', (saved['subject_id'],)).fetchone()
+    return {'ok': True, 'subject_id': saved['subject_id'], 'status': 'wish', 'item': dict(saved)}
 
 
 @app.post('/api/rewatch/{subject_id}', response_class=JSONResponse)

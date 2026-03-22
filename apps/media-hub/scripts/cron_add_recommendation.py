@@ -3,14 +3,26 @@
 cron_add_recommendation.py
 每30分钟自动追加一条推荐到本地缓存。
 读取用户最近观看/评分历史，结合TMDB发现候选，
-生成hook风格推荐语，写入recommendation_cache。
+生成hook风格推荐语，写入主库 status='recommended'。
+
+安全规则：只写入 MEDIA_HUB_DB 指定的路径，
+不允许覆盖任何 workspace 副本或开发路径。
 """
 import os, sys, random, re
 from datetime import datetime, timedelta
 
-sys.path.insert(0, '/home/node/.openclaw/workspace-user1/apps/media-hub')
-os.environ.setdefault('MEDIA_HUB_DB', '/home/node/.openclaw/workspace-user1/douban/douban_media.db')
-os.environ.setdefault('MEDIA_HUB_COVERS_DIR', '/home/node/.openclaw/workspace-user1/static/covers')
+# 强制只写生产库，禁止写入 workspace 开发副本
+DB_PATH = os.environ.get('MEDIA_HUB_DB', '/app/data/douban_media.db')
+SAFE_PATHS = ('/app/data', '/app/covers')
+if not DB_PATH.startswith(SAFE_PATHS):
+    raise RuntimeError(
+        f'[cron_add_recommendation] 危险：拒绝写入非生产路径 {DB_PATH}！'
+        '只允许写入 /app/data/* 或通过 docker exec 在容器内运行。'
+    )
+
+sys.path.insert(0, '/app')
+os.environ.setdefault('MEDIA_HUB_DB', DB_PATH)
+os.environ.setdefault('MEDIA_HUB_COVERS_DIR', '/app/covers')
 os.environ.setdefault('HTTP_PROXY', 'http://192.168.50.209:7890')
 os.environ.setdefault('HTTPS_PROXY', 'http://192.168.50.209:7890')
 

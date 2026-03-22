@@ -2,7 +2,7 @@
 {% block content %}
 <section class="page-intro compact muted">
   <div>
-    <h1>{% if page_mode == 'watchlist' %}待看{% else %}影视库{% endif %}</h1>
+    <h1>{% if page_mode == 'watchlist' %}待看{% elif status == 'dislike' %}不喜欢{% else %}影视库{% endif %}</h1>
   </div>
   <div class="page-intro-stats">
     <div class="intro-stat"><span>全部库存</span><strong>{{ site_stats.total if site_stats else items|length }}</strong></div>
@@ -16,6 +16,7 @@
     <a class="filter-chip {% if status=='all' %}active{% endif %}" href="?status=all&kind={{ kind }}&q={{ q }}&sort={{ sort }}&page=1">全部</a>
     <a class="filter-chip {% if status=='collect' %}active{% endif %}" href="?status=collect&kind={{ kind }}&q={{ q }}&sort={{ sort }}&page=1">看过</a>
     <a class="filter-chip {% if status=='wish' %}active{% endif %}" href="?status=wish&kind={{ kind }}&q={{ q }}&sort={{ sort }}&page=1">想看</a>
+    <a class="filter-chip {% if status=='dislike' %}active{% endif %}" href="?status=dislike&kind={{ kind }}&q={{ q }}&sort={{ sort }}&page=1">👎 不喜欢</a>
   </div>
   {% endif %}
   <div class="filter-group">
@@ -102,6 +103,9 @@
       <p class="rec-credits" style="font-size:11px;margin:4px 0 2px;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ item.directors[:30] }}{% if item.directors and item.actors %} · {% endif %}{{ item.actors[:40] }}</p>
       {% endif %}
       <div class="media-actions">
+        {% if status == 'dislike' %}
+        <button class="btn small restore-wish-btn" data-id="{{ item.subject_id }}">改为待看</button>
+        {% else %}
         <button class="btn small watch-btn {% if item.status=='collect' %}primary{% endif %}" data-id="{{ item.subject_id }}" data-action="watch">
           {% if item.status == 'collect' %}已看{% else %}看过{% endif %}
         </button>
@@ -109,6 +113,7 @@
         <button class="btn small edit-btn" data-id="{{ item.subject_id }}">✏️</button>
         <button class="btn small delete-btn" data-id="{{ item.subject_id }}" data-title="{{ item.title|e }}">🗑️</button>
         <button class="btn small expand-lib-btn" data-id="{{ item.subject_id }}" title="展开详情">▾ 详情</button>
+        {% endif %}
       </div>
       <div class="lib-detail-row" id="lib-detail-{{ item.subject_id }}" style="display:none;margin-top:8px;padding:10px;background:rgba(255,255,255,0.04);border-radius:8px;font-size:12px;color:var(--text-secondary);line-height:1.7;">
         {% if item.countries %}<div style="margin-bottom:4px">🌏 {{ item.countries }}</div>{% endif %}
@@ -153,8 +158,18 @@
     <h3>编辑条目</h3>
     <input type="hidden" id="edit-subject-id">
     <div class="form-group">
-      <label>我的评分 (1-5)</label>
-      <input type="number" id="edit-rating" min="1" max="5" placeholder="1-5">
+      <label>我的评分</label>
+      <div class="rating-slider-shell">
+        <input type="hidden" id="edit-rating" value="0">
+        <div class="rating-star-picker" id="edit-rating-picker" data-level="0" aria-label="编辑评分">
+          <button type="button" class="star-choice" data-value="1" aria-label="1 星">★</button>
+          <button type="button" class="star-choice" data-value="2" aria-label="2 星">★</button>
+          <button type="button" class="star-choice" data-value="3" aria-label="3 星">★</button>
+          <button type="button" class="star-choice" data-value="4" aria-label="4 星">★</button>
+          <button type="button" class="star-choice" data-value="5" aria-label="5 星">★</button>
+        </div>
+        <div class="rating-hint" id="edit-rating-hint">点右边就是更高分，5 星会发光</div>
+      </div>
     </div>
     <div class="form-group">
       <label>观看日期</label>
@@ -168,14 +183,6 @@
       <label>我的评语</label>
       <textarea id="edit-comment" rows="3" placeholder="写点什么..."></textarea>
     </div>
-    <div class="form-group">
-      <label>推荐语（保留在影视库）</label>
-      <textarea id="edit-rec-note" rows="3" placeholder="这部为什么值得你看"></textarea>
-    </div>
-    <div class="form-group">
-      <label>封面图 URL（手动覆盖）</label>
-      <input type="url" id="edit-cover-url" placeholder="https://img9.doubanio.com/view/photo/s_ratio_poster/...">
-    </div>
     <div class="modal-actions">
       <button class="btn primary" id="save-edit">保存</button>
       <button class="btn" id="cancel-edit">取消</button>
@@ -185,6 +192,7 @@
 
 <script>
 var pendingDeleteId = null;
+var paintEditRating = function() {};
 function attachCardEvents() {
   document.querySelectorAll('.watch-btn, .rewatch-btn').forEach(function(btn) {
     if (btn._hasClick) return;
@@ -216,12 +224,10 @@ function attachCardEvents() {
       fetch('/api/item/' + id)
         .then(function(r) { return r.json(); })
         .then(function(item) {
-          document.getElementById('edit-rating').value = item.my_rating || '';
+          paintEditRating(item.my_rating || 0);
           document.getElementById('edit-date').value = item.watched_date ? item.watched_date.slice(0, 10) : '';
           document.getElementById('edit-count').value = item.watch_count || 1;
           document.getElementById('edit-comment').value = item.comment || '';
-          document.getElementById('edit-rec-note').value = item.recommendation_note || '';
-          document.getElementById('edit-cover-url').value = item.cover_url || '';
         });
     });
   });
@@ -247,6 +253,19 @@ function attachCardEvents() {
       pendingDeleteId = id;
     });
   });
+  document.querySelectorAll('.restore-wish-btn').forEach(function(btn) {
+    if (btn._hasClick) return;
+    btn._hasClick = true;
+    btn.addEventListener('click', function() {
+      var id = this.dataset.id;
+      fetch('/api/want/' + encodeURIComponent(id), { method: 'POST' })
+        .then(function(r) { return r.json(); })
+        .then(function() {
+          if (window.showToast) showToast('已改为待看 ✨', 'success');
+          setTimeout(function() { window.location.reload(); }, 250);
+        });
+    });
+  });
   document.querySelectorAll('.media-my-stars').forEach(function(stars) {
     if (stars._hasClick) return;
     stars._hasClick = true;
@@ -267,6 +286,27 @@ function attachCardEvents() {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
+  var editRating = document.getElementById('edit-rating');
+  var editRatingHint = document.getElementById('edit-rating-hint');
+  var editRatingPicker = document.getElementById('edit-rating-picker');
+  paintEditRating = function(value) {
+    var v = parseInt(value || 0);
+    editRating.value = v;
+    editRatingPicker.dataset.level = String(v);
+    editRatingPicker.querySelectorAll('.star-choice').forEach(function(btn) {
+      btn.classList.toggle('active', parseInt(btn.dataset.value) <= v);
+    });
+    editRatingHint.textContent = v ? ('已选 ' + v + ' 星') : '点右边就是更高分，5 星会发光';
+  }
+  if (editRatingPicker) {
+    editRatingPicker.querySelectorAll('.star-choice').forEach(function(btn) {
+      btn.addEventListener('click', function() { paintEditRating(this.dataset.value); });
+      btn.addEventListener('mouseenter', function() { editRatingPicker.dataset.preview = this.dataset.value; });
+    });
+    editRatingPicker.addEventListener('mouseleave', function() { editRatingPicker.dataset.preview = ''; });
+    paintEditRating(editRating.value);
+  }
+
   // Staggered entry animation for initial cards
   document.querySelectorAll('.media-card').forEach(function(card, i) {
     card.style.animationDelay = (i * 35) + 'ms';
@@ -289,8 +329,6 @@ document.addEventListener('DOMContentLoaded', function() {
       watched_date: document.getElementById('edit-date').value || null,
       watch_count: parseInt(document.getElementById('edit-count').value) || 1,
       comment: document.getElementById('edit-comment').value || null,
-      recommendation_note: document.getElementById('edit-rec-note').value || null,
-      cover_url: document.getElementById('edit-cover-url').value || null,
     };
     fetch('/api/edit/' + id, {
       method: 'POST',

@@ -48,7 +48,7 @@
               <h2 class="tonight-title">{{ surprise.title }}</h2>
               {% if surprise._first_genre %}<span class="rec-genre-chip" style="font-size:11px;padding:3px 10px">{{ surprise._first_genre }}</span>{% endif %}
             </div>
-            <div class="tonight-meta">{{ surprise.year }} · {{ surprise.kind }} · TMDB {{ surprise._display_rating or '-' }}</div>
+            <div class="tonight-meta">{{ surprise.year }} · {{ surprise._display_kind or surprise.kind }} · TMDB {{ surprise._display_rating or '-' }}</div>
             {% if surprise._stars %}<div class="tonight-stars">{{ surprise._stars }} <span style="font-size:12px;color:var(--text-secondary)">TMDB</span></div>{% endif %}
           </div>
           <div class="rating-badge-lg">{{ surprise._display_rating or '-' }}</div>
@@ -57,14 +57,11 @@
         {% if surprise.directors or surprise.actors %}
         <p class="tonight-credits">🎬 {{ surprise.directors[:40] }}{% if surprise.directors and surprise.actors %} · {% endif %}{{ surprise.actors[:50] }}</p>
         {% endif %}
-        <div class="feedback-actions">
-          <button class="feedback-btn like {% if surprise.recommend_feedback == 'like' %}active{% endif %}" data-id="{{ surprise.subject_id }}" data-feedback="like">❤️ 喜欢</button>
-          <button class="feedback-btn dislike {% if surprise.recommend_feedback == 'dislike' %}active{% endif %}" data-id="{{ surprise.subject_id }}" data-feedback="dislike">👎 不喜欢</button>
-        </div>
         <div class="tonight-actions">
-          <a class="btn primary" href="{{ surprise.url }}" target="_blank">TMDB</a>
-          <button class="btn accent watch-btn" data-id="{{ surprise.subject_id }}" data-action="watch">✅ 我看过了</button>
-          
+          <a class="btn" href="{{ surprise.url }}" target="_blank">TMDB</a>
+          <button class="btn want-btn" data-id="{{ surprise.subject_id }}">想看</button>
+          <button class="btn watch-btn" data-id="{{ surprise.subject_id }}" data-action="watch">看过</button>
+          <button class="btn dislike-btn" data-id="{{ surprise.subject_id }}">👎</button>
           <a class="btn" href="/recommendations?sort=random">🎲 换一部</a>
         </div>
       </div>
@@ -86,7 +83,7 @@
         {% if item._cover_url %}<img src="{{ item._cover_url }}" alt="{{ item.title }}" loading="lazy" onerror="this.style.display='none'; this.parentElement.classList.add('cover-img-failed')">{% else %}<div class="cover-fallback-title">{{ item.title[:8] }}</div>{% endif %}
         {% if item.status == 'collect' %}<div class="cover-watched-overlay"><span>已看</span></div>{% endif %}
         <div class="rec-cover-overlay">
-          <span class="rec-badge">{{ item.kind or 'unknown' }}</span>
+          <span class="rec-badge">{{ item._display_kind or '内容' }}</span>
           <div class="rec-rating-badge">{{ item._display_rating or '-' }}</div>
         </div>
         {% if item.watch_count and item.watch_count > 1 %}
@@ -114,20 +111,12 @@
         {% if item.directors or item.actors %}
         <p class="rec-credits">{{ item.directors[:30] }}{% if item.directors and item.actors %} · {% endif %}{{ item.actors[:40] }}</p>
         {% endif %}
-        <div class="rec-detail-row" id="detail-{{ item.subject_id }}" style="display:none;margin-top:8px;padding:10px;background:rgba(255,255,255,0.04);border-radius:8px;font-size:12px;color:var(--text-secondary);line-height:1.7;">
-          {% if item.year or item.countries %}<div style="margin-bottom:4px">📅 {{ item.year }}{% if item.year and item.countries %} · {% endif %}{{ item.countries }}</div>{% endif %}
-          {% if item.genres %}<div style="margin-bottom:4px">🏷️ {{ item.genres }}</div>{% endif %}
-          {% if item.directors %}<div style="margin-bottom:4px">🎬 导演：{{ item.directors }}</div>{% endif %}
-          {% if item.actors %}<div style="margin-bottom:4px">🎭 演员：{{ item.actors }}</div>{% endif %}
-          {% if item._stars %}<div style="margin-bottom:4px">⭐ TMDB 口碑：{{ item._stars }}（{{ item._display_rating }}）</div>{% endif %}
-        </div>
         <div class="rec-actions">
-          <button class="btn small expand-btn" data-id="{{ item.subject_id }}" title="展开详情">▾ 详情</button>
           {% if item.tmdb_id and item.url %}<a class="btn small" href="{{ item.url }}" target="_blank">TMDB</a>{% endif %}
+          <button class="btn small want-btn" data-id="{{ item.subject_id }}">想看</button>
           <button class="btn small watch-btn" data-id="{{ item.subject_id }}" data-action="watch" {% if item.status=='collect' %}disabled{% endif %}>
             {% if item.status == 'collect' %}已看 ✓{% else %}看过{% endif %}</button>
-          
-          <button class="btn small edit-btn" data-id="{{ item.subject_id }}">✏️</button>
+          <button class="btn small dislike-btn" data-id="{{ item.subject_id }}">👎</button>
         </div>
       </div>
     </article>
@@ -225,15 +214,28 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   });
 
-  // Expand/collapse detail rows on index.html compact cards
-  document.querySelectorAll('.expand-btn').forEach(function(btn) {
+  document.querySelectorAll('.want-btn').forEach(function(btn) {
     btn.addEventListener('click', function() {
       var id = this.dataset.id;
-      var detailRow = document.getElementById('detail-' + id);
-      if (!detailRow) return;
-      var isOpen = detailRow.style.display !== 'none';
-      detailRow.style.display = isOpen ? 'none' : 'block';
-      this.textContent = isOpen ? '▾ 详情' : '▴ 收起';
+      fetch('/api/want/' + encodeURIComponent(id), { method: 'POST' })
+        .then(function(r) { return r.json(); })
+        .then(function() {
+          if (window.showToast) showToast('已加入想看 ✨', 'success');
+          setTimeout(function() { window.location.reload(); }, 250);
+        });
+    });
+  });
+
+  document.querySelectorAll('.dislike-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      if (!window.confirm('确定标记为“不喜欢”吗？标记后默认不会再展示。')) return;
+      var id = this.dataset.id;
+      fetch('/api/feedback/' + encodeURIComponent(id) + '?feedback=dislike', { method: 'POST' })
+        .then(function(r) { return r.json(); })
+        .then(function() {
+          if (window.showToast) showToast('已标记不喜欢 👎', 'success');
+          setTimeout(function() { window.location.reload(); }, 250);
+        });
     });
   });
 

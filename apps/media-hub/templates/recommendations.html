@@ -27,14 +27,11 @@
         {% if today_pick.directors or today_pick.actors %}
         <p class="tonight-credits">🎬 {{ today_pick.directors[:40] }}{% if today_pick.directors and today_pick.actors %} · {% endif %}{{ today_pick.actors[:50] }}</p>
         {% endif %}
-        <div class="feedback-actions">
-          <button class="feedback-btn like {% if today_pick.recommend_feedback == 'like' %}active{% endif %}" data-id="{{ today_pick.subject_id }}" data-feedback="like">❤️ 喜欢</button>
-          <button class="feedback-btn dislike {% if today_pick.recommend_feedback == 'dislike' %}active{% endif %}" data-id="{{ today_pick.subject_id }}" data-feedback="dislike">👎 不喜欢</button>
-        </div>
         <div class="tonight-actions">
-          <a class="btn primary" href="{{ today_pick.url }}" target="_blank">TMDB</a>
-          <button class="btn accent watch-btn" data-id="{{ today_pick.subject_id }}" data-action="watch">✅ 我看过了</button>
-          
+          <a class="btn" href="{{ today_pick.url }}" target="_blank">TMDB</a>
+          <button class="btn want-btn" data-id="{{ today_pick.subject_id }}">想看</button>
+          <button class="btn watch-btn" data-id="{{ today_pick.subject_id }}" data-action="watch">看过</button>
+          <button class="btn dislike-btn" data-id="{{ today_pick.subject_id }}">👎</button>
           <button class="btn" id="shuffle-tonight" title="换一个推荐">🎲 换一部</button>
         </div>
       </div>
@@ -72,7 +69,7 @@
       {% if item._cover_url %}<img src="{{ item._cover_url }}" alt="{{ item.title }}" loading="lazy" onerror="this.style.display='none'; this.parentElement.classList.add('cover-img-failed')">{% else %}<div class="cover-fallback-title">{{ item.title[:8] }}</div>{% endif %}
       {% if item.status == 'collect' %}<div class="cover-watched-overlay"><span>已看</span></div>{% endif %}
       <div class="rec-cover-overlay">
-        <span class="rec-badge">{{ item.kind or 'unknown' }}</span>
+        <span class="rec-badge">{{ item._display_kind or '内容' }}</span>
         <div class="rec-rating-badge">{{ item._display_rating or '-' }}</div>
       </div>
       {% if item.watch_count and item.watch_count > 1 %}
@@ -99,21 +96,13 @@
       {% if item.directors or item.actors %}
       <p class="rec-credits">{{ item.directors[:30] }}{% if item.directors and item.actors %} · {% endif %}{{ item.actors[:40] }}</p>
       {% endif %}
-      <div class="rec-detail-row" id="detail-{{ item.subject_id }}" style="display:none;margin-top:8px;padding:10px;background:rgba(255,255,255,0.04);border-radius:8px;font-size:12px;color:var(--text-secondary);line-height:1.7;">
-        {% if item.year or item.countries %}<div style="margin-bottom:4px">📅 {{ item.year }}{% if item.year and item.countries %} · {% endif %}{{ item.countries }}</div>{% endif %}
-        {% if item.genres %}<div style="margin-bottom:4px">🏷️ {{ item.genres }}</div>{% endif %}
-        {% if item.directors %}<div style="margin-bottom:4px">🎬 导演：{{ item.directors }}</div>{% endif %}
-        {% if item.actors %}<div style="margin-bottom:4px">🎭 演员：{{ item.actors }}</div>{% endif %}
-        {% if item._stars %}<div style="margin-bottom:4px">⭐ TMDB 口碑：{{ item._stars }}（{{ item.douban_rating }}）</div>{% endif %}
-      </div>
       <div class="rec-actions">
-        <button class="btn small expand-btn" data-id="{{ item.subject_id }}" title="展开详情">▾ 详情</button>
         {% if item.tmdb_id and item.url %}<a class="btn small" href="{{ item.url }}" target="_blank">TMDB</a>{% endif %}
         <button class="btn small want-btn" data-id="{{ item.subject_id }}">想看</button>
-        <button class="btn small primary watch-btn" data-id="{{ item.subject_id }}">
+        <button class="btn small dislike-btn" data-id="{{ item.subject_id }}">👎</button>
+        <button class="btn small watch-btn" data-id="{{ item.subject_id }}">
           {% if item.status == 'collect' %}已看 ✓{% else %}看过{% endif %}
         </button>
-        <button class="btn small edit-btn" data-id="{{ item.subject_id }}">✏️</button>
       </div>
     </div>
   </article>
@@ -238,6 +227,22 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   });
 
+  document.querySelectorAll('.feedback-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var id = this.dataset.id;
+      var feedback = this.dataset.feedback;
+      fetch('/api/feedback/' + encodeURIComponent(id) + '?feedback=' + encodeURIComponent(feedback), { method: 'POST' })
+        .then(function(r) { return r.json(); })
+        .then(function() {
+          if (feedback === 'dislike') {
+            window.location.reload();
+          } else if (window.showToast) {
+            showToast('已记录偏好 ❤️', 'success');
+          }
+        });
+    });
+  });
+
   var shuffleBtn = document.getElementById('shuffle-tonight');
   if (shuffleBtn) {
     shuffleBtn.addEventListener('click', function() {
@@ -291,7 +296,22 @@ document.addEventListener('DOMContentLoaded', function() {
         body: JSON.stringify(payload)
       }).then(function(r) { return r.json(); }).then(function() {
         if (window.showToast) showToast('已加入影视库，推荐语会保留 ✨', 'success');
+        card.remove();
       });
+    });
+  });
+
+  document.querySelectorAll('.dislike-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      if (!window.confirm('确定标记为“不喜欢”吗？标记后默认不会再展示。')) return;
+      var card = this.closest('.rec-card');
+      var id = this.dataset.id;
+      fetch('/api/feedback/' + encodeURIComponent(id) + '?feedback=dislike', { method: 'POST' })
+        .then(function(r) { return r.json(); })
+        .then(function() {
+          if (card) card.remove();
+          if (window.showToast) showToast('已标记不喜欢，后面不再展示 👎', 'success');
+        });
     });
   });
 
