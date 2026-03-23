@@ -262,6 +262,8 @@ document.addEventListener('DOMContentLoaded', function() {
       watchModal.style.display = 'none';
       if (window.showToast) showToast('已保存到影视库 🌈', 'success');
       setTimeout(function() { window.location.reload(); }, 600);
+    }).catch(function(err) {
+      if (window.showToast) showToast('保存失败: ' + err.message, 'error');
     });
   });
 

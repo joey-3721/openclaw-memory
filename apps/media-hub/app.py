@@ -1456,10 +1456,6 @@ async def set_feedback(subject_id: str, request: Request, feedback: str = Query(
     if feedback not in {'like', 'dislike', 'clear'}:
         raise HTTPException(400, 'feedback must be like/dislike/clear')
     payload = await request.json()
-    try:
-        payload = await request.json()
-    except Exception:
-        payload = await request.json()
     dislike_reason = (payload.get('dislike_reason') or '').strip() if isinstance(payload, dict) else ''
     if feedback == 'dislike' and not dislike_reason:
         dislike_reason = item['dislike_reason'] or ''
@@ -1485,10 +1481,6 @@ async def mark_watched(subject_id: str, request: Request):
     conn = get_conn()
     item = conn.execute('SELECT * FROM douban_watch_history WHERE subject_id=? OR tmdb_id=? LIMIT 1', (subject_id, subject_id.replace('tmdb:', ''))).fetchone()
     payload = await request.json()
-    try:
-        payload = await request.json()
-    except Exception:
-        payload = await request.json()
     now = payload.get('watched_date') or datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     watch_count = payload.get('watch_count')
     if watch_count is None:
@@ -1522,10 +1514,6 @@ async def add_to_wishlist(subject_id: str, request: Request):
     conn = get_conn()
     existing = conn.execute('SELECT * FROM douban_watch_history WHERE subject_id=? OR tmdb_id=? LIMIT 1', (subject_id, subject_id.replace('tmdb:', ''))).fetchone()
     payload = await request.json()
-    try:
-        payload = await request.json()
-    except Exception:
-        payload = await request.json()
     data = dict(existing) if existing else {'subject_id': subject_id}
     data.update(payload or {})
     if 'recommendation_note' not in data:
