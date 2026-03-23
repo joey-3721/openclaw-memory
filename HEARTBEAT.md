@@ -1,59 +1,43 @@
 # HEARTBEAT.md
-- 优先持续改进 `apps/media-hub` 的视觉与功能，不需要等佳奕确认，小步快跑。
-- 每次心跳结束后：主动总结本轮做了什么、还剩什么、下一步打算做什么。
-- 明早 08:00（北京时间）准备一份整晚汇总，说明一夜之间完成了哪些优化，并给出可直接访问的新页面链接。
-- 默认工作流：改代码 → 验证/更新 Docker → git commit → git push。
-- 每做完一个可验收点，在心跳记录状态，方便佳奕早上逐项验收。
-- 心跳新增推荐维护规则：每次心跳都检查 `recommended` 列表可见数量。如果少于 100 个，就在心跳里直接用 OpenClaw 自身大模型生成个性化推荐语并写入 MySQL；如果已达 100 个则跳过。
-- **心跳内推荐流程**（在心跳触发时由 OpenClaw 大模型直接生成）：
-  1. 读 MySQL `media_hub.douban_watch_history` 获取用户口味（collect 列表 + dislike 理由 + 偏好题材/国家）
-  2. 从 TMDB 拉候选（按口味画像过滤已看/不喜欢）
-  3. **直接在心跳里用 OpenClaw 大模型写推荐语**（结合剧情简介 + 用户背景，不走模板）
-  4. 写入 `status='recommended'`，通过 `docker exec media-hub-test python3 -c "..."` 使用 `app.get_conn()` 写入 MySQL
-- **数据库规则（已迁移到 MySQL）**：
-  - 生产数据库：MySQL `media_hub` 库（容器 `media-hub-mysql`，端口 3306）
-  - 禁止写 SQLite 本地文件，禁止写 workspace 开发副本
-  - 所有读写通过 `docker exec media-hub-test python3 -c "import app; conn=app.get_conn(); ..."` 执行
-  - 心跳推荐计数查询：`docker exec media-hub-test python3 -c "import app; conn=app.get_conn(); cur=conn.execute(\"SELECT COUNT(*) as cnt FROM douban_watch_history WHERE status='recommended'\"); print(cur.fetchone()['cnt'])"`
-- **心跳日志**：每次心跳结束后，必须追加记录到 `memory/heartbeat-log.md`，格式：时间(UTC) | 时间(北京时间) | 触发来源 | 动作 | 状态。
-
-
-## 今晚优先事项（按优先级，已完成标记✅，进行中标记🔄，未开始标记⬜）
-
-### 视觉/展示
-- [✅] 评分标签视觉升级（大、醒目、像贴上去的标签，44-64px金色渐变）
-- [✅] 每条推荐都给具体推荐理由（剧情/演员/题材/相似口味）
-- [✅] 封面图/图片接入（wish 17/17真实cover，collect 28/30真实cover）
-- [✅] 增强手机端布局、按钮、卡片层次
-- [✅] 今晚看什么"按钮/入口（顶部大卡片）
-- [✅] cinematic dark theme，更强层次感
-
-### 交互/数据维护
-- [✅] 推荐逻辑去掉未上映（2026年之后的不推）
-- [✅] "我看过了"按钮（写库+时间）
-- [✅] "又看了一次"按钮（watch_count累加，不覆盖）
-- [✅] 页面内打分/写评语（编辑弹窗）
-- [✅] 观看次数/观看时间可编辑
-- [✅] 同步策略：rating_source/comment_source追踪，用户维护过的内容不被同步覆盖
-- [⬜] 看完某个推荐后自动从推荐列表移除或降低权重
-
-### 数据/脚本
-- [✅] 数据库新增cover_url、watch_count、rating_source、comment_source字段
-- [✅] 封面抓取脚本：`apps/media-hub/scripts/fetch_covers.py`
-- [✅] 同步脚本已升级保护用户编辑
-
-### 剩余可做项
-- 继续抓取collect列表剩余2条封面（鱿鱼游戏2/3暂无可用封面）
-- 金融模块入口（待后续）
-
-### 第五轮（16:00 UTC）新增功能
-- `/api/surprise` 端点：从top30推荐中随机pick一条完整推荐（含reason/cover/score）
-- 影视库支持4种排序：最近看过/豆瓣评分/年份/标题（URL参数 `?sort=date|rating|year|title`）
-- 筛选栏所有链接统一传递sort参数
-- 首页actions新增 **🎲 随机一部** 按钮（accent蓝色高亮样式），跳转 `/recommendations?sort=random`
-- Docker重建并部署（容器：media-hub-test，端口8765）
 
 ## 原则
 - 能自己做的先做，不要等佳奕确认
 - 真需要佳奕提供信息（如失效Cookie）再搁置并说明
 - 主动找活，把能推进的优化都推进
+- 改代码 → 验证/更新 Docker → git commit → git push
+
+## 每次心跳自动执行
+1. 查询 MySQL `media_hub.douban_watch_history` 推荐数量
+2. 若 `status='recommended'` 少于 100 条，按 SOP（SKILL.md）补充推荐
+3. 追加日志到 `memory/heartbeat-log.md`
+
+## 推荐补充流程（SOP）
+见 `~/.openclaw/skills/tmdb-recommendation-flow/SKILL.md`，核心：
+1. 读用户口味（collect 高分 + dislike 理由 + 偏好题材/国家）
+2. 从 TMDB 搜索候选（requests + proxy `192.168.50.209:7890`）
+3. 去重检查（tmdb_id 或 title 已在库则跳过）
+4. 下载封面到本地（`app.download_cover_to_local()`）
+5. LLM 生成个性化推荐语
+6. `REPLACE INTO` 写入 MySQL（`app.get_conn()`）
+7. 验证封面文件存在且 >1KB
+
+## 数据库规则（MySQL）
+- 生产库：MySQL `media_hub`（容器 `media-hub-mysql`，端口 3306）
+- 访问方式：`docker exec media-hub-test python3 -c "import app; conn=app.get_conn(); ..."`
+- 禁止写 SQLite 本地文件，禁止写 workspace 开发副本
+- 推荐计数查询：
+  ```
+  docker exec media-hub-test python3 -c "import app; conn=app.get_conn(); r=conn.execute(\"SELECT COUNT(*) as cnt FROM douban_watch_history WHERE status='recommended'\").fetchone(); print(r['cnt'])"
+  ```
+
+## 心跳日志格式
+每次心跳结束后追加到 `memory/heartbeat-log.md`：
+```
+时间(UTC) | 时间(北京时间) | 触发来源 | 动作 | 状态
+```
+
+## 剩余可做项
+- 看完推荐后自动从推荐列表移除或降低权重
+- 继续抓取 collect 列表剩余封面（鱿鱼游戏2/3暂无可用封面）
+- 金融模块入口（待后续）
+- 推荐数量补充（当前2条，建议逐步补至30+条）
