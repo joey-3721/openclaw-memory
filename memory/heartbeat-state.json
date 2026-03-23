@@ -25,5 +25,42 @@
     "temp_low": 9,
     "sunrise": "06:12",
     "sunset": "18:30"
+  },
+  "weather": {
+    "lastReportDate": "2026-03-23",
+    "lastReportTs": "2026-03-23T00:30:00Z",
+    "lastReportLocalTime": "2026-03-23 08:30",
+    "snapshots": [
+      {
+        "date": "2026-03-23",
+        "condition": "薄雾",
+        "temp": 10,
+        "feels_like": 10,
+        "humidity": 71,
+        "wind_speed": 5,
+        "wind_dir": "SE",
+        "precip": 0,
+        "visibility": 5,
+        "uv": 0,
+        "high": 21,
+        "low": 9,
+        "recorded_at": "2026-03-23T00:30:00Z"
+      },
+      {
+        "date": "2026-03-22",
+        "condition": "多云",
+        "temp": 14,
+        "feels_like": 13,
+        "humidity": 55,
+        "wind_speed": 8,
+        "wind_dir": "N",
+        "precip": 0,
+        "visibility": 8,
+        "uv": 3,
+        "high": 17,
+        "low": 7,
+        "recorded_at": "2026-03-22T00:00:00Z"
+      }
+    ]
   }
 }
