@@ -2,7 +2,8 @@ from fastapi import FastAPI, Request, Query, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-import sqlite3
+import pymysql
+import pymysql.cursors
 from pathlib import Path
 from collections import Counter
 import random
@@ -16,9 +17,100 @@ import urllib.request
 from urllib.parse import quote
 
 BASE_DIR = Path(__file__).resolve().parent
-DB_PATH = Path(os.getenv('MEDIA_HUB_DB', '/app/data/douban_media.db')) # Original setting
+MYSQL_HOST = os.getenv('MYSQL_HOST', '172.17.0.5')
+MYSQL_PORT = int(os.getenv('MYSQL_PORT', '3306'))
+MYSQL_USER = os.getenv('MYSQL_USER', 'joey')
+MYSQL_PASSWORD = os.getenv('MYSQL_PASSWORD', 'Joey@2026!')
+MYSQL_DB = os.getenv('MYSQL_DB', 'media_hub')
 COVERS_DIR = Path(os.getenv('MEDIA_HUB_COVERS_DIR', '/app/covers'))
 CONFIG_DIR = Path(os.getenv('MEDIA_HUB_CONFIG_DIR', str(BASE_DIR / 'config')))
+
+
+def adapt_sql(sql: str) -> str:
+    """Convert SQLite SQL to MySQL-compatible SQL."""
+    # ? -> %s
+    sql = re.sub(r'\?', '%s', sql)
+    # INSERT OR REPLACE -> REPLACE
+    sql = re.sub(r'INSERT\s+OR\s+REPLACE\s+INTO', 'REPLACE INTO', sql, flags=re.IGNORECASE)
+    # datetime('now') -> NOW()
+    sql = re.sub(r"datetime\s*\(\s*'now'\s*\)", 'NOW()', sql, flags=re.IGNORECASE)
+    # datetime('now', '-30 days') -> DATE_SUB(NOW(), INTERVAL 30 DAY)
+    def _dt_modifier(m):
+        mod = m.group(1).strip()
+        mm = re.match(r'([+-]\d+)\s+(day|hour|minute|month|year)s?', mod, re.IGNORECASE)
+        if mm:
+            amt = int(mm.group(1))
+            unit = mm.group(2).upper()
+            if amt < 0:
+                return f'DATE_SUB(NOW(), INTERVAL {abs(amt)} {unit})'
+            else:
+                return f'DATE_ADD(NOW(), INTERVAL {amt} {unit})'
+        return 'NOW()'
+    sql = re.sub(r"datetime\s*\(\s*'now'\s*,\s*'([^']+)'\s*\)", _dt_modifier, sql, flags=re.IGNORECASE)
+    # Double-quoted string literals for known values -> single-quoted
+    sql = re.sub(r'"(collect|wish|recommended|dislike|user|douban|tmdb|disliked|local)"', r"'\1'", sql)
+    # Empty string "" -> ''
+    sql = re.sub(r'(?<!\w)""(?!\w)', "''", sql)
+    return sql
+
+
+class MySQLConn:
+    """Wraps pymysql to mimic sqlite3 connection interface."""
+    def __init__(self):
+        self._conn = pymysql.connect(
+            host=MYSQL_HOST, port=MYSQL_PORT,
+            user=MYSQL_USER, password=MYSQL_PASSWORD,
+            database=MYSQL_DB, charset='utf8mb4',
+            cursorclass=pymysql.cursors.DictCursor,
+            autocommit=False
+        )
+
+    def execute(self, sql, params=None):
+        sql = adapt_sql(sql)
+        cur = self._conn.cursor()
+        cur.execute(sql, params or ())
+        return cur
+
+    def cursor(self):
+        return MySQLCursor(self._conn.cursor())
+
+    def commit(self):
+        self._conn.commit()
+
+    def close(self):
+        try:
+            self._conn.close()
+        except Exception:
+            pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.close()
+
+
+class MySQLCursor:
+    """Wraps pymysql DictCursor to mimic sqlite3 cursor interface."""
+    def __init__(self, cur):
+        self._cur = cur
+
+    def execute(self, sql, params=None):
+        self._cur.execute(adapt_sql(sql), params or ())
+        return self
+
+    def fetchone(self):
+        return self._cur.fetchone()
+
+    def fetchall(self):
+        return self._cur.fetchall()
+
+    def __iter__(self):
+        return iter(self._cur.fetchall())
+
+    @property
+    def lastrowid(self):
+        return self._cur.lastrowid
 SECRETS_DIR = CONFIG_DIR / 'secrets'
 COOKIE_PATH = CONFIG_DIR / 'douban_cookie.json'
 TMDB_KEY_PATH = SECRETS_DIR / 'tmdb.json'
@@ -47,61 +139,12 @@ templates = Jinja2Templates(directory=str(BASE_DIR / 'templates'))
 
 
 def get_conn():
-    conn = sqlite3.connect(DB_PATH)
-    ensure_schema(conn)
-    conn.row_factory = sqlite3.Row
-    return conn
+    return MySQLConn()
 
 
 def ensure_schema(conn):
-    cols = {row[1] for row in conn.execute('PRAGMA table_info(douban_watch_history)').fetchall()}
-    if 'recommend_feedback' not in cols:
-        conn.execute('ALTER TABLE douban_watch_history ADD COLUMN recommend_feedback TEXT')
-    if 'feedback_updated_at' not in cols:
-        conn.execute('ALTER TABLE douban_watch_history ADD COLUMN feedback_updated_at TEXT')
-    if 'dislike_reason' not in cols:
-        conn.execute('ALTER TABLE douban_watch_history ADD COLUMN dislike_reason TEXT')
-    if 'added_at' not in cols:
-        conn.execute("ALTER TABLE douban_watch_history ADD COLUMN added_at TEXT")
-        conn.execute("UPDATE douban_watch_history SET added_at = datetime('now') WHERE added_at IS NULL")
-    if 'tmdb_id' not in cols:
-        conn.execute("ALTER TABLE douban_watch_history ADD COLUMN tmdb_id TEXT")
-        # Backfill: extract existing tmdb:* subject_ids
-        conn.execute("UPDATE douban_watch_history SET tmdb_id = substr(subject_id, 6) WHERE subject_id LIKE 'tmdb:%'")
-    if 'recommendation_note' not in cols:
-        conn.execute('ALTER TABLE douban_watch_history ADD COLUMN recommendation_note TEXT')
-    if 'recommended_at' not in cols:
-        conn.execute('ALTER TABLE douban_watch_history ADD COLUMN recommended_at TEXT')
-    if 'recommend_rank' not in cols:
-        conn.execute('ALTER TABLE douban_watch_history ADD COLUMN recommend_rank INTEGER')
-    if 'recommend_source' not in cols:
-        conn.execute('ALTER TABLE douban_watch_history ADD COLUMN recommend_source TEXT')
-    cache_cols = {row[1] for row in conn.execute("PRAGMA table_info(recommendation_cache)").fetchall()} if 'recommendation_cache' in {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()} else set()
-    if not cache_cols or 'rank_order' not in cache_cols:
-        conn.execute('DROP TABLE IF EXISTS recommendation_cache')
-        conn.execute("""CREATE TABLE recommendation_cache (
-            cache_key TEXT,
-            rank_order INTEGER,
-            tmdb_id TEXT,
-            subject_id TEXT,
-            title TEXT,
-            kind TEXT,
-            year INTEGER,
-            url TEXT,
-            intro TEXT,
-            summary TEXT,
-            tmdb_rating REAL,
-            tmdb_vote_count INTEGER,
-            genres TEXT,
-            countries TEXT,
-            poster_url TEXT,
-            cover_url TEXT,
-            score REAL,
-            reason TEXT,
-            generated_at TEXT,
-            PRIMARY KEY (cache_key, rank_order)
-        )""")
-    conn.commit()
+    # MySQL: schema pre-created, no-op
+    pass
 
 
 def read_douban_cookie():
@@ -477,26 +520,27 @@ def tmdb_discover(kind: str = 'movie', query: str = '', sort: str = 'popularity'
 def get_site_stats():
     conn = get_conn()
     c = conn.cursor()
-    visible = 'COALESCE(recommend_feedback, "") != "dislike"'
-    c.execute(f'SELECT COUNT(*) FROM douban_watch_history WHERE {visible}')
-    total = c.fetchone()[0]
-    c.execute(f'SELECT COUNT(*) FROM douban_watch_history WHERE {visible} AND status="collect"')
-    watched = c.fetchone()[0]
-    c.execute(f'SELECT COUNT(*) FROM douban_watch_history WHERE {visible} AND status="wish"')
-    wish = c.fetchone()[0]
-    c.execute(f'SELECT COUNT(*) FROM douban_watch_history WHERE {visible} AND status="recommended"')
-    recommended = c.fetchone()[0]
-    c.execute(f'SELECT ROUND(AVG(douban_rating),1) FROM douban_watch_history WHERE {visible} AND status="collect" AND douban_rating IS NOT NULL')
+    visible = "COALESCE(recommend_feedback, '') != 'dislike'"
+    c.execute(f'SELECT COUNT(*) as cnt FROM douban_watch_history WHERE {visible}')
+    total = c.fetchone()['cnt']
+    c.execute(f'SELECT COUNT(*) as cnt FROM douban_watch_history WHERE {visible} AND status="collect"')
+    watched = c.fetchone()['cnt']
+    c.execute(f'SELECT COUNT(*) as cnt FROM douban_watch_history WHERE {visible} AND status="wish"')
+    wish = c.fetchone()['cnt']
+    c.execute(f'SELECT COUNT(*) as cnt FROM douban_watch_history WHERE {visible} AND status="recommended"')
+    recommended = c.fetchone()['cnt']
+    c.execute(f'SELECT ROUND(AVG(douban_rating),1) as avg_r FROM douban_watch_history WHERE {visible} AND status="collect" AND douban_rating IS NOT NULL')
     row = c.fetchone()
-    avg_rating = row[0] if row else None
+    avg_rating = row['avg_r'] if row else None
     # Rating distribution (my_rating: 1-5)
     dist_rows = c.execute('''
-        SELECT my_rating, COUNT(*) FROM douban_watch_history
+        SELECT my_rating, COUNT(*) as cnt FROM douban_watch_history
         WHERE my_rating IS NOT NULL GROUP BY my_rating ORDER BY my_rating DESC
     ''').fetchall()
     rating_dist = []
-    max_count = max((r[1] for r in dist_rows), default=1)
-    for label, count in dist_rows:
+    max_count = max((r['cnt'] for r in dist_rows), default=1)
+    for r in dist_rows:
+        label, count = r['my_rating'], r['cnt']
         rating_dist.append({
             'label': str(label) + '★',
             'count': count,
@@ -934,7 +978,8 @@ def upsert_recommendation_item(conn, payload: dict, target_status: str | None = 
 @app.get('/', response_class=HTMLResponse)
 def home(request: Request):
     conn = get_conn()
-    counts = dict(conn.execute('SELECT status, COUNT(*) FROM douban_watch_history GROUP BY status').fetchall())
+    rows = conn.execute('SELECT status, COUNT(*) as cnt FROM douban_watch_history GROUP BY status').fetchall()
+    counts = {r['status']: r['cnt'] for r in rows}
     profile = load_profile(conn)
     recs = load_recommended_items(conn)[:6]
     recent_rows = conn.execute('SELECT * FROM douban_watch_history WHERE status="collect" AND COALESCE(recommend_feedback, "") != "dislike" ORDER BY watched_date DESC LIMIT 8').fetchall()
@@ -1157,8 +1202,8 @@ def build_wish_items_paged(conn, kind='all', q='', sort='date', added_order='des
         order = 'title ASC'
     else:
         order = f'added_at {order_dir}'
-    where = sql.replace('SELECT *', 'SELECT COUNT(*)')
-    total = conn.execute(where, params).fetchone()[0]
+    where = sql.replace('SELECT *', 'SELECT COUNT(*) as cnt')
+    total = conn.execute(where, params).fetchone()['cnt']
     sql += f' ORDER BY {order} LIMIT ? OFFSET ?'
     rows = conn.execute(sql, params + [page_size, offset]).fetchall()
     items = []
@@ -1229,7 +1274,7 @@ def build_library_items_paged(conn, status='all', kind='all', q='', sort='date',
     where_clause = ' AND '.join(where)
 
     # Total count
-    total = conn.execute(f'SELECT COUNT(*) FROM douban_watch_history WHERE {where_clause}', params).fetchone()[0]
+    total = conn.execute(f'SELECT COUNT(*) as cnt FROM douban_watch_history WHERE {where_clause}', params).fetchone()['cnt']
 
     # Order
     if sort == 'rating':
@@ -1293,7 +1338,10 @@ def recommendations(request: Request, sort: str = Query('date')):
         'surprise': dict(tonight_pick) if tonight_pick else None,
         'today_pick': dict(tonight_pick) if tonight_pick else None,
         'sort': sort,
-        'last_updated': (datetime.strptime(tonight_pick['recommended_at'], '%Y-%m-%d %H:%M:%S') + timedelta(hours=8)).strftime('%m-%d %H:%M') if tonight_pick and tonight_pick.get('recommended_at') else '',
+        'last_updated': (lambda dt: (dt + timedelta(hours=8)).strftime('%m-%d %H:%M') if dt else '')(
+            (tonight_pick.get('recommended_at') if isinstance(tonight_pick.get('recommended_at'), datetime)
+             else (datetime.strptime(tonight_pick['recommended_at'], '%Y-%m-%d %H:%M:%S') if tonight_pick and tonight_pick.get('recommended_at') else None))
+        ) if tonight_pick and tonight_pick.get('recommended_at') else '',
         'site_stats': get_site_stats(),
     })
 
