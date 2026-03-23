@@ -32,3 +32,4 @@
 2026-03-23 04:15 UTC | 2026-03-23 12:15 北京时间 | feishu (手动) | 标准化推荐SOP写入SKILL.md + add_one_recommendation.py脚本 | 完成
 | 2026-03-23 04:35 | 12:35 | heartbeat | 推荐维护：新增「照明商店」(TMDB 226529, 韩国悬疑/奇幻, 2024) 推荐数1→2 | ✅ 写入生产库 |
 | 2026-03-23 04:35 | 12:35 | heartbeat | 飞书心跳问候（session visibility限制，未能跨session发送） | ⚠️ forbidden |
+| 2026-03-23 04:43 | 12:43 | heartbeat | 推荐维护：新增「小人物/Nobody」(TMDB 615457, 美国动作惊悚, 2021) 推荐数2→3 | ✅ 写入生产库 |
