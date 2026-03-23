@@ -36,6 +36,8 @@
 | 2026-03-23 05:43 | 13:43 | heartbeat | 飞书心跳问候（session visibility限制，heartbeat session无法跨session发送）| ⚠️ forbidden |
 | 2026-03-23 05:45 | 13:45 | heartbeat | 推荐维护：新增「切尔诺贝利 / Chernobyl」(TMDB 87108, HBO迷你剧, 2019, 8.7分) 推荐数5→6 | ✅ 写入生产库 |
 | 2026-03-23 05:45 | 13:45 | heartbeat | 飞书心跳问候（session visibility限制，无法跨树发送）| ⚠️ forbidden |
+| 2026-03-23 06:58 | 14:58 | heartbeat | 推荐维护：新增「现在拨打的电话」(TMDB 253905, 韩国悬疑, 2024, 8.4分) 推荐数7→8 | ✅ 写入生产库 |
+| 2026-03-23 06:58 | 14:58 | heartbeat | 飞书心跳问候（visibility=tree限制，无法跨session推送）| ⚠️ forbidden |
 | 2026-03-23 06:28 | 14:28 | heartbeat | 推荐维护：新增「你想活出怎样的人生」(TMDB 508883, 宫崎骏2023, 日本动画) 推荐数6→7 | ✅ 写入生产库 |
 | 2026-03-23 06:28 | 14:28 | heartbeat | 飞书心跳问候（session visibility限制，无法跨树发送）| ⚠️ forbidden |
 | 2026-03-23 05:13 | 13:13 | heartbeat | 推荐维护：新增「人之怒 / Wrath of Man」(TMDB 637649, 英美惊悚/犯罪, 2021) 推荐数3→4 | ✅ 写入生产库 |
