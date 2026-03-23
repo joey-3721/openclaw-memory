@@ -41,9 +41,9 @@ def adapt_sql(sql: str) -> str:
     sql = re.sub(r'\?', '%s', sql)
     # INSERT OR REPLACE -> REPLACE
     sql = re.sub(r'INSERT\s+OR\s+REPLACE\s+INTO', 'REPLACE INTO', sql, flags=re.IGNORECASE)
-    # datetime('now') -> NOW()
-    sql = re.sub(r"datetime\s*\(\s*'now'\s*\)", 'NOW()', sql, flags=re.IGNORECASE)
-    # datetime('now', '-30 days') -> DATE_SUB(NOW(), INTERVAL 30 DAY)
+    # datetime('now') / datetime("now") -> NOW()
+    sql = re.sub(r'datetime\s*\(\s*[\'"]now[\'"]\s*\)', 'NOW()', sql, flags=re.IGNORECASE)
+    # datetime('now', '-30 days') / datetime("now", "-30 days") -> DATE_SUB(NOW(), INTERVAL 30 DAY)
     def _dt_modifier(m):
         mod = m.group(1).strip()
         mm = re.match(r'([+-]\d+)\s+(day|hour|minute|month|year)s?', mod, re.IGNORECASE)
@@ -55,7 +55,7 @@ def adapt_sql(sql: str) -> str:
             else:
                 return f'DATE_ADD(NOW(), INTERVAL {amt} {unit})'
         return 'NOW()'
-    sql = re.sub(r"datetime\s*\(\s*'now'\s*,\s*'([^']+)'\s*\)", _dt_modifier, sql, flags=re.IGNORECASE)
+    sql = re.sub(r'datetime\s*\(\s*[\'"]now[\'"]\s*,\s*[\'"]([^\'"]+)[\'"]\s*\)', _dt_modifier, sql, flags=re.IGNORECASE)
     # Double-quoted string literals for known values -> single-quoted
     sql = re.sub(r'"(collect|wish|recommended|dislike|user|douban|tmdb|disliked|local)"', r"'\1'", sql)
     # Empty string "" -> ''
