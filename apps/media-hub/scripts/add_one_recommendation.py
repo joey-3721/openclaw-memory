@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-add_one_recommendation.py — 向 Media Hub 生产库新增一条推荐
+add_one_recommendation.py — 向 Media Hub MySQL 生产库新增一条推荐
 
 用法（必须在 media-hub-test 容器内执行）：
   docker exec media-hub-test python3 /app/scripts/add_one_recommendation.py \
@@ -17,10 +17,8 @@ add_one_recommendation.py — 向 Media Hub 生产库新增一条推荐
     --note "个性化推荐语（禁止公式化）" \
     --rank 1
 
-或者由 OpenClaw 在心跳/手动流程中通过 docker exec + python3 -c 内联调用。
-
 安全规则：
-  - 只写 /app/data/douban_media.db（生产库）
+  - 直接写入 MySQL 生产库（通过 app.get_conn()）
   - 自动下载封面到 /app/covers/
   - 自动去重（检查 tmdb_id + title 是否已存在）
   - 封面不可用时拒绝写入
@@ -29,38 +27,30 @@ add_one_recommendation.py — 向 Media Hub 生产库新增一条推荐
 import argparse
 import json
 import os
-import sqlite3
 import ssl
 import sys
 import urllib.request
 from datetime import datetime
 from pathlib import Path
 
-DB_PATH = os.getenv("MEDIA_HUB_DB", "/app/data/douban_media.db")
 COVERS_DIR = Path(os.getenv("MEDIA_HUB_COVERS_DIR", "/app/covers"))
 
-# Safety: refuse non-production paths
-if "workspace" in DB_PATH or "/home/node" in DB_PATH:
-    print("ERROR: refusing to write to workspace/dev DB path:", DB_PATH)
-    sys.exit(1)
+sys.path.insert(0, "/app")
+import app as media_app
 
 
 def get_tmdb_key():
-    """Read TMDB API key from app config."""
     try:
-        sys.path.insert(0, "/app")
-        from app import read_tmdb_key
-        return read_tmdb_key()
+        return media_app.read_tmdb_key()
     except Exception:
-        secrets_path = Path("/app/secrets/tmdb.json")
+        secrets_path = Path("/app/config/secrets/tmdb.json")
         if secrets_path.exists():
             return json.loads(secrets_path.read_text()).get("api_key", "").strip()
-        # Try env var
         return os.getenv("TMDB_API_KEY", "")
 
 
 def download_cover(tmdb_id, tmdb_type, poster_path=None):
-    """Download cover from TMDB. Returns local path or None."""
+    """Download cover from TMDB. Returns local /covers/... path or None."""
     ctx = ssl.create_default_context()
     ctx.check_hostname = False
     ctx.verify_mode = ssl.CERT_NONE
@@ -102,29 +92,26 @@ def download_cover(tmdb_id, tmdb_type, poster_path=None):
         return None
 
 
-def check_duplicate(db, tmdb_id, title):
-    """Check if item already exists in DB."""
-    cur = db.cursor()
-    cur.execute(
-        "SELECT title, status FROM douban_watch_history WHERE tmdb_id=? OR title=?",
+def check_duplicate(conn, tmdb_id, title):
+    """Check if item already exists in MySQL DB."""
+    cur = conn.execute(
+        "SELECT title, status FROM douban_watch_history WHERE tmdb_id=%s OR title=%s",
         (str(tmdb_id), title),
     )
-    rows = cur.fetchall()
-    return rows
+    return cur.fetchall()
 
 
-def insert_recommendation(db, item):
-    """Insert one recommendation into the production DB."""
-    cur = db.cursor()
+def insert_recommendation(conn, item):
+    """Insert one recommendation into MySQL production DB via REPLACE INTO."""
     now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
 
-    cur.execute(
-        """INSERT OR REPLACE INTO douban_watch_history
+    conn.execute(
+        """REPLACE INTO douban_watch_history
         (subject_id, title, kind, year, url, intro, summary,
          genres, countries, cover_url, status, tmdb_id,
          recommendation_note, recommended_at, recommend_rank,
          recommend_source, douban_rating, douban_rating_count)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
         (
             item["subject_id"],
             item["title"],
@@ -146,12 +133,12 @@ def insert_recommendation(db, item):
             item.get("votes", 0),
         ),
     )
-    db.commit()
-    print(f"OK: inserted '{item['title']}' as recommended (tmdb_id={item['tmdb_id']})")
+    conn.commit()
+    print(f"OK: inserted '{item['title']}' as recommended (tmdb_id={item['tmdb_id']}) -> MySQL")
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Add one recommendation to Media Hub")
+    parser = argparse.ArgumentParser(description="Add one recommendation to Media Hub MySQL")
     parser.add_argument("--tmdb-id", required=True)
     parser.add_argument("--tmdb-type", default="movie", choices=["movie", "tv"])
     parser.add_argument("--title", required=True)
@@ -168,20 +155,22 @@ def main():
     parser.add_argument("--force", action="store_true", help="Skip duplicate check")
     args = parser.parse_args()
 
-    db = sqlite3.connect(DB_PATH)
+    conn = media_app.get_conn()
 
     # Duplicate check
     if not args.force:
-        dupes = check_duplicate(db, args.tmdb_id, args.title)
+        dupes = check_duplicate(conn, args.tmdb_id, args.title)
         if dupes:
             print(f"DUPLICATE found: {dupes}")
             print("Use --force to override.")
+            conn.close()
             sys.exit(1)
 
     # Download cover
     cover_url = download_cover(args.tmdb_id, args.tmdb_type, args.poster_path)
     if not cover_url:
         print("ERROR: cover unavailable, aborting (skill rule: cover must be valid)")
+        conn.close()
         sys.exit(1)
 
     prefix = "tmdb_tv_" if args.tmdb_type == "tv" else "tmdb_"
@@ -207,8 +196,8 @@ def main():
         "votes": args.votes,
     }
 
-    insert_recommendation(db, item)
-    db.close()
+    insert_recommendation(conn, item)
+    conn.close()
 
 
 if __name__ == "__main__":

@@ -4,13 +4,17 @@
 - 明早 08:00（北京时间）准备一份整晚汇总，说明一夜之间完成了哪些优化，并给出可直接访问的新页面链接。
 - 默认工作流：改代码 → 验证/更新 Docker → git commit → git push。
 - 每做完一个可验收点，在心跳记录状态，方便佳奕早上逐项验收。
-- 心跳新增推荐维护规则：每次心跳都检查 `recommended` 列表可见数量。如果少于 100 个，就在心跳里直接用 OpenClaw 自身大模型生成个性化推荐语并写入生产库；如果已达 100 个则跳过。
+- 心跳新增推荐维护规则：每次心跳都检查 `recommended` 列表可见数量。如果少于 100 个，就在心跳里直接用 OpenClaw 自身大模型生成个性化推荐语并写入 MySQL；如果已达 100 个则跳过。
 - **心跳内推荐流程**（在心跳触发时由 OpenClaw 大模型直接生成）：
-  1. 读数据库获取用户口味（collect 列表 + dislike 理由 + 偏好题材/国家）
+  1. 读 MySQL `media_hub.douban_watch_history` 获取用户口味（collect 列表 + dislike 理由 + 偏好题材/国家）
   2. 从 TMDB 拉候选（按口味画像过滤已看/不喜欢）
   3. **直接在心跳里用 OpenClaw 大模型写推荐语**（结合剧情简介 + 用户背景，不走模板）
-  4. 写入 `status='recommended'`，只写生产库 `/app/data/douban_media.db`
-- **强制写入路径规则**：禁止写 workspace 开发副本，只写生产库。
+  4. 写入 `status='recommended'`，通过 `docker exec media-hub-test python3 -c "..."` 使用 `app.get_conn()` 写入 MySQL
+- **数据库规则（已迁移到 MySQL）**：
+  - 生产数据库：MySQL `media_hub` 库（容器 `media-hub-mysql`，端口 3306）
+  - 禁止写 SQLite 本地文件，禁止写 workspace 开发副本
+  - 所有读写通过 `docker exec media-hub-test python3 -c "import app; conn=app.get_conn(); ..."` 执行
+  - 心跳推荐计数查询：`docker exec media-hub-test python3 -c "import app; conn=app.get_conn(); cur=conn.execute(\"SELECT COUNT(*) as cnt FROM douban_watch_history WHERE status='recommended'\"); print(cur.fetchone()['cnt'])"`
 - **心跳日志**：每次心跳结束后，必须追加记录到 `memory/heartbeat-log.md`，格式：时间(UTC) | 时间(北京时间) | 触发来源 | 动作 | 状态。
 
 
