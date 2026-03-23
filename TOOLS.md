@@ -43,7 +43,7 @@ Skills are shared. Your setup is yours. Keeping them apart means you can update 
 - Local repo auto-push: enabled via `.git/hooks/post-commit`
 - Behavior: after local commits in this workspace, git will try to push automatically to `origin`
 - SSH key fingerprint (newly generated 2026-03-19): `SHA256:FShNKfViqidbSFMrFatLdt9WE22BTTeWgTt0SzMdnr8`
-- Public key (add to GitHub → Settings → SSH keys): `ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILQf5AmMKTQRsRKEgfKMfQSUU0Uz8tgRpiDVte4SLL67 lijiayi3721@gmail.com`
+- Public key (add to GitHub → Settings → SSH keys): `ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFgabdrx6it1i44jc3im+VZ3DVyvRT4EjHvJsWqf67Qf lijiayi3721@gmail.com`
 
 ---
 
