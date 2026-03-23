@@ -36,6 +36,8 @@
 | 2026-03-23 05:43 | 13:43 | heartbeat | 飞书心跳问候（session visibility限制，heartbeat session无法跨session发送）| ⚠️ forbidden |
 | 2026-03-23 05:45 | 13:45 | heartbeat | 推荐维护：新增「切尔诺贝利 / Chernobyl」(TMDB 87108, HBO迷你剧, 2019, 8.7分) 推荐数5→6 | ✅ 写入生产库 |
 | 2026-03-23 05:45 | 13:45 | heartbeat | 飞书心跳问候（session visibility限制，无法跨树发送）| ⚠️ forbidden |
+| 2026-03-23 09:31 | 17:31 | heartbeat | 推荐维护：新增「未麻的部屋 / Perfect Blue」(TMDB 10494, 日本动画惊悚, 1998, 8.3分) 推荐数12→13 | ✅ 写入生产库 |
+| 2026-03-23 09:31 | 17:31 | heartbeat | 飞书心跳问候（session visibility限制，无法跨树发送）| ⚠️ forbidden |
 | 2026-03-23 08:59 | 16:59 | heartbeat | 推荐维护：新增「真探 第三季 / True Detective S3」(TMDB 46648, 美国犯罪悬疑, 2019, 8.3分) 推荐数11→12 | ✅ 写入生产库 |
 | 2026-03-23 08:59 | 16:59 | heartbeat | 飞书心跳问候（session visibility限制，无法跨树发送）| ⚠️ forbidden |
 | 2026-03-23 08:29 | 16:29 | heartbeat | 推荐维护：新增「冰血暴 / Fargo」(TMDB 60622, 美国犯罪/黑色幽默, 2014-2024, 8.3分) 推荐数10→11 | ✅ 写入生产库 |
