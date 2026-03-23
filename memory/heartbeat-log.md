@@ -36,6 +36,7 @@
 | 2026-03-23 05:43 | 13:43 | heartbeat | 飞书心跳问候（session visibility限制，heartbeat session无法跨session发送）| ⚠️ forbidden |
 | 2026-03-23 05:45 | 13:45 | heartbeat | 推荐维护：新增「切尔诺贝利 / Chernobyl」(TMDB 87108, HBO迷你剧, 2019, 8.7分) 推荐数5→6 | ✅ 写入生产库 |
 | 2026-03-23 05:45 | 13:45 | heartbeat | 飞书心跳问候（session visibility限制，无法跨树发送）| ⚠️ forbidden |
+| 2026-03-23 12:31 | 20:31 | heartbeat | 推荐维护：新增「弥留之国的爱丽丝 / Alice in Borderland」(TMDB 110316, 日本生存悬疑, 2020, 8.1分) 推荐数17→18 | ✅ 写入生产库 |
 | 2026-03-23 12:01 | 20:01 | heartbeat | 推荐维护：新增「杀死伊芙 / Killing Eve」(TMDB 72750, 间谍惊悚, 2018, 7.9分) 推荐数16→17 | ✅ 写入生产库 |
 | 2026-03-23 12:01 | 20:01 | heartbeat | 飞书心跳问候（visibility=tree限制，无法跨session推送）| ⚠️ forbidden |
 | 2026-03-23 11:31 | 19:31 | heartbeat | 推荐维护：新增「罪恶黑名单 / The Blacklist」(TMDB 46952, 美剧犯罪, 2013-2023, 10季218集, 7.6分) 推荐数15→16 | ✅ 写入生产库 |
