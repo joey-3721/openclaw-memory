@@ -238,6 +238,7 @@ def douban_search_fallback(query: str, kind: str = 'movie', limit: int = 20):
         item['_cover_url'] = cover_url(r)
         item['_stars'] = rating_stars(item.get('douban_rating'))
         item['_first_genre'] = first_genre(item)
+        item['_first_country'] = first_country(item)
         items.append(item)
     return items
 
@@ -281,6 +282,7 @@ def tmdb_to_item(raw: dict, media_type: str):
         '_cover_style': cover_style({'title': title}),
         '_stars': rating_stars(raw.get('vote_average')),
         '_first_genre': '',
+        '_first_country': '',
         'status': None,
         'source': 'tmdb',
         'countries': '',
@@ -315,6 +317,7 @@ def match_local_status(conn, item: dict) -> dict:
             item['_cover_url'] = cover_url(row)
             item['_stars'] = rating_stars(item.get('douban_rating'))
             item['_first_genre'] = first_genre(item)
+            item['_first_country'] = first_country(item)
             item['_matched'] = 'tmdb_id'
             return item
 
@@ -335,6 +338,7 @@ def match_local_status(conn, item: dict) -> dict:
             matched['_cover_url'] = cover_url(row)
             matched['_stars'] = rating_stars(matched.get('douban_rating'))
             matched['_first_genre'] = first_genre(matched)
+            matched['_first_country'] = first_country(matched)
             matched['_matched'] = 'title'
             return matched
 
@@ -405,6 +409,7 @@ def match_local_status_batch(conn, items: list) -> list:
             merged['_cover_url'] = cover_url(matched)
             merged['_stars'] = rating_stars(merged.get('douban_rating'))
             merged['_first_genre'] = first_genre(merged)
+            merged['_first_country'] = first_country(merged)
             result.append(merged)
         else:
             item['status'] = None
@@ -704,6 +709,7 @@ def tmdb_recommendation_candidates(conn, limit=20):
             item['_cover_url'] = cover_url(item)
             item['_stars'] = rating_stars(item.get('douban_rating'))
             item['_first_genre'] = first_genre(item)
+            item['_first_country'] = first_country(item)
             candidates.append(item)
     candidates.sort(key=lambda x: x.get('_score', 0), reverse=True)
     return candidates[:limit]
@@ -826,6 +832,11 @@ def first_genre(item):
     return first
 
 
+def first_country(item):
+    countries = split_tokens(item.get('countries'))
+    return countries[0] if countries else ''
+
+
 def display_rating(value):
     if value in (None, '', 0):
         return '-'
@@ -885,6 +896,7 @@ def load_recommended_items(conn):
         item['_cover_style'] = cover_style(item)
         item['_stars'] = rating_stars(item.get('douban_rating'))
         item['_first_genre'] = first_genre(item)
+        item['_first_country'] = first_country(item)
         item['_display_rating'] = display_rating(item.get('douban_rating'))
         item['_display_kind'] = display_kind(item.get('kind'))
         items.append(item)
@@ -910,6 +922,7 @@ def load_cached_recommendations(conn, cache_key='default', max_age_hours=12):
         item['_cover_style'] = cover_style(item)
         item['_stars'] = rating_stars(item.get('tmdb_rating'))
         item['_first_genre'] = first_genre(item)
+        item['_first_country'] = first_country(item)
         item['_display_rating'] = display_rating(item.get('tmdb_rating'))
         item['_display_kind'] = display_kind(item.get('kind'))
         local = conn.execute(
@@ -999,6 +1012,7 @@ def home(request: Request):
         item['_cover_url'] = cover_url(r)
         item['_stars'] = rating_stars(item.get('douban_rating'))
         item['_first_genre'] = first_genre(item)
+        item['_first_country'] = first_country(item)
         recent.append(item)
     year_rows = conn.execute("""
         SELECT substr(watched_date, 1, 4) AS period, COUNT(*) AS total
@@ -1075,6 +1089,7 @@ def build_library_items(conn, status='all', kind='all', q='', sort='date', limit
         item['_cover_url'] = cover_url(r)
         item['_stars'] = rating_stars(item.get('douban_rating'))
         item['_first_genre'] = first_genre(item)
+        item['_first_country'] = first_country(item)
         items.append(item)
     return items
 
@@ -1137,6 +1152,7 @@ def discover(request: Request,
                 item['_cover_url'] = cover_url(r)
                 item['_stars'] = rating_stars(item.get('douban_rating'))
                 item['_first_genre'] = first_genre(item)
+                item['_first_country'] = first_country(item)
                 items.append(item)
             mode = 'discover'
         total_pages = 1
@@ -1222,6 +1238,7 @@ def build_wish_items_paged(conn, kind='all', q='', sort='date', added_order='des
         item['_cover_url'] = cover_url(r)
         item['_stars'] = rating_stars(item.get('douban_rating'))
         item['_first_genre'] = first_genre(item)
+        item['_first_country'] = first_country(item)
         items.append(item)
     return items, total
 
@@ -1255,6 +1272,7 @@ def build_library_items_wish(conn, kind='all', q='', sort='date', added_order='d
         item['_cover_url'] = cover_url(r)
         item['_stars'] = rating_stars(item.get('douban_rating'))
         item['_first_genre'] = first_genre(item)
+        item['_first_country'] = first_country(item)
         items.append(item)
     return items
 
@@ -1304,6 +1322,7 @@ def build_library_items_paged(conn, status='all', kind='all', q='', sort='date',
         item['_cover_url'] = cover_url(r)
         item['_stars'] = rating_stars(item.get('douban_rating'))
         item['_first_genre'] = first_genre(item)
+        item['_first_country'] = first_country(item)
         items.append(item)
     return items, total
 

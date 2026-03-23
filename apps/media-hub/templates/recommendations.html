@@ -17,6 +17,7 @@
             <div class="tonight-title-row">
               <h2 class="tonight-title">{{ today_pick.title }}</h2>
               {% if today_pick._first_genre %}<span class="rec-genre-chip" style="font-size:11px;padding:3px 10px">{{ today_pick._first_genre }}</span>{% endif %}
+              {% if today_pick._first_country %}<span class="rec-country-chip" style="font-size:11px;padding:3px 10px">{{ today_pick._first_country }}</span>{% endif %}
             </div>
             <div class="tonight-meta">{{ today_pick.year }} · {{ today_pick.kind }} · TMDB {{ today_pick._display_rating or '-' }}</div>
           </div>
@@ -82,6 +83,9 @@
         <h3 class="rec-title">{{ item.title }}</h3>
         {% if item._first_genre %}
         <span class="rec-genre-chip">{{ item._first_genre }}</span>
+        {% endif %}
+        {% if item._first_country %}
+        <span class="rec-country-chip">{{ item._first_country }}</span>
         {% endif %}
       </div>
       <div class="rec-meta-row">

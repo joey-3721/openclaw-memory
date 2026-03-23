@@ -72,6 +72,9 @@
         {% if item._first_genre %}
         <span class="rec-genre-chip">{{ item._first_genre }}</span>
         {% endif %}
+        {% if item._first_country %}
+        <span class="rec-country-chip">{{ item._first_country }}</span>
+        {% endif %}
       </div>
       <div class="media-meta">
         <span>{{ item.year }}</span>
