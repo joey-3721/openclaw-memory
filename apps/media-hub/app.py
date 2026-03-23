@@ -16,7 +16,7 @@ import urllib.request
 from urllib.parse import quote
 
 BASE_DIR = Path(__file__).resolve().parent
-DB_PATH = Path(os.getenv('MEDIA_HUB_DB', '/app/data/douban_media.db'))
+DB_PATH = Path(os.getenv('MEDIA_HUB_DB', '/app/data/douban_media.db')) # Original setting
 COVERS_DIR = Path(os.getenv('MEDIA_HUB_COVERS_DIR', '/app/covers'))
 CONFIG_DIR = Path(os.getenv('MEDIA_HUB_CONFIG_DIR', str(BASE_DIR / 'config')))
 SECRETS_DIR = CONFIG_DIR / 'secrets'
