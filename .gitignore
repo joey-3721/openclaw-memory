@@ -1,3 +1,4 @@
 config/secrets/
 apps/media-hub/config/secrets/
 *.env.local
+.ssh/
