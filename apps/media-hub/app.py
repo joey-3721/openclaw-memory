@@ -17,6 +17,15 @@ import urllib.request
 from urllib.parse import quote
 
 BASE_DIR = Path(__file__).resolve().parent
+
+# ── 代理配置（持久化在代码里，避免容器重启丢失）──────────────────────
+_PROXY = os.getenv('HTTP_PROXY', 'http://192.168.50.209:7890')
+os.environ.setdefault('HTTP_PROXY', _PROXY)
+os.environ.setdefault('HTTPS_PROXY', _PROXY)
+os.environ.setdefault('http_proxy', _PROXY)
+os.environ.setdefault('https_proxy', _PROXY)
+# ─────────────────────────────────────────────────────────────────────
+
 MYSQL_HOST = os.getenv('MYSQL_HOST', '172.17.0.5')
 MYSQL_PORT = int(os.getenv('MYSQL_PORT', '3306'))
 MYSQL_USER = os.getenv('MYSQL_USER', 'joey')
