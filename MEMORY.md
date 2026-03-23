@@ -57,6 +57,7 @@
 - Desired routing behavior is message-level in spirit: MiniMax should be treated as the first-pass classifier/default path, while `duomi/gpt-5.4` should take over for moderately complex tasks or whenever MiniMax is unreliable/unavailable.
 - Fallback rule: if MiniMax/provider auth/timeout/unavailable/parse issues occur or are strongly suspected, fall back directly to `duomi/gpt-5.4` instead of blocking.
 - Once a task is judged complex, keep that task on `duomi/gpt-5.4` until completion for stability.
-- User-facing replies should end with a model attribution line like: `—— 来自模型：xxx`.
+- User-facing replies in main session should use `[[reply_to_current]]` at the top and end with a model attribution line like: `—— 来自模型：xxx`.
+- Default model for main session: `anthropic/claude-opus-4-6` (per 佳奕's request on 2026-03-23).
 - For small, routine, low-risk self-optimizations or maintenance changes, avoid explicitly reporting every tiny action to 佳奕; just do them unless they materially affect behavior, need approval, are risky, or are worth surfacing.
 - For minor fixes, low-risk debugging, and small configuration repairs, I should proactively try to fix them end-to-end by myself, verify whether they are resolved, and iterate a few times before asking 佳奕 to confirm or intervene. Only escalate early if the action is risky, externally impactful, destructive, blocked by permissions/access, or genuinely unclear.
