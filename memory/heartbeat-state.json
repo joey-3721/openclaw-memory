@@ -1,7 +1,29 @@
 {
   "lastChecks": {
-    "recommendation": "2026-03-22 02:14:22"
+    "recommendation": "2026-03-22 11:33:49",
+    "feishu_heartbeat": "2026-03-23 00:10:00",
+    "weather": "2026-03-23 00:10:00"
   },
   "recommendation_count": 7,
-  "last_action": "added 杀人者的难堪 (tmdb:tv:35807916)"
+  "last_action": "added 杀死你的难堪 (tmdb:tv:35807916)",
+  "weather_today": {
+    "date": "2026-03-23",
+    "condition": "薄雾",
+    "temp": 10,
+    "feels_like": 10,
+    "humidity": 71,
+    "wind_speed": 5,
+    "wind_dir": "SE",
+    "precip": 0,
+    "visibility": 5,
+    "uv": 0
+  },
+  "weather_tomorrow": {
+    "date": "2026-03-24",
+    "condition": "晴",
+    "temp_high": 21,
+    "temp_low": 9,
+    "sunrise": "06:12",
+    "sunset": "18:30"
+  }
 }
