@@ -140,3 +140,6 @@
 | 2026-03-24 00:33 | 08:33 | heartbeat | 飞书心跳问候（visibility=tree限制）| ⚠️ forbidden |
 | 2026-03-24 00:36 | 08:36 | heartbeat | 推荐维护：新增「人类之子 / Children of Men」(TMDB 9693, 库斯图里卡执导科幻末日, 2006, 7.6分) 推荐数43→44 | ✅ 写入生产库 |
 | 2026-03-24 00:36 | 08:36 | heartbeat | 飞书心跳问候（visibility=tree限制）| ⚠️ forbidden |
+| 2026-03-24 00:44 UTC | 08:44 北京时间 | media-hub-cron | Media Hub 推荐维护 | ✅写入成功: 死期将至 / 이제, 곧 죽습니다 (TV 2023, 韩国, 8.4分, 608票) |
+| 2026-03-24 01:06 | 09:06 | heartbeat | 推荐维护：新增「1899」(TMDB 90669, Netflix德语移民船悬疑, 2022, 7.5分) 推荐数44→45 | ✅ 写入生产库 |
+| 2026-03-24 01:06 | 09:06 | heartbeat | 飞书心跳问候（visibility=tree限制）| ⚠️ forbidden |
