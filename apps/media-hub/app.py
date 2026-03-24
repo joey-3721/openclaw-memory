@@ -19,12 +19,41 @@ from urllib.parse import quote
 
 BASE_DIR = Path(__file__).resolve().parent
 
-# ── 代理配置（持久化在代码里，避免容器重启丢失）──────────────────────
-_PROXY = os.getenv('HTTP_PROXY', 'http://192.168.50.209:7890')
-os.environ.setdefault('HTTP_PROXY', _PROXY)
-os.environ.setdefault('HTTPS_PROXY', _PROXY)
-os.environ.setdefault('http_proxy', _PROXY)
-os.environ.setdefault('https_proxy', _PROXY)
+def load_env_local(path: Path) -> bool:
+    """Load simple KEY=VALUE or export KEY=VALUE lines from .env.local."""
+    if not path.exists():
+        return False
+    try:
+        for raw in path.read_text(encoding='utf-8').splitlines():
+            line = raw.strip()
+            if not line or line.startswith('#'):
+                continue
+            if line.startswith('export '):
+                line = line[len('export '):].strip()
+            if '=' not in line:
+                continue
+            key, value = line.split('=', 1)
+            key = key.strip()
+            value = value.strip()
+            if not key:
+                continue
+            if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+                value = value[1:-1]
+            os.environ[key] = value
+        return True
+    except Exception:
+        return False
+
+
+ENV_LOCAL_LOADED = load_env_local(BASE_DIR / '.env.local')
+
+# ── 代理配置：优先使用 .env.local；只有读不到时才回退默认代理 ────────────
+if not ENV_LOCAL_LOADED:
+    _PROXY = os.getenv('HTTP_PROXY', 'http://192.168.50.209:7890')
+    os.environ.setdefault('HTTP_PROXY', _PROXY)
+    os.environ.setdefault('HTTPS_PROXY', _PROXY)
+    os.environ.setdefault('http_proxy', _PROXY)
+    os.environ.setdefault('https_proxy', _PROXY)
 # ─────────────────────────────────────────────────────────────────────
 
 MYSQL_HOST = os.getenv('MYSQL_HOST', '172.17.0.5')
@@ -35,6 +64,26 @@ MYSQL_DB = os.getenv('MYSQL_DB', 'media_hub')
 COVERS_DIR = Path(os.getenv('MEDIA_HUB_COVERS_DIR', '/app/covers'))
 CONFIG_DIR = Path(os.getenv('MEDIA_HUB_CONFIG_DIR', str(BASE_DIR / 'config')))
 BEIJING_TZ = ZoneInfo('Asia/Shanghai')
+RUNTIME_CACHE_TTL_SECONDS = int(os.getenv('MEDIA_HUB_RUNTIME_CACHE_TTL_SECONDS', '20'))
+_runtime_cache = {}
+
+
+def get_runtime_cache(key):
+    cached = _runtime_cache.get(key)
+    if not cached:
+        return None
+    expires_at, value = cached
+    if datetime.utcnow() >= expires_at:
+        _runtime_cache.pop(key, None)
+        return None
+    return value
+
+
+def set_runtime_cache(key, value, ttl_seconds=RUNTIME_CACHE_TTL_SECONDS):
+    _runtime_cache[key] = (datetime.utcnow() + timedelta(seconds=ttl_seconds), value)
+    return value
+COVER_RETRY_COOLDOWN_SECONDS = int(os.getenv('MEDIA_HUB_COVER_RETRY_COOLDOWN_SECONDS', '60'))
+_cover_retry_after = {}
 
 
 def adapt_sql(sql: str) -> str:
@@ -615,6 +664,9 @@ def tmdb_discover(kind: str = 'movie', query: str = '', sort: str = 'popularity'
 
 
 def get_site_stats():
+    cached = get_runtime_cache('site_stats')
+    if cached is not None:
+        return cached
     conn = get_conn()
     c = conn.cursor()
     visible = "COALESCE(recommend_feedback, '') != 'dislike'"
@@ -644,7 +696,14 @@ def get_site_stats():
             'pct': round(count / max_count * 100)
         })
     conn.close()
-    return {'total': total, 'watched': watched, 'wish': wish, 'recommended': recommended, 'avg_rating': avg_rating, 'rating_dist': rating_dist}
+    return set_runtime_cache('site_stats', {
+        'total': total,
+        'watched': watched,
+        'wish': wish,
+        'recommended': recommended,
+        'avg_rating': avg_rating,
+        'rating_dist': rating_dist,
+    })
 
 
 def split_multi(v):
@@ -661,6 +720,9 @@ def split_tokens(v):
 
 
 def load_profile(conn):
+    cached = get_runtime_cache('profile')
+    if cached is not None:
+        return cached
     rows = conn.execute('SELECT * FROM douban_watch_history WHERE status="collect" AND my_rating IS NOT NULL').fetchall()
     high = [r for r in rows if (r['my_rating'] or 0) >= 4]
     low = [r for r in rows if (r['my_rating'] or 0) <= 2]
@@ -699,7 +761,7 @@ def load_profile(conn):
     for r in high[:40]:
         directors.update(split_tokens(r['directors']))
         actors.update(split_tokens(r['actors']))
-    return {
+    return set_runtime_cache('profile', {
         'rated_count': len(rows),
         'high_rated_count': len(high),
         'top_genres': genre_counter.most_common(10),
@@ -713,7 +775,7 @@ def load_profile(conn):
         'liked_titles': liked_titles,
         'low_rated_titles': low_rated_titles,
         'low_rated_franchises': low_rated_franchises,
-    }
+    })
 
 
 def make_recommendation_reason(item, profile, high_rated=None):
@@ -865,6 +927,11 @@ def ensure_cover_available(item) -> str | None:
         return normalized
     local_path = local_cover_file_from_url(normalized)
     if local_path and local_path.exists():
+        _cover_retry_after.pop(normalized, None)
+        return normalized
+
+    retry_after = _cover_retry_after.get(normalized)
+    if retry_after and datetime.utcnow() < retry_after:
         return normalized
 
     tmdb_id = None
@@ -896,10 +963,13 @@ def ensure_cover_available(item) -> str | None:
             if remote_url:
                 subject_id = str(item.get('subject_id') if hasattr(item, 'get') else item['subject_id'])
                 try:
-                    return download_cover_to_local(remote_url, subject_id)
+                    saved_url = download_cover_to_local(remote_url, subject_id)
+                    _cover_retry_after.pop(normalized, None)
+                    return saved_url
                 except Exception:
                     return remote_url
     except Exception as e:
+        _cover_retry_after[normalized] = datetime.utcnow() + timedelta(seconds=COVER_RETRY_COOLDOWN_SECONDS)
         log_tmdb_failure('ensure_cover_available', f'{type(e).__name__}: {e}', {
             'tmdb_id': tmdb_id,
             'kind': kind,
@@ -1034,12 +1104,40 @@ def cache_recommendations(conn, items, cache_key='default'):
     conn.commit()
 
 
-def load_recommended_items(conn):
-    rows = conn.execute('SELECT * FROM douban_watch_history WHERE status="recommended" AND COALESCE(recommend_feedback, "") != "dislike" ORDER BY COALESCE(recommend_rank, 9999), COALESCE(recommended_at, "") DESC').fetchall()
+def recommendation_order_sql(sort: str = 'date') -> str:
+    if sort == 'rating':
+        return 'COALESCE(douban_rating, 0) DESC, COALESCE(recommended_at, "") DESC'
+    if sort == 'year':
+        return 'COALESCE(year, 0) DESC, COALESCE(recommended_at, "") DESC'
+    return 'COALESCE(recommend_rank, 9999), COALESCE(recommended_at, "") DESC'
+
+
+def count_recommended_items(conn) -> int:
+    row = conn.execute(
+        'SELECT COUNT(*) as cnt FROM douban_watch_history WHERE status="recommended" AND COALESCE(recommend_feedback, "") != "dislike"'
+    ).fetchone()
+    return int((row or {}).get('cnt') or 0)
+
+
+def load_recommended_items(conn, profile=None, limit: int | None = None, offset: int = 0, sort: str = 'date'):
+    sql = f'''
+        SELECT * FROM douban_watch_history
+        WHERE status="recommended" AND COALESCE(recommend_feedback, "") != "dislike"
+        ORDER BY {recommendation_order_sql(sort)}
+    '''
+    params = []
+    if limit is not None:
+        sql += ' LIMIT ? OFFSET ?'
+        params.extend([limit, offset])
+    rows = conn.execute(sql, params).fetchall()
+    profile_data = profile
+    need_profile = any(not dict(r).get('recommendation_note') for r in rows)
+    if profile_data is None and need_profile:
+        profile_data = load_profile(conn)
     items = []
     for r in rows:
         item = dict(r)
-        item['_reason'] = item.get('recommendation_note') or make_recommendation_reason(item, load_profile(conn))
+        item['_reason'] = item.get('recommendation_note') or make_recommendation_reason(item, profile_data or {})
         item['_score'] = item.get('recommend_rank') or 0
         item['_cover_url'] = cover_url(item)
         item['_cover_style'] = cover_style(item)
@@ -1198,7 +1296,7 @@ def home(request: Request):
     rows = conn.execute('SELECT status, COUNT(*) as cnt FROM douban_watch_history GROUP BY status').fetchall()
     counts = {r['status']: r['cnt'] for r in rows}
     profile = load_profile(conn)
-    recs = load_recommended_items(conn)
+    recs = load_recommended_items(conn, profile=profile, limit=8, sort='date')
     recent_rows = conn.execute('SELECT * FROM douban_watch_history WHERE status="collect" AND COALESCE(recommend_feedback, "") != "dislike" ORDER BY watched_date DESC LIMIT 8').fetchall()
     recent = []
     for r in recent_rows:
@@ -1548,26 +1646,38 @@ def library(request: Request, status: str = Query('collect'), kind: str = Query(
 
 
 @app.get('/recommendations', response_class=HTMLResponse)
-def recommendations(request: Request, sort: str = Query('date')):
+def recommendations(request: Request, sort: str = Query('date'), page: int = Query(1)):
+    PAGE_SIZE = 20
     conn = get_conn()
-    featured_recs = load_recommended_items(conn)
-    recs_with_reason = list(featured_recs)
-    if sort == 'rating':
-        recs_with_reason.sort(key=lambda x: x.get('douban_rating') or 0, reverse=True)
-    elif sort == 'year':
-        recs_with_reason.sort(key=lambda x: x.get('year') or 0, reverse=True)
-    elif sort == 'random':
+    profile = None
+    featured_recs = load_recommended_items(conn, limit=8, sort='date')
+    if sort == 'random':
+        profile = load_profile(conn)
+        recs_with_reason = load_recommended_items(conn, profile=profile, sort='date')
         random.shuffle(recs_with_reason)
+        total = len(recs_with_reason)
+        total_pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
+        page = max(1, min(page, total_pages))
+        offset = (page - 1) * PAGE_SIZE
+        paged_recs = recs_with_reason[offset:offset + PAGE_SIZE]
     else:
-        recs_with_reason.sort(key=lambda x: (x.get('recommended_at') or '', x.get('recommend_rank') or 0), reverse=True)
+        total = count_recommended_items(conn)
+        total_pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
+        page = max(1, min(page, total_pages))
+        offset = (page - 1) * PAGE_SIZE
+        paged_recs = load_recommended_items(conn, limit=PAGE_SIZE, offset=offset, sort=sort)
     tonight_pick, featured_bucket = pick_featured_item(featured_recs, request=request, limit=8)
     return templates.TemplateResponse('recommendations.html', {
         'request': request,
-        'recs': recs_with_reason,
+        'recs': paged_recs,
         'surprise': dict(tonight_pick) if tonight_pick else None,
         'today_pick': dict(tonight_pick) if tonight_pick else None,
         'featured_bucket': featured_bucket,
         'sort': sort,
+        'page': page,
+        'total': total,
+        'page_size': PAGE_SIZE,
+        'total_pages': total_pages,
         'last_updated': (lambda dt: (dt + timedelta(hours=8)).strftime('%m-%d %H:%M') if dt else '')(
             (tonight_pick.get('recommended_at') if isinstance(tonight_pick.get('recommended_at'), datetime)
              else (datetime.strptime(tonight_pick['recommended_at'], '%Y-%m-%d %H:%M:%S') if tonight_pick and tonight_pick.get('recommended_at') else None))

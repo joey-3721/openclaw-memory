@@ -52,10 +52,10 @@
   <div class="sort-controls">
     <span class="filter-label">排序</span>
     <div class="sort-chips">
-      <a class="sort-btn {% if sort=='date' or sort=='score' %}active{% endif %}" href="/recommendations?sort=date" data-sort="date">最新推荐</a>
-      <a class="sort-btn {% if sort=='year' %}active{% endif %}" href="/recommendations?sort=year" data-sort="year">最近年份</a>
+      <a class="sort-btn {% if sort=='date' or sort=='score' %}active{% endif %}" href="/recommendations?sort=date&page=1" data-sort="date">最新推荐</a>
+      <a class="sort-btn {% if sort=='year' %}active{% endif %}" href="/recommendations?sort=year&page=1" data-sort="year">最近年份</a>
     </div>
-    <span class="count">{{ recs|length }} 部</span>
+    <span class="count">{{ total }} 部</span>
   </div>
   {% if site_stats %}
   <div class="lib-quick-stats">
@@ -114,6 +114,14 @@
   </article>
   {% endfor %}
 </div>
+
+{% if total_pages > 1 %}
+<nav class="pagination-bar" style="display:flex;justify-content:center;align-items:center;gap:12px;padding:20px 0 8px;">
+  <a class="btn{% if page <= 1 %} disabled{% endif %}" href="?sort={{ sort }}&page={{ page-1 }}">‹ 上一页</a>
+  <span style="color:var(--text-secondary);font-size:14px;">第 {{ page }} / {{ total_pages }} 页</span>
+  <a class="btn{% if page >= total_pages %} disabled{% endif %}" href="?sort={{ sort }}&page={{ page+1 }}">下一页 ›</a>
+</nav>
+{% endif %}
 
 <!-- Watch Modal -->
 <div class="modal" id="watchModal" style="display:none">
