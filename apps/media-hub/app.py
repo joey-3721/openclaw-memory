@@ -1426,7 +1426,7 @@ def recommendation_order_sql(sort: str = 'date') -> str:
         return 'COALESCE(douban_rating, 0) DESC, COALESCE(recommended_at, "") DESC'
     if sort == 'year':
         return 'COALESCE(year, 0) DESC, COALESCE(recommended_at, "") DESC'
-    return 'COALESCE(recommend_rank, 9999), COALESCE(recommended_at, "") DESC'
+    return 'COALESCE(recommended_at, "") DESC, COALESCE(recommend_rank, 9999)'
 
 
 def count_recommended_items(conn) -> int:
@@ -1968,6 +1968,8 @@ def recommendations(request: Request, sort: str = Query('date'), page: int = Que
     conn = get_conn()
     profile = None
     featured_recs = load_recommended_items(conn, limit=8, sort='date')
+    latest_recs = load_recommended_items(conn, limit=1, sort='date')
+    latest_item = latest_recs[0] if latest_recs else None
     if sort == 'random':
         profile = load_profile(conn)
         recs_with_reason = load_recommended_items(conn, profile=profile, sort='date')
@@ -1996,9 +1998,9 @@ def recommendations(request: Request, sort: str = Query('date'), page: int = Que
         'page_size': PAGE_SIZE,
         'total_pages': total_pages,
         'last_updated': (lambda dt: (dt + timedelta(hours=8)).strftime('%m-%d %H:%M') if dt else '')(
-            (tonight_pick.get('recommended_at') if isinstance(tonight_pick.get('recommended_at'), datetime)
-             else (datetime.strptime(tonight_pick['recommended_at'], '%Y-%m-%d %H:%M:%S') if tonight_pick and tonight_pick.get('recommended_at') else None))
-        ) if tonight_pick and tonight_pick.get('recommended_at') else '',
+            (latest_item.get('recommended_at') if isinstance(latest_item.get('recommended_at'), datetime)
+             else (datetime.strptime(latest_item['recommended_at'], '%Y-%m-%d %H:%M:%S') if latest_item and latest_item.get('recommended_at') else None))
+        ) if latest_item and latest_item.get('recommended_at') else '',
         'site_stats': get_site_stats(),
     })
 
