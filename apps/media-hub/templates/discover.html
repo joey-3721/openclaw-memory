@@ -192,8 +192,53 @@
 <script>
 var currentWatchedItem = null;
 var selectedMergeSid = null;
+var mergeTimer = null;
 
 document.addEventListener('DOMContentLoaded', function() {
+  function extractChineseMergeQuery(title) {
+    var text = String(title || '').trim();
+    var match = text.match(/^[\u4e00-\u9fff]+/);
+    return match ? match[0] : '';
+  }
+
+  function renderMergeResults(items, containerId) {
+    var html = '';
+    (items || []).forEach(function(item) {
+      html += '<div class="merge-result-item" data-sid="' + item.subject_id + '" style="display:flex;align-items:center;gap:10px;padding:8px;border-radius:6px;cursor:pointer;margin-bottom:4px;background:var(--bg-secondary);">';
+      html += '<div style="flex:1;">' + item.title + ' <span style="color:var(--text-secondary);font-size:12px;">' + (item.year || '') + '</span></div>';
+      html += '</div>';
+    });
+    if (!html) html = '<p style="color:var(--text-secondary);font-size:13px;text-align:center;padding:12px;">没有找到</p>';
+    document.getElementById(containerId).innerHTML = html;
+  }
+
+  function runMergeSearch(query) {
+    var q = String(query || '').trim();
+    selectedMergeSid = null;
+    document.getElementById('merge-confirm-btn').disabled = true;
+    if (!q) {
+      document.getElementById('merge-results').innerHTML = '';
+      return;
+    }
+    fetch('/api/library/search?q=' + encodeURIComponent(q) + '&limit=10')
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        renderMergeResults(data.items || [], 'merge-results');
+        document.getElementById('merge-results').onclick = function(e) {
+          var el = e.target.closest('.merge-result-item');
+          if (!el) return;
+          Array.from(document.querySelectorAll('#merge-results .merge-result-item')).forEach(function(node) {
+            node.style.background = 'var(--bg-secondary)';
+            node.style.border = '';
+          });
+          el.style.background = 'rgba(76,175,80,0.15)';
+          el.style.border = '1px solid #4caf50';
+          selectedMergeSid = el.dataset.sid;
+          document.getElementById('merge-confirm-btn').disabled = false;
+        };
+      });
+  }
+
   // Add to watchlist
   document.querySelectorAll('.add-watchlist-btn').forEach(function(btn) {
     btn.addEventListener('click', function() {
@@ -286,43 +331,28 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('watched-modal-close').addEventListener('click', function() {
     document.getElementById('watchedModal').style.display = 'none';
   });
-  document.getElementById('btn-merge').addEventListener('click', function() { showStep(2); });
+  document.getElementById('btn-merge').addEventListener('click', function() {
+    var seed = extractChineseMergeQuery(currentWatchedItem && currentWatchedItem.title);
+    document.getElementById('merge-search-input').value = seed;
+    showStep(2);
+    runMergeSearch(seed);
+  });
   document.getElementById('btn-new').addEventListener('click', function() { showStep(3); });
   document.getElementById('merge-back-btn').addEventListener('click', function() { showStep(1); });
   document.getElementById('new-back-btn').addEventListener('click', function() { showStep(1); });
 
   // Merge search
-  var mergeTimer = null;
   document.getElementById('merge-search-input').addEventListener('input', function() {
     clearTimeout(mergeTimer);
     var q = this.value.trim();
-    if (!q) { document.getElementById('merge-results').innerHTML = ''; return; }
+    if (!q) {
+      selectedMergeSid = null;
+      document.getElementById('merge-confirm-btn').disabled = true;
+      document.getElementById('merge-results').innerHTML = '';
+      return;
+    }
     mergeTimer = setTimeout(function() {
-      fetch('/api/library/search?q=' + encodeURIComponent(q) + '&limit=10')
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-          var html = '';
-          (data.items || []).forEach(function(item) {
-            html += '<div class="merge-result-item" data-sid="' + item.subject_id + '" style="display:flex;align-items:center;gap:10px;padding:8px;border-radius:6px;cursor:pointer;margin-bottom:4px;background:var(--bg-secondary);">';
-            html += '<div style="flex:1;">' + item.title + ' <span style="color:var(--text-secondary);font-size:12px;">' + (item.year || '') + '</span></div>';
-            html += '</div>';
-          });
-          if (!html) html = '<p style="color:var(--text-secondary);font-size:13px;text-align:center;padding:12px;">没有找到</p>';
-          document.getElementById('merge-results').innerHTML = html;
-          // Event delegation for merge result items (handles dynamically rendered items)
-          document.getElementById('merge-results').onclick = function(e) {
-            var el = e.target.closest('.merge-result-item');
-            if (!el) return;
-            Array.from(document.querySelectorAll('.merge-result-item')).forEach(function(e) {
-              e.style.background = 'var(--bg-secondary)';
-              e.style.border = '';
-            });
-            el.style.background = 'rgba(76,175,80,0.15)';
-            el.style.border = '1px solid #4caf50';
-            selectedMergeSid = el.dataset.sid;
-            document.getElementById('merge-confirm-btn').disabled = false;
-          };
-        });
+      runMergeSearch(q);
     }, 300);
   });
 

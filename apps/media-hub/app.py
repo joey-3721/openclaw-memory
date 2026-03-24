@@ -1694,12 +1694,12 @@ def api_library_search(q: str = Query(''), limit: int = Query(10)):
     conn = get_conn()
     if q:
         rows = conn.execute(
-            'SELECT * FROM douban_watch_history WHERE title LIKE ? ORDER BY status="wish" DESC, douban_rating DESC LIMIT ?',
+            'SELECT * FROM douban_watch_history WHERE status != "recommended" AND title LIKE ? ORDER BY status="wish" DESC, douban_rating DESC LIMIT ?',
             (f'%{q}%', limit)
         ).fetchall()
     else:
         rows = conn.execute(
-            'SELECT * FROM douban_watch_history ORDER BY douban_rating DESC LIMIT ?',
+            'SELECT * FROM douban_watch_history WHERE status != "recommended" ORDER BY douban_rating DESC LIMIT ?',
             (limit,)
         ).fetchall()
     conn.close()

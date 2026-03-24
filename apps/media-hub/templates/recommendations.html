@@ -33,7 +33,7 @@
         <div class="tonight-actions">
           <a class="btn" href="{{ today_pick.url }}" target="_blank">TMDB</a>
           <button class="btn want-btn" data-id="{{ today_pick.subject_id }}">想看</button>
-          <button class="btn watch-btn" data-id="{{ today_pick.subject_id }}" data-action="watch">看过</button>
+          <button class="btn watch-btn" data-id="{{ today_pick.subject_id }}" data-action="watch" data-title="{{ today_pick.title|e }}" data-kind="{{ today_pick.kind }}" data-year="{{ today_pick.year }}" data-url="{{ today_pick.url|e }}" data-intro="{{ (today_pick.intro or '')|e }}" data-summary="{{ (today_pick.summary or '')|e }}" data-rating="{{ today_pick.douban_rating or '' }}" data-rating-count="{{ today_pick.douban_rating_count or '' }}" data-cover="{{ (today_pick._cover_url or today_pick.cover_url or '')|e }}">看过</button>
           <button class="btn dislike-btn icon-only" data-id="{{ today_pick.subject_id }}" aria-label="不喜欢" title="不喜欢">
             <span class="dislike-icon" aria-hidden="true">✕</span>
           </button>
@@ -103,7 +103,7 @@
       <div class="rec-actions">
         {% if item.tmdb_id and item.url %}<a class="btn small" href="{{ item.url }}" target="_blank">TMDB</a>{% endif %}
         <button class="btn small want-btn" data-id="{{ item.subject_id }}">想看</button>
-        <button class="btn small watch-btn" data-id="{{ item.subject_id }}">
+        <button class="btn small watch-btn" data-id="{{ item.subject_id }}" data-title="{{ item.title|e }}" data-kind="{{ item.kind }}" data-year="{{ item.year }}" data-url="{{ item.url|e }}" data-intro="{{ (item.intro or '')|e }}" data-summary="{{ (item.summary or '')|e }}" data-rating="{{ item.douban_rating or '' }}" data-rating-count="{{ item.douban_rating_count or '' }}" data-cover="{{ (item._cover_url or item.cover_url or '')|e }}">
           {% if item.status == 'collect' %}已看 ✓{% else %}看过{% endif %}
         </button>
         <button class="btn small dislike-btn icon-only" data-id="{{ item.subject_id }}" aria-label="不喜欢" title="不喜欢">
@@ -119,34 +119,52 @@
 <div class="modal" id="watchModal" style="display:none">
   <div class="modal-content rec-watch-modal">
     <button class="modal-close" id="watch-modal-close">✕</button>
-    <h3>标记为看过</h3>
+    <h3 id="watch-modal-title">标记为看过</h3>
     <p class="watch-modal-sub">保存到影视库，并保留推荐语</p>
-    <input type="hidden" id="watch-subject-id">
-    <div class="form-group">
-      <label>评分</label>
-      <div class="rating-slider-shell" id="rating-slider-shell">
-        <input type="hidden" id="watch-rating" value="0">
-        <div class="rating-star-picker" id="watch-rating-picker">
-          <button type="button" class="star-choice" data-value="1">★</button>
-          <button type="button" class="star-choice" data-value="2">★</button>
-          <button type="button" class="star-choice" data-value="3">★</button>
-          <button type="button" class="star-choice" data-value="4">★</button>
-          <button type="button" class="star-choice" data-value="5">★</button>
-        </div>
-        <div class="rating-hint" id="watch-rating-hint">点右边就是更高分，5 星会发光</div>
+    <div id="watch-step-1">
+      <p style="color:var(--text-secondary);font-size:14px;margin-bottom:16px;">你想怎么记录这部？</p>
+      <div style="display:flex;gap:12px;margin-bottom:20px;">
+        <button class="btn primary" id="watch-btn-merge" style="flex:1">合并到已有</button>
+        <button class="btn" id="watch-btn-new" style="flex:1">新增为看过</button>
       </div>
     </div>
-    <div class="form-group">
-      <label>观看日期</label>
-      <input type="date" id="watch-date">
+    <div id="watch-step-merge" style="display:none;">
+      <p style="color:var(--text-secondary);font-size:14px;margin-bottom:12px;">在本地片库搜索要合并的条目：</p>
+      <input type="text" id="watch-merge-search-input" placeholder="搜索本地片库标题..." style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--bg-secondary);color:var(--text-primary);margin-bottom:12px;">
+      <div id="watch-merge-results" style="height:260px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;padding-right:4px;"></div>
+      <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end;">
+        <button class="btn" id="watch-merge-back-btn">上一步</button>
+        <button class="btn primary" id="watch-merge-confirm-btn" disabled>确认合并</button>
+      </div>
     </div>
-    <div class="form-group">
-      <label>我的评语</label>
-      <textarea id="watch-comment" rows="3" placeholder="比如：节奏很稳、角色很立体、结尾很喜欢"></textarea>
-    </div>
-    <div class="modal-actions">
-      <button class="btn primary" id="save-watch">保存到影视库</button>
-      <button class="btn" id="cancel-watch">取消</button>
+    <div id="watch-step-new" style="display:none;">
+      <input type="hidden" id="watch-subject-id">
+      <div class="form-group">
+        <label>评分</label>
+        <div class="rating-slider-shell" id="rating-slider-shell">
+          <input type="hidden" id="watch-rating" value="0">
+          <div class="rating-star-picker" id="watch-rating-picker">
+            <button type="button" class="star-choice" data-value="1">★</button>
+            <button type="button" class="star-choice" data-value="2">★</button>
+            <button type="button" class="star-choice" data-value="3">★</button>
+            <button type="button" class="star-choice" data-value="4">★</button>
+            <button type="button" class="star-choice" data-value="5">★</button>
+          </div>
+          <div class="rating-hint" id="watch-rating-hint">点右边就是更高分，5 星会发光</div>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>观看日期</label>
+        <input type="date" id="watch-date">
+      </div>
+      <div class="form-group">
+        <label>我的评语</label>
+        <textarea id="watch-comment" rows="3" placeholder="比如：节奏很稳、角色很立体、结尾很喜欢"></textarea>
+      </div>
+      <div class="modal-actions">
+        <button class="btn primary" id="save-watch">保存到影视库</button>
+        <button class="btn" id="cancel-watch">取消</button>
+      </div>
     </div>
   </div>
 </div>
@@ -208,6 +226,54 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+  var currentWatchItem = null;
+  var selectedWatchMergeSid = null;
+  var watchMergeTimer = null;
+
+  function extractChineseMergeQuery(title) {
+    var text = String(title || '').trim();
+    var match = text.match(/^[\u4e00-\u9fff]+/);
+    return match ? match[0] : '';
+  }
+
+  function renderWatchMergeResults(items) {
+    var html = '';
+    (items || []).forEach(function(item) {
+      html += '<div class="merge-result-item" data-sid="' + item.subject_id + '" style="display:flex;align-items:center;gap:10px;padding:8px;border-radius:6px;cursor:pointer;margin-bottom:4px;background:var(--bg-secondary);">';
+      html += '<div style="flex:1;">' + item.title + ' <span style="color:var(--text-secondary);font-size:12px;">' + (item.year || '') + '</span></div>';
+      html += '</div>';
+    });
+    if (!html) html = '<p style="color:var(--text-secondary);font-size:13px;text-align:center;padding:12px;">没有找到</p>';
+    document.getElementById('watch-merge-results').innerHTML = html;
+  }
+
+  function runWatchMergeSearch(query) {
+    var q = String(query || '').trim();
+    selectedWatchMergeSid = null;
+    document.getElementById('watch-merge-confirm-btn').disabled = true;
+    if (!q) {
+      document.getElementById('watch-merge-results').innerHTML = '';
+      return;
+    }
+    fetch('/api/library/search?q=' + encodeURIComponent(q) + '&limit=10')
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        renderWatchMergeResults(data.items || []);
+        document.getElementById('watch-merge-results').onclick = function(e) {
+          var el = e.target.closest('.merge-result-item');
+          if (!el) return;
+          Array.from(document.querySelectorAll('#watch-merge-results .merge-result-item')).forEach(function(node) {
+            node.style.background = 'var(--bg-secondary)';
+            node.style.border = '';
+          });
+          el.style.background = 'rgba(76,175,80,0.15)';
+          el.style.border = '1px solid #4caf50';
+          selectedWatchMergeSid = el.dataset.sid;
+          document.getElementById('watch-merge-confirm-btn').disabled = false;
+        };
+      });
+  }
+
   document.querySelectorAll('.rec-card').forEach(function(card, i) {
     card.style.animationDelay = (i * 40) + 'ms';
   });
@@ -223,6 +289,22 @@ document.addEventListener('DOMContentLoaded', function() {
       douban_rating: parseFloat(card.dataset.rating || '0') || null,
       tmdb_id: (card.dataset.subject || '').replace('tmdb:', ''),
       url: (card.querySelector('.rec-actions a') || {}).href || null
+    };
+  }
+
+  function watchButtonPayload(btn) {
+    if (!btn) return null;
+    return {
+      subject_id: btn.dataset.id,
+      title: btn.dataset.title,
+      kind: btn.dataset.kind,
+      year: btn.dataset.year || null,
+      url: btn.dataset.url,
+      intro: btn.dataset.intro,
+      summary: btn.dataset.summary,
+      douban_rating: btn.dataset.rating || null,
+      douban_rating_count: btn.dataset.ratingCount || null,
+      cover_url: btn.dataset.cover || null
     };
   }
 
@@ -297,15 +379,79 @@ document.addEventListener('DOMContentLoaded', function() {
     paintRating(watchRating.value);
   }
 
+  function showWatchStep(n) {
+    document.getElementById('watch-step-1').style.display = n === 1 ? 'block' : 'none';
+    document.getElementById('watch-step-merge').style.display = n === 2 ? 'block' : 'none';
+    document.getElementById('watch-step-new').style.display = n === 3 ? 'block' : 'none';
+  }
+
   document.querySelectorAll('.watch-btn').forEach(function(btn) {
     btn.addEventListener('click', function() {
       var id = this.dataset.id;
+      currentWatchItem = watchButtonPayload(this);
+      selectedWatchMergeSid = null;
+      document.getElementById('watch-modal-title').textContent = this.dataset.title || '标记为看过';
       document.getElementById('watch-subject-id').value = id;
       document.getElementById('watch-date').value = new Date().toISOString().slice(0, 10);
       document.getElementById('watch-comment').value = '';
+      document.getElementById('watch-merge-search-input').value = '';
+      document.getElementById('watch-merge-results').innerHTML = '';
+      document.getElementById('watch-merge-confirm-btn').disabled = true;
       document.getElementById('watch-rating').value = 0;
       paintRating(0);
+      showWatchStep(1);
       watchModal.style.display = 'flex';
+    });
+  });
+
+  document.getElementById('watch-btn-merge').addEventListener('click', function() {
+    var seed = extractChineseMergeQuery(currentWatchItem && currentWatchItem.title);
+    document.getElementById('watch-merge-search-input').value = seed;
+    showWatchStep(2);
+    runWatchMergeSearch(seed);
+  });
+  document.getElementById('watch-btn-new').addEventListener('click', function() { showWatchStep(3); });
+  document.getElementById('watch-merge-back-btn').addEventListener('click', function() { showWatchStep(1); });
+  document.getElementById('cancel-watch').addEventListener('click', function() { watchModal.style.display = 'none'; });
+  document.getElementById('watch-modal-close').addEventListener('click', function() { watchModal.style.display = 'none'; });
+
+  document.getElementById('watch-merge-search-input').addEventListener('input', function() {
+    clearTimeout(watchMergeTimer);
+    var q = this.value.trim();
+    if (!q) {
+      selectedWatchMergeSid = null;
+      document.getElementById('watch-merge-confirm-btn').disabled = true;
+      document.getElementById('watch-merge-results').innerHTML = '';
+      return;
+    }
+    watchMergeTimer = setTimeout(function() {
+      runWatchMergeSearch(q);
+    }, 300);
+  });
+
+  document.getElementById('watch-merge-confirm-btn').addEventListener('click', function() {
+    if (!currentWatchItem || !selectedWatchMergeSid) return;
+    fetch('/api/merge', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        source_subject_id: currentWatchItem.subject_id,
+        target_subject_id: selectedWatchMergeSid,
+        tmdb_id: currentWatchItem.subject_id.indexOf('tmdb:') === 0 ? currentWatchItem.subject_id.split(':').slice(-1)[0] : '',
+        title: currentWatchItem.title,
+        kind: currentWatchItem.kind,
+        year: currentWatchItem.year,
+        url: currentWatchItem.url,
+        intro: currentWatchItem.intro,
+        summary: currentWatchItem.summary,
+        douban_rating: currentWatchItem.douban_rating,
+        douban_rating_count: currentWatchItem.douban_rating_count,
+        cover_url: currentWatchItem.cover_url
+      })
+    }).then(function(r) { return r.json(); }).then(function(data) {
+      watchModal.style.display = 'none';
+      if (window.showToast) showToast('已合并到：' + ((data.item && data.item.title) || ''), 'success');
+      setTimeout(function() { location.reload(); }, 800);
     });
   });
 
@@ -357,7 +503,7 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('save-watch').addEventListener('click', function() {
     var id = document.getElementById('watch-subject-id').value;
     var card = document.querySelector('.rec-card[data-subject="' + id + '"]');
-    var payload = cardPayload(card);
+    var payload = currentWatchItem || cardPayload(card);
     payload.my_rating = parseInt(document.getElementById('watch-rating').value) || null;
     payload.comment = document.getElementById('watch-comment').value || null;
     payload.watched_date = document.getElementById('watch-date').value || null;
@@ -372,9 +518,6 @@ document.addEventListener('DOMContentLoaded', function() {
       if (window.showToast) showToast('已保存到影视库 🌈', 'success');
     });
   });
-
-  document.getElementById('cancel-watch').addEventListener('click', function() { watchModal.style.display = 'none'; });
-  document.getElementById('watch-modal-close').addEventListener('click', function() { watchModal.style.display = 'none'; });
 
   document.querySelectorAll('.edit-btn').forEach(function(btn) {
     btn.addEventListener('click', function() {
