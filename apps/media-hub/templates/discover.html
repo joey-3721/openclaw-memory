@@ -14,6 +14,7 @@
   {# 分类 #}
   <div class="filter-group">
     <span class="filter-label">分类</span>
+    <a class="filter-chip {% if kind=='all' %}active{% endif %}" href="?kind=all&q={{ q }}&sort={{ sort }}&region={{ region }}&year={{ year }}&genre={{ genre }}">全部</a>
     <a class="filter-chip {% if kind=='movie' %}active{% endif %}" href="?kind=movie&q={{ q }}&sort={{ sort }}&region={{ region }}&year={{ year }}&genre={{ genre }}">电影</a>
     <a class="filter-chip {% if kind=='tv' %}active{% endif %}" href="?kind=tv&q={{ q }}&sort={{ sort }}&region={{ region }}&year={{ year }}&genre={{ genre }}">电视剧</a>
     <a class="filter-chip {% if kind=='variety' %}active{% endif %}" href="?kind=variety&q={{ q }}&sort={{ sort }}&region={{ region }}&year={{ year }}&genre={{ genre }}">综艺</a>

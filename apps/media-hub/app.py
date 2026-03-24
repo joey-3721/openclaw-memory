@@ -530,6 +530,16 @@ def tmdb_kind_config(kind: str):
     return {'media_type': 'tv', 'discover_path': '/discover/tv', 'discover_params': {'without_genres': '10764,10767'}}
 
 
+def discover_kind_specs(kind: str):
+    if kind == 'all':
+        return [
+            {'kind': 'movie'},
+            {'kind': 'tv'},
+            {'kind': 'variety'},
+        ]
+    return [{'kind': kind}]
+
+
 def tmdb_image_url(path: str | None):
     if not path:
         return None
@@ -579,6 +589,8 @@ def tmdb_to_item(raw: dict, media_type: str):
         'status': None,
         'source': 'tmdb',
         'countries': '',
+        '_tmdb_popularity': raw.get('popularity') or 0,
+        '_tmdb_vote_count': raw.get('vote_count') or 0,
     }
 
 
@@ -783,6 +795,40 @@ def tmdb_genre_map(kind: str):
 
 def tmdb_discover(kind: str = 'movie', query: str = '', sort: str = 'popularity',
                    region: str = '', year: str = '', genre: str = '', page: int = 1, limit: int = 20):
+    if kind == 'all':
+        merged = []
+        seen = set()
+        total_results = 0
+        for spec in discover_kind_specs(kind):
+            sub_kind = spec['kind']
+            sub_genre = genre
+            if sub_kind == 'movie' and genre and genre not in tmdb_genre_map('movie'):
+                sub_genre = ''
+            if sub_kind in {'tv', 'variety'} and genre and genre not in tmdb_genre_map('tv'):
+                sub_genre = ''
+            result = tmdb_discover(kind=sub_kind, query=query, sort=sort, region=region, year=year, genre=sub_genre, page=page, limit=limit)
+            total_results += result.get('total_results', 0)
+            for item in result.get('items', []):
+                sid = item.get('subject_id')
+                if not sid or sid in seen:
+                    continue
+                seen.add(sid)
+                merged.append(item)
+        if sort == 'rating':
+            merged.sort(key=lambda x: ((x.get('douban_rating') or 0), (x.get('_tmdb_vote_count') or 0)), reverse=True)
+        elif sort == 'year':
+            merged.sort(key=lambda x: ((x.get('year') or 0), (x.get('douban_rating') or 0)), reverse=True)
+        elif sort == 'trending':
+            merged.sort(key=lambda x: ((x.get('_tmdb_vote_count') or 0), (x.get('_tmdb_popularity') or 0)), reverse=True)
+        else:
+            merged.sort(key=lambda x: ((x.get('_tmdb_popularity') or 0), (x.get('_tmdb_vote_count') or 0)), reverse=True)
+        total_pages = max(1, (total_results + limit - 1) // limit) if total_results else 1
+        return {
+            'items': merged[:limit],
+            'total_pages': total_pages,
+            'total_results': total_results,
+            'page': page,
+        }
     key = read_tmdb_key()
     if not key:
         return {'items': [], 'total_pages': 0, 'total_results': 0, 'page': page}
@@ -1392,6 +1438,20 @@ def display_kind(value):
     return mapping.get((value or '').lower(), value or '内容')
 
 
+def recommendation_kind_where(kind: str):
+    value = (kind or 'all').strip().lower()
+    if value == 'movie':
+        return ' AND kind="movie"', []
+    if value == 'tv':
+        return ' AND ((kind="tv" AND COALESCE(genres, "") NOT LIKE ?) OR kind="anime")', ['%综艺%']
+    if value == 'variety':
+        return (
+            ' AND (kind="show" OR (kind="tv" AND (COALESCE(genres, "") LIKE ? OR title LIKE ? OR title LIKE ?)))',
+            ['%综艺%', '%脱口秀%', '%歌手%']
+        )
+    return '', []
+
+
 
 
 def cache_recommendations(conn, items, cache_key='default'):
@@ -1429,20 +1489,22 @@ def recommendation_order_sql(sort: str = 'date') -> str:
     return 'COALESCE(recommended_at, "") DESC, COALESCE(recommend_rank, 9999)'
 
 
-def count_recommended_items(conn) -> int:
+def count_recommended_items(conn, kind: str = 'all') -> int:
+    where_sql, params = recommendation_kind_where(kind)
     row = conn.execute(
-        'SELECT COUNT(*) as cnt FROM douban_watch_history WHERE status="recommended" AND COALESCE(recommend_feedback, "") != "dislike"'
+        f'SELECT COUNT(*) as cnt FROM douban_watch_history WHERE status="recommended" AND COALESCE(recommend_feedback, "") != "dislike"{where_sql}',
+        params
     ).fetchone()
     return int((row or {}).get('cnt') or 0)
 
 
-def load_recommended_items(conn, profile=None, limit: int | None = None, offset: int = 0, sort: str = 'date'):
+def load_recommended_items(conn, profile=None, limit: int | None = None, offset: int = 0, sort: str = 'date', kind: str = 'all'):
+    where_sql, params = recommendation_kind_where(kind)
     sql = f'''
         SELECT * FROM douban_watch_history
-        WHERE status="recommended" AND COALESCE(recommend_feedback, "") != "dislike"
+        WHERE status="recommended" AND COALESCE(recommend_feedback, "") != "dislike"{where_sql}
         ORDER BY {recommendation_order_sql(sort)}
     '''
-    params = []
     if limit is not None:
         sql += ' LIMIT ? OFFSET ?'
         params.extend([limit, offset])
@@ -1721,7 +1783,7 @@ async def save_douban_cookie(request: Request):
 
 @app.get('/discover', response_class=HTMLResponse)
 def discover(request: Request,
-             kind: str   = Query('movie'),
+             kind: str   = Query('all'),
              q: str      = Query(''),
              sort: str   = Query('popularity'),
              region: str = Query(''),
@@ -1773,8 +1835,18 @@ def discover(request: Request,
         total_pages = 1
         total_results = len(items)
 
-    genre_map = tmdb_genre_map(kind)
-    ordered = MOVIE_GENRE_ORDER if kind == 'movie' else TV_GENRE_ORDER
+    if kind == 'all':
+        genre_map = {label: gid for label, gid in (MOVIE_GENRE_ORDER + TV_GENRE_ORDER)}
+        seen_labels = set()
+        ordered = []
+        for label, gid in (MOVIE_GENRE_ORDER + TV_GENRE_ORDER):
+            if label in seen_labels:
+                continue
+            seen_labels.add(label)
+            ordered.append((label, gid))
+    else:
+        genre_map = tmdb_genre_map(kind)
+        ordered = MOVIE_GENRE_ORDER if kind == 'movie' else TV_GENRE_ORDER
     all_genres = [(label, gid) for label, gid in ordered if label in genre_map]
     top_genres = all_genres[:7]
     extra_genres = all_genres[7:]
@@ -1963,7 +2035,7 @@ def library(request: Request, status: str = Query('collect'), kind: str = Query(
 
 
 @app.get('/recommendations', response_class=HTMLResponse)
-def recommendations(request: Request, sort: str = Query('date'), page: int = Query(1)):
+def recommendations(request: Request, sort: str = Query('date'), kind: str = Query('all'), page: int = Query(1)):
     PAGE_SIZE = 20
     conn = get_conn()
     profile = None
@@ -1972,7 +2044,7 @@ def recommendations(request: Request, sort: str = Query('date'), page: int = Que
     latest_item = latest_recs[0] if latest_recs else None
     if sort == 'random':
         profile = load_profile(conn)
-        recs_with_reason = load_recommended_items(conn, profile=profile, sort='date')
+        recs_with_reason = load_recommended_items(conn, profile=profile, sort='date', kind=kind)
         random.shuffle(recs_with_reason)
         total = len(recs_with_reason)
         total_pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
@@ -1980,11 +2052,11 @@ def recommendations(request: Request, sort: str = Query('date'), page: int = Que
         offset = (page - 1) * PAGE_SIZE
         paged_recs = recs_with_reason[offset:offset + PAGE_SIZE]
     else:
-        total = count_recommended_items(conn)
+        total = count_recommended_items(conn, kind=kind)
         total_pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
         page = max(1, min(page, total_pages))
         offset = (page - 1) * PAGE_SIZE
-        paged_recs = load_recommended_items(conn, limit=PAGE_SIZE, offset=offset, sort=sort)
+        paged_recs = load_recommended_items(conn, limit=PAGE_SIZE, offset=offset, sort=sort, kind=kind)
     tonight_pick, featured_bucket = pick_featured_item(featured_recs, request=request, limit=8)
     return templates.TemplateResponse('recommendations.html', {
         'request': request,
@@ -1993,6 +2065,7 @@ def recommendations(request: Request, sort: str = Query('date'), page: int = Que
         'today_pick': dict(tonight_pick) if tonight_pick else None,
         'featured_bucket': featured_bucket,
         'sort': sort,
+        'kind': kind,
         'page': page,
         'total': total,
         'page_size': PAGE_SIZE,

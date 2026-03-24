@@ -47,24 +47,27 @@
   </div>
 </section>
 
+<div id="recommendations-panel">
 <section class="section-header">
   <h2>全部推荐</h2>
   <div class="sort-controls">
     <span class="filter-label">排序</span>
     <div class="sort-chips">
-      <a class="sort-btn {% if sort=='date' or sort=='score' %}active{% endif %}" href="/recommendations?sort=date&page=1" data-sort="date">最新推荐</a>
-      <a class="sort-btn {% if sort=='year' %}active{% endif %}" href="/recommendations?sort=year&page=1" data-sort="year">最近年份</a>
+      <a class="sort-btn {% if sort=='date' or sort=='score' %}active{% endif %}" href="/recommendations?sort=date&kind={{ kind }}&page=1" data-sort="date">最新推荐</a>
+      <a class="sort-btn {% if sort=='year' %}active{% endif %}" href="/recommendations?sort=year&kind={{ kind }}&page=1" data-sort="year">最近年份</a>
     </div>
     <span class="count">{{ total }} 部</span>
   </div>
-  {% if site_stats %}
-  <div class="lib-quick-stats">
-    <span>📋 {{ site_stats.wish }}部在看</span>
-    <span class="sep">·</span>
-    <span>✅ {{ site_stats.watched }}部已看</span>
-    {% if site_stats.avg_rating %}<span class="sep">·</span><span>⭐ 均分 {{ site_stats.avg_rating }}</span>{% endif %}
+  <div class="sort-controls" style="margin-top:10px;flex-wrap:wrap;gap:10px 12px;">
+    <span class="filter-label">类型</span>
+    <div class="sort-chips" style="flex-wrap:wrap;">
+      <a class="sort-btn {% if kind=='movie' %}active{% endif %}" href="/recommendations?sort={{ sort }}&kind=movie&page=1">电影</a>
+      <a class="sort-btn {% if kind=='tv' %}active{% endif %}" href="/recommendations?sort={{ sort }}&kind=tv&page=1">剧集</a>
+    </div>
+    {% if kind != 'all' %}
+    <a class="btn small" href="/recommendations?sort={{ sort }}&kind=all&page=1">查看全部</a>
+    {% endif %}
   </div>
-  {% endif %}
 </section>
 
 <div class="rec-grid" id="recGrid">
@@ -117,11 +120,12 @@
 
 {% if total_pages > 1 %}
 <nav class="pagination-bar" style="display:flex;justify-content:center;align-items:center;gap:12px;padding:20px 0 8px;">
-  <a class="btn{% if page <= 1 %} disabled{% endif %}" href="?sort={{ sort }}&page={{ page-1 }}">‹ 上一页</a>
+  <a class="btn{% if page <= 1 %} disabled{% endif %}" href="?sort={{ sort }}&kind={{ kind }}&page={{ page-1 }}">‹ 上一页</a>
   <span style="color:var(--text-secondary);font-size:14px;">第 {{ page }} / {{ total_pages }} 页</span>
-  <a class="btn{% if page >= total_pages %} disabled{% endif %}" href="?sort={{ sort }}&page={{ page+1 }}">下一页 ›</a>
+  <a class="btn{% if page >= total_pages %} disabled{% endif %}" href="?sort={{ sort }}&kind={{ kind }}&page={{ page+1 }}">下一页 ›</a>
 </nav>
 {% endif %}
+</div>
 
 <!-- Watch Modal -->
 <div class="modal" id="watchModal" style="display:none">
@@ -238,6 +242,12 @@ document.addEventListener('DOMContentLoaded', function() {
   var selectedWatchMergeSid = null;
   var watchMergeTimer = null;
 
+  function animateRecCards() {
+    document.querySelectorAll('#recommendations-panel .rec-card').forEach(function(card, i) {
+      card.style.animationDelay = (i * 40) + 'ms';
+    });
+  }
+
   function extractChineseMergeQuery(title) {
     var text = String(title || '').trim();
     var match = text.match(/^[\u4e00-\u9fff]+/);
@@ -282,9 +292,7 @@ document.addEventListener('DOMContentLoaded', function() {
       });
   }
 
-  document.querySelectorAll('.rec-card').forEach(function(card, i) {
-    card.style.animationDelay = (i * 40) + 'ms';
-  });
+  animateRecCards();
 
   function cardPayload(card) {
     return {
@@ -410,8 +418,11 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('watch-step-new').style.display = n === 3 ? 'block' : 'none';
   }
 
-  document.querySelectorAll('.watch-btn').forEach(function(btn) {
-    btn.addEventListener('click', function() {
+  function bindWatchButtons() {
+    document.querySelectorAll('.watch-btn').forEach(function(btn) {
+      if (btn._watchBound) return;
+      btn._watchBound = true;
+      btn.addEventListener('click', function() {
       var id = this.dataset.id;
       currentWatchItem = watchButtonPayload(this);
       selectedWatchMergeSid = null;
@@ -426,8 +437,10 @@ document.addEventListener('DOMContentLoaded', function() {
       paintRating(0);
       showWatchStep(1);
       watchModal.style.display = 'flex';
+      });
     });
-  });
+  }
+  bindWatchButtons();
 
   document.getElementById('watch-btn-merge').addEventListener('click', function() {
     var seed = extractChineseMergeQuery(currentWatchItem && currentWatchItem.title);
@@ -480,8 +493,11 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   });
 
-  document.querySelectorAll('.want-btn').forEach(function(btn) {
-    btn.addEventListener('click', function() {
+  function bindWantButtons() {
+    document.querySelectorAll('.want-btn').forEach(function(btn) {
+      if (btn._wantBound) return;
+      btn._wantBound = true;
+      btn.addEventListener('click', function() {
       var card = this.closest('.rec-card');
       var payload = card ? cardPayload(card) : wantButtonPayload(this);
       if (!payload || !payload.subject_id) return;
@@ -497,18 +513,75 @@ document.addEventListener('DOMContentLoaded', function() {
           setTimeout(function() { location.reload(); }, 500);
         }
       });
+      });
     });
-  });
+  }
+  bindWantButtons();
 
   var dislikeModal = document.getElementById('dislikeModal');
   var dislikeReasonInput = document.getElementById('dislike-reason');
-  document.querySelectorAll('.dislike-btn').forEach(function(btn) {
-    btn.addEventListener('click', function() {
+  function bindDislikeButtons() {
+    document.querySelectorAll('.dislike-btn').forEach(function(btn) {
+      if (btn._dislikeBound) return;
+      btn._dislikeBound = true;
+      btn.addEventListener('click', function() {
       document.getElementById('dislike-subject-id').value = this.dataset.id;
       dislikeReasonInput.value = '';
       dislikeModal.style.display = 'flex';
+      });
     });
-  });
+  }
+  bindDislikeButtons();
+
+  function bindRecommendationPanelNavigation() {
+    if (document.body.dataset.recPanelNavBound) return;
+    document.body.dataset.recPanelNavBound = '1';
+    document.addEventListener('click', function(e) {
+      var link = e.target.closest('#recommendations-panel a[href]');
+      if (!link) return;
+      if (link.target === '_blank' || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      var href = link.getAttribute('href') || '';
+      if (!(href.startsWith('/recommendations') || href.startsWith('?'))) return;
+      e.preventDefault();
+      refreshRecommendationsPanel(link.href, true);
+    });
+    window.addEventListener('popstate', function() {
+      if (location.pathname === '/recommendations') {
+        refreshRecommendationsPanel(location.href, false);
+      }
+    });
+  }
+
+  function refreshRecommendationsPanel(url, pushState) {
+    var panel = document.getElementById('recommendations-panel');
+    if (!panel) {
+      location.href = url;
+      return;
+    }
+    panel.style.opacity = '0.55';
+    fetch(url, { headers: { 'X-Requested-With': 'fetch' } })
+      .then(function(r) { return r.text(); })
+      .then(function(html) {
+        var doc = new DOMParser().parseFromString(html, 'text/html');
+        var nextPanel = doc.getElementById('recommendations-panel');
+        if (!nextPanel) {
+          location.href = url;
+          return;
+        }
+        panel.innerHTML = nextPanel.innerHTML;
+        panel.style.opacity = '1';
+        animateRecCards();
+        bindWatchButtons();
+        bindWantButtons();
+        bindDislikeButtons();
+        if (pushState) history.pushState({}, '', url);
+      })
+      .catch(function() {
+        panel.style.opacity = '1';
+        location.href = url;
+      });
+  }
+  bindRecommendationPanelNavigation();
 
   document.getElementById('save-dislike').addEventListener('click', function() {
     var id = document.getElementById('dislike-subject-id').value;
