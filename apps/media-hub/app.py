@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Request, Query, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 import pymysql
@@ -145,8 +145,78 @@ def log_tmdb_failure(stage: str, detail: str, extra: dict | None = None):
 
 app = FastAPI(title='Media Hub')
 app.mount('/static', StaticFiles(directory=str(BASE_DIR / 'static')), name='static')
-app.mount('/covers', StaticFiles(directory=str(COVERS_DIR)), name='covers')
 templates = Jinja2Templates(directory=str(BASE_DIR / 'templates'))
+
+
+@app.get('/covers/{filename:path}')
+def serve_cover(filename: str):
+    path = COVERS_DIR / filename
+    if path.exists() and path.is_file():
+        return FileResponse(path)
+
+    basename = Path(filename).name
+    stem = Path(basename).stem
+    safe_stem = safe_subject_id(stem)
+
+    # Fast path: infer directly from requested filename even if DB subject_id format differs.
+    inferred_item = None
+    if safe_stem.startswith('tmdb_movie_'):
+        tmdb_id = safe_stem[len('tmdb_movie_'):]
+        inferred_item = {
+            'subject_id': safe_stem,
+            'tmdb_id': tmdb_id,
+            'kind': 'movie',
+            'cover_url': f'/covers/{basename}',
+            'title': safe_stem,
+        }
+    elif safe_stem.startswith('tmdb_tv_'):
+        tmdb_id = safe_stem[len('tmdb_tv_'):]
+        inferred_item = {
+            'subject_id': safe_stem,
+            'tmdb_id': tmdb_id,
+            'kind': 'tv',
+            'cover_url': f'/covers/{basename}',
+            'title': safe_stem,
+        }
+    elif safe_stem.startswith('tmdb_') and safe_stem.count('_') == 1:
+        tmdb_id = safe_stem[len('tmdb_'):]
+        inferred_item = {
+            'subject_id': safe_stem,
+            'tmdb_id': tmdb_id,
+            'kind': 'movie',
+            'cover_url': f'/covers/{basename}',
+            'title': safe_stem,
+        }
+
+    try:
+        if inferred_item:
+            refreshed = ensure_cover_available(inferred_item)
+            refreshed_path = local_cover_file_from_url(refreshed)
+            if refreshed_path and refreshed_path.exists() and refreshed_path.is_file():
+                return FileResponse(refreshed_path)
+    except Exception:
+        pass
+
+    # Slow path: resolve non-TMDB/numeric/local historical covers via DB.
+    conn = None
+    try:
+        conn = get_conn()
+        row = conn.execute('SELECT * FROM douban_watch_history WHERE subject_id=? LIMIT 1', (safe_stem,)).fetchone()
+        if row:
+            item = dict(row)
+            refreshed = ensure_cover_available(item)
+            refreshed_path = local_cover_file_from_url(refreshed)
+            if refreshed_path and refreshed_path.exists() and refreshed_path.is_file():
+                return FileResponse(refreshed_path)
+    except Exception:
+        pass
+    finally:
+        try:
+            if conn:
+                conn.close()
+        except Exception:
+            pass
+    raise HTTPException(404, 'Cover not found')
 
 
 def get_conn():
@@ -257,6 +327,17 @@ def tmdb_image_url(path: str | None):
     if not path:
         return None
     return f'https://image.tmdb.org/t/p/w500{path}'
+
+
+def tmdb_fetch_detail(tmdb_id: str, media_type: str = 'movie'):
+    api_key = read_tmdb_key()
+    if not api_key:
+        raise RuntimeError('TMDB API key missing')
+    media_type = 'tv' if str(media_type).lower() == 'tv' else 'movie'
+    url = f'https://api.themoviedb.org/3/{media_type}/{tmdb_id}'
+    resp = requests.get(url, params={'api_key': api_key}, timeout=20)
+    resp.raise_for_status()
+    return resp.json()
 
 
 def tmdb_to_item(raw: dict, media_type: str):
@@ -758,6 +839,76 @@ def local_cover_path(subject_id: str, ext: str = 'jpg'):
     return COVERS_DIR / f'{safe_subject_id(subject_id)}.{ext}'
 
 
+def local_cover_file_from_url(url: str | None):
+    normalized = normalize_cover_url(url)
+    if not normalized or not normalized.startswith('/covers/'):
+        return None
+    filename = normalized.split('/covers/', 1)[1]
+    return COVERS_DIR / filename
+
+
+def ensure_cover_available(item) -> str | None:
+    """Ensure local cover file exists when cover_url points to /covers/... .
+
+    If the local file is missing but tmdb_id is known, fetch poster from TMDB live,
+    persist it locally, and return the refreshed local /covers/... URL.
+    If TMDB poster cannot be resolved, fall back to the original normalized value.
+    """
+    try:
+        value = item['cover_url']
+    except Exception:
+        value = item.get('cover_url') if hasattr(item, 'get') else None
+    normalized = normalize_cover_url(value)
+    if not normalized:
+        return None
+    if not normalized.startswith('/covers/'):
+        return normalized
+    local_path = local_cover_file_from_url(normalized)
+    if local_path and local_path.exists():
+        return normalized
+
+    tmdb_id = None
+    kind = None
+    title = None
+    try:
+        tmdb_id = item['tmdb_id']
+    except Exception:
+        tmdb_id = item.get('tmdb_id') if hasattr(item, 'get') else None
+    try:
+        kind = item['kind']
+    except Exception:
+        kind = item.get('kind') if hasattr(item, 'get') else None
+    try:
+        title = item['title']
+    except Exception:
+        title = item.get('title') if hasattr(item, 'get') else None
+
+    tmdb_id = str(tmdb_id or '').strip()
+    kind = str(kind or '').strip().lower()
+    if not tmdb_id or kind not in {'movie', 'tv'}:
+        return normalized
+
+    try:
+        raw = tmdb_fetch_detail(tmdb_id, media_type=kind)
+        poster_path = (raw or {}).get('poster_path')
+        if poster_path:
+            remote_url = tmdb_image_url(poster_path)
+            if remote_url:
+                subject_id = str(item.get('subject_id') if hasattr(item, 'get') else item['subject_id'])
+                try:
+                    return download_cover_to_local(remote_url, subject_id)
+                except Exception:
+                    return remote_url
+    except Exception as e:
+        log_tmdb_failure('ensure_cover_available', f'{type(e).__name__}: {e}', {
+            'tmdb_id': tmdb_id,
+            'kind': kind,
+            'title': title,
+            'cover_url': normalized,
+        })
+    return normalized
+
+
 def download_cover_to_local(url: str, subject_id: str) -> str:
     """Download remote cover to local static storage and return served URL path."""
     normalized = normalize_cover_url(url)
@@ -794,11 +945,7 @@ def download_cover_to_local(url: str, subject_id: str) -> str:
 
 def cover_url(item):
     """Return normalized cover URL or None. Works for sqlite3.Row and dict."""
-    try:
-        value = item['cover_url']
-    except Exception:
-        value = item.get('cover_url') if hasattr(item, 'get') else None
-    value = normalize_cover_url(value)
+    value = ensure_cover_available(item)
     if value:
         return value
     poster_path = None
