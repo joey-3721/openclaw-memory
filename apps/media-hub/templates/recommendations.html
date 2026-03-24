@@ -10,6 +10,10 @@
       <div class="tonight-cover" style="{{ today_pick._cover_style }}">
         {% if today_pick._cover_url %}<img src="{{ today_pick._cover_url }}" alt="{{ today_pick.title }}" onerror="this.style.display='none'; this.parentElement.classList.add('cover-img-failed')">{% else %}<div class="cover-fallback-title">{{ today_pick.title[:8] }}</div>{% endif %}
         {% if today_pick.status == 'collect' %}<div class="cover-watched-overlay"><span>已看</span></div>{% endif %}
+        <div class="rec-cover-overlay tonight-cover-overlay">
+          <span class="rec-badge">{{ today_pick._display_kind or '内容' }}</span>
+          <div class="rec-rating-badge">{{ today_pick._display_rating or '-' }}</div>
+        </div>
       </div>
       <div class="tonight-info">
         <div class="tonight-head">
@@ -21,7 +25,6 @@
             </div>
             <div class="tonight-meta">{{ today_pick.year }} · {{ today_pick.kind }} · TMDB {{ today_pick._display_rating or '-' }}</div>
           </div>
-          <div class="rating-badge-lg">{{ today_pick._display_rating or '-' }}</div>
         </div>
         <p class="reason-text">{{ today_pick._reason }}</p>
         {% if today_pick.directors or today_pick.actors %}

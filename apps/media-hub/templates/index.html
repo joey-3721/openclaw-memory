@@ -43,12 +43,12 @@
     <strong class="stat-num">{{ counts.get('wish', 0) }}</strong>
   </div>
   <div class="card stat">
-    <span class="stat-label">高分样本</span>
-    <strong class="stat-num">{{ profile.high_rated_count }}</strong>
+    <span class="stat-label">推荐</span>
+    <strong class="stat-num">{{ site_stats.recommended if site_stats else 0 }}</strong>
   </div>
   <div class="card stat">
-    <span class="stat-label">已评分</span>
-    <strong class="stat-num">{{ profile.rated_count }}</strong>
+    <span class="stat-label">今年已看</span>
+    <strong class="stat-num">{{ current_year_watched or 0 }}</strong>
   </div>
 </section>
 

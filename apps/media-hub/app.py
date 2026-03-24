@@ -9,6 +9,7 @@ from collections import Counter
 import random
 import hashlib
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 import os
 import re
 import json
@@ -1029,6 +1030,8 @@ def home(request: Request):
         ORDER BY period ASC
     """).fetchall()
     yearly_stats = [dict(r) for r in year_rows if r['period']]
+    current_year = str(datetime.now(ZoneInfo('Asia/Shanghai')).year)
+    current_year_watched = next((item['total'] for item in yearly_stats if item['period'] == current_year), 0)
     month_by_year = {}
     for r in month_rows:
         period = r['period']
@@ -1048,6 +1051,8 @@ def home(request: Request):
         'surprise': dict(tonight_pick) if tonight_pick else None,
         'site_stats': get_site_stats(),
         'yearly_stats': yearly_stats,
+        'current_year': current_year,
+        'current_year_watched': current_year_watched,
         'monthly_stats': monthly_stats,
         'month_by_year': month_by_year,
         'month_years': month_years,
