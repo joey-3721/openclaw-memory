@@ -77,6 +77,10 @@ _metadata_queue = queue.Queue()
 _metadata_pending = set()
 _metadata_lock = threading.Lock()
 _metadata_worker_started = False
+_cover_queue = queue.Queue()
+_cover_pending = set()
+_cover_lock = threading.Lock()
+_cover_worker_started = False
 
 
 def get_runtime_cache(key):
@@ -1127,6 +1131,68 @@ def persist_cover_url(subject_id: str, cover_url_value: str):
             pass
 
 
+def _start_cover_worker_if_needed():
+    global _cover_worker_started
+    with _cover_lock:
+        if _cover_worker_started:
+            return
+        worker = threading.Thread(target=_cover_localize_worker, name='media-hub-cover-localizer', daemon=True)
+        worker.start()
+        _cover_worker_started = True
+
+
+def enqueue_cover_localize(item):
+    try:
+        subject_id = str(item.get('subject_id') or '').strip()
+        tmdb_id = str(item.get('tmdb_id') or '').strip()
+        kind = str(item.get('kind') or '').strip().lower()
+        cover = normalize_cover_url(item.get('cover_url'))
+    except Exception:
+        return
+    if not subject_id or not tmdb_id or kind not in {'movie', 'tv'}:
+        return
+    if not cover or not cover.startswith('/covers/'):
+        return
+    local_path = local_cover_file_from_url(cover)
+    if local_path and local_path.exists():
+        return
+    retry_key = f'{subject_id}:{tmdb_id}:{kind}'
+    retry_after = _cover_retry_after.get(retry_key)
+    if retry_after and datetime.utcnow() < retry_after:
+        return
+    with _cover_lock:
+        if retry_key in _cover_pending:
+            return
+        _cover_pending.add(retry_key)
+    _start_cover_worker_if_needed()
+    _cover_queue.put((retry_key, subject_id, tmdb_id, kind))
+
+
+def _cover_localize_worker():
+    while True:
+        retry_key, subject_id, tmdb_id, kind = _cover_queue.get()
+        try:
+            raw = tmdb_fetch_detail(tmdb_id, media_type=kind)
+            poster_path = (raw or {}).get('poster_path')
+            if poster_path:
+                remote_url = tmdb_image_url(poster_path)
+                if remote_url:
+                    saved_url = download_cover_to_local(remote_url, subject_id)
+                    persist_cover_url(subject_id, saved_url)
+            _cover_retry_after.pop(retry_key, None)
+        except Exception as e:
+            _cover_retry_after[retry_key] = datetime.utcnow() + timedelta(seconds=COVER_RETRY_COOLDOWN_SECONDS)
+            log_tmdb_failure('cover_localize_async', f'{type(e).__name__}: {e}', {
+                'subject_id': subject_id,
+                'tmdb_id': tmdb_id,
+                'kind': kind,
+            })
+        finally:
+            with _cover_lock:
+                _cover_pending.discard(retry_key)
+            _cover_queue.task_done()
+
+
 def ensure_cover_available(item) -> str | None:
     """Ensure local cover file exists when cover_url points to /covers/... .
 
@@ -1251,9 +1317,24 @@ def cover_url(item):
         enqueue_metadata_enrichment(dict(item) if not isinstance(item, dict) else item)
     except Exception:
         pass
-    value = ensure_cover_available(item)
-    if value:
-        return value
+    try:
+        value = item['cover_url']
+    except Exception:
+        value = item.get('cover_url') if hasattr(item, 'get') else None
+    normalized = normalize_cover_url(value)
+    if normalized and normalized.startswith('/covers/'):
+        local_path = local_cover_file_from_url(normalized)
+        if local_path and local_path.exists():
+            bump_request_metric('cover_local_hit', 1)
+            return normalized
+        bump_request_metric('cover_missing', 1)
+        try:
+            enqueue_cover_localize(dict(item) if not isinstance(item, dict) else item)
+        except Exception:
+            pass
+        return None
+    if normalized:
+        return normalized
     poster_path = None
     try:
         poster_path = item['poster_path']

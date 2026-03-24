@@ -32,7 +32,7 @@
         {% endif %}
         <div class="tonight-actions">
           <a class="btn" href="{{ today_pick.url }}" target="_blank">TMDB</a>
-          <button class="btn want-btn" data-id="{{ today_pick.subject_id }}">想看</button>
+          <button class="btn want-btn" data-id="{{ today_pick.subject_id }}" data-title="{{ today_pick.title|e }}" data-kind="{{ today_pick.kind }}" data-year="{{ today_pick.year }}" data-url="{{ today_pick.url|e }}" data-intro="{{ (today_pick.intro or '')|e }}" data-summary="{{ (today_pick.summary or '')|e }}" data-rating="{{ today_pick.douban_rating or '' }}" data-rating-count="{{ today_pick.douban_rating_count or '' }}" data-cover="{{ (today_pick._cover_url or today_pick.cover_url or '')|e }}" data-reason="{{ (today_pick._reason or today_pick.recommendation_note or '')|e }}">想看</button>
           <button class="btn watch-btn" data-id="{{ today_pick.subject_id }}" data-action="watch" data-title="{{ today_pick.title|e }}" data-kind="{{ today_pick.kind }}" data-year="{{ today_pick.year }}" data-url="{{ today_pick.url|e }}" data-intro="{{ (today_pick.intro or '')|e }}" data-summary="{{ (today_pick.summary or '')|e }}" data-rating="{{ today_pick.douban_rating or '' }}" data-rating-count="{{ today_pick.douban_rating_count or '' }}" data-cover="{{ (today_pick._cover_url or today_pick.cover_url or '')|e }}">看过</button>
           <button class="btn dislike-btn icon-only" data-id="{{ today_pick.subject_id }}" aria-label="不喜欢" title="不喜欢">
             <span class="dislike-icon" aria-hidden="true">✕</span>
@@ -102,7 +102,7 @@
       {% endif %}
       <div class="rec-actions">
         {% if item.tmdb_id and item.url %}<a class="btn small" href="{{ item.url }}" target="_blank">TMDB</a>{% endif %}
-        <button class="btn small want-btn" data-id="{{ item.subject_id }}">想看</button>
+        <button class="btn small want-btn" data-id="{{ item.subject_id }}" data-title="{{ item.title|e }}" data-kind="{{ item.kind }}" data-year="{{ item.year }}" data-url="{{ item.url|e }}" data-intro="{{ (item.intro or '')|e }}" data-summary="{{ (item.summary or '')|e }}" data-rating="{{ item.douban_rating or '' }}" data-rating-count="{{ item.douban_rating_count or '' }}" data-cover="{{ (item._cover_url or item.cover_url or '')|e }}" data-reason="{{ (item._reason or item.recommendation_note or '')|e }}">想看</button>
         <button class="btn small watch-btn" data-id="{{ item.subject_id }}" data-title="{{ item.title|e }}" data-kind="{{ item.kind }}" data-year="{{ item.year }}" data-url="{{ item.url|e }}" data-intro="{{ (item.intro or '')|e }}" data-summary="{{ (item.summary or '')|e }}" data-rating="{{ item.douban_rating or '' }}" data-rating-count="{{ item.douban_rating_count or '' }}" data-cover="{{ (item._cover_url or item.cover_url or '')|e }}">
           {% if item.status == 'collect' %}已看 ✓{% else %}看过{% endif %}
         </button>
@@ -316,6 +316,23 @@ document.addEventListener('DOMContentLoaded', function() {
     };
   }
 
+  function wantButtonPayload(btn) {
+    if (!btn) return null;
+    return {
+      subject_id: btn.dataset.id,
+      title: btn.dataset.title,
+      year: btn.dataset.year || null,
+      kind: btn.dataset.kind,
+      cover_url: btn.dataset.cover || null,
+      recommendation_note: btn.dataset.reason || null,
+      douban_rating: btn.dataset.rating || null,
+      douban_rating_count: btn.dataset.ratingCount || null,
+      url: btn.dataset.url || null,
+      intro: btn.dataset.intro || null,
+      summary: btn.dataset.summary || null
+    };
+  }
+
   function applyWatchState(id, watchedText) {
     var card = document.querySelector('.rec-card[data-subject="' + id + '"]');
     if (!card) return;
@@ -466,14 +483,19 @@ document.addEventListener('DOMContentLoaded', function() {
   document.querySelectorAll('.want-btn').forEach(function(btn) {
     btn.addEventListener('click', function() {
       var card = this.closest('.rec-card');
-      var payload = cardPayload(card);
+      var payload = card ? cardPayload(card) : wantButtonPayload(this);
+      if (!payload || !payload.subject_id) return;
       fetch('/api/want/' + encodeURIComponent(payload.subject_id), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       }).then(function(r) { return r.json(); }).then(function() {
-        if (window.showToast) showToast('已加入影视库，推荐语会保留 ✨', 'success');
-        card.remove();
+        if (window.showToast) showToast('已加入影视库想看列表✨', 'success');
+        if (card) {
+          card.remove();
+        } else {
+          setTimeout(function() { location.reload(); }, 500);
+        }
       });
     });
   });
