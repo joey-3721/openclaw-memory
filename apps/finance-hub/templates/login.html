@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, viewport-fit=cover">
+  <title>{{ title or '登录 · Finance Hub' }}</title>
+  <link rel="stylesheet" href="/static/style.css?v=20260324">
+</head>
+<body class="login-body">
+  <div class="login-scene">
+    <div class="login-orb orb-a"></div>
+    <div class="login-orb orb-b"></div>
+    <div class="login-orb orb-c"></div>
+
+    <section class="login-shell">
+      <div class="login-showcase">
+        <div class="showcase-header">
+          <div class="login-brand">
+            <span class="brand-mark">财</span>
+            <div>
+              <strong>Finance Hub</strong>
+              <p>Secure Finance Console</p>
+            </div>
+          </div>
+          <div class="showcase-chip">Live Session</div>
+        </div>
+
+        <div class="login-visual">
+          <div class="visual-core">
+            <div class="core-ring ring-one"></div>
+            <div class="core-ring ring-two"></div>
+            <div class="core-ring ring-three"></div>
+            <div class="visual-center">
+              <span>Secure Access</span>
+              <strong>01</strong>
+              <em>Cookie Session</em>
+            </div>
+          </div>
+
+          <div class="visual-card card-balance">
+            <span>资产信号</span>
+            <strong>¥ 428.6K</strong>
+            <em>steady growth</em>
+          </div>
+
+          <div class="visual-card card-cashflow">
+            <span>现金流</span>
+            <strong>+ 64%</strong>
+            <em>monthly reserve</em>
+          </div>
+
+          <div class="visual-card card-risk">
+            <span>Session</span>
+            <strong>{{ request.client.host if request.client else 'Local Client' }}</strong>
+            <em>trusted device</em>
+          </div>
+
+          <div class="visual-bars">
+            <span style="--h: 42px"></span>
+            <span style="--h: 74px"></span>
+            <span style="--h: 118px"></span>
+            <span style="--h: 92px"></span>
+            <span style="--h: 138px"></span>
+            <span style="--h: 106px"></span>
+          </div>
+
+          <div class="visual-grid"></div>
+        </div>
+      </div>
+
+      <form class="login-panel" method="post" action="/login">
+        <div class="login-panel-head">
+          <span class="panel-eyebrow">Secure Sign In</span>
+          <h2>账号登录</h2>
+          <p>用户名密码校验通过后进入主界面。</p>
+        </div>
+
+        {% if login_error %}
+        <div class="login-error">{{ login_error }}</div>
+        {% endif %}
+
+        <label class="login-field">
+          <span>用户名</span>
+          <input type="text" name="username" value="{{ login_username or '' }}" placeholder="请输入用户名" required autocomplete="username">
+        </label>
+
+        <label class="login-field">
+          <span>密码</span>
+          <input type="password" name="password" placeholder="请输入密码" required autocomplete="current-password">
+        </label>
+
+        <button class="login-submit" type="submit">进入 Finance Hub</button>
+
+        <div class="login-footnote">
+          <span>用户表：<code>finance_users</code></span>
+          <span>可填写字段：<code>username</code> + <code>password_plain</code>，或者使用 <code>password_hash</code></span>
+        </div>
+      </form>
+    </section>
+  </div>
+</body>
+</html>

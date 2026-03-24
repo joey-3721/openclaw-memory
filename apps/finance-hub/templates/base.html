@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, viewport-fit=cover">
+  <title>{{ title or 'Finance Hub' }}</title>
+  <link rel="stylesheet" href="/static/style.css?v=20260324">
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <a class="brand" href="/">
+        <span class="brand-mark">财</span>
+        <span class="brand-copy">
+          <strong>Finance Hub</strong>
+          <em>个人财务控制台</em>
+        </span>
+      </a>
+
+      <nav class="sidebar-nav">
+        <a href="/" class="nav-link active">仪表盘</a>
+        <a href="#" class="nav-link">账户</a>
+        <a href="#" class="nav-link">流水</a>
+        <a href="#" class="nav-link">预算</a>
+        <a href="#" class="nav-link">报表</a>
+      </nav>
+
+      {% if current_user %}
+      <div class="sidebar-user">
+        <span>当前账户</span>
+        <strong>{{ current_user.display_name }}</strong>
+        <a href="/logout" class="logout-link">退出登录</a>
+      </div>
+      {% endif %}
+
+      <div class="sidebar-card">
+        <span class="sidebar-card-label">本月储蓄率</span>
+        <strong>{{ site_stats.monthly_saving_rate }}%</strong>
+        <p>收入与支出的差值正在扩大，节奏不错。</p>
+      </div>
+    </aside>
+
+    <main class="main">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+
+  <nav class="mobile-nav">
+    <a href="/" class="mobile-nav-link active">总览</a>
+    <a href="#" class="mobile-nav-link">账户</a>
+    <a href="#" class="mobile-nav-link">流水</a>
+    {% if current_user %}
+    <a href="/logout" class="mobile-nav-link">退出</a>
+    {% else %}
+    <a href="#" class="mobile-nav-link">预算</a>
+    {% endif %}
+  </nav>
+</body>
+</html>
