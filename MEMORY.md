@@ -37,7 +37,14 @@
   - 容器名：`media-hub-test`
   - 访问端口：`8765`
   - 部署/更新 Skill：`/home/node/.openclaw/skills/media-hub-nas-deploy/SKILL.md`
-  - 后续只要佳奕让我改 Media Hub 页面，我应默认执行：改代码 → 重建镜像 → 重启容器 → 验证 → git commit → git push
+  - **Finance Hub（财务管理）已上线（2026-03-24）**
+  - 代码目录：`/home/node/.openclaw/workspace-user1/apps/finance-hub`
+  - 容器名：`finance-hub-test`
+  - 镜像名：`finance-hub:latest`
+  - 访问端口：`8766`
+  - 和 Media Hub 同一优先级，都是佳奕的核心项目
+  - 后续 finance-hub 的更新流程同 media-hub：改代码 → 重建镜像 → 重启容器 → 验证 → git commit → git push
+- 后续只要佳奕让我改 Media Hub 页面，我应默认执行：改代码 → 重建镜像 → 重启容器 → 验证 → git commit → git push
 
 ## 媒体推荐规则（Media Hub）
 
