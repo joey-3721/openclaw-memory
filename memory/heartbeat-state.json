@@ -2,28 +2,61 @@
   "lastChecks": {
     "recommendation": "2026-03-23 01:17:00",
     "feishu_heartbeat": "2026-03-23 00:10:00",
-    "weather": "2026-03-23 00:10:00"
+    "weather": "2026-03-24 00:32:00"
   },
   "recommendation_count": 143,
-  "last_action": "bulk add 130 personalized recs (total 143)",
-  "weather_today": {
-    "date": "2026-03-23",
-    "condition": "薄雾",
-    "temp": 10,
-    "feels_like": 10,
-    "humidity": 71,
-    "wind_speed": 5,
-    "wind_dir": "SE",
-    "precip": 0,
-    "visibility": 5,
-    "uv": 0
+  "last_action": "send weather report for 2026-03-24",
+  "weather": {
+    "lastReportDate": "2026-03-24",
+    "lastReportTs": "2026-03-24T00:32:00+08:00",
+    "lastReportLocalTime": "2026-03-24 00:32",
+    "snapshots": {
+      "2026-03-24": {
+        "date": "2026-03-24",
+        "condition": "晴",
+        "temp": 5,
+        "feelsLike": 4,
+        "humidity": 70,
+        "windSpeed": 6,
+        "windDir": "NE",
+        "high": 21,
+        "low": 9,
+        "rainChance": 0,
+        "observedAt": "2026-03-24T08:00+08:00"
+      },
+      "2026-03-23": {
+        "date": "2026-03-23",
+        "condition": "薄雾",
+        "temp": 10,
+        "feelsLike": 10,
+        "humidity": 71,
+        "windSpeed": 5,
+        "windDir": "SE",
+        "high": 21,
+        "low": 9,
+        "rainChance": 0,
+        "observedAt": "2026-03-23T00:00+08:00"
+      }
+    }
   },
-  "weather_tomorrow": {
+  "weather_today": {
     "date": "2026-03-24",
     "condition": "晴",
-    "temp_high": 21,
-    "temp_low": 9,
-    "sunrise": "06:12",
-    "sunset": "18:30"
+    "temp": 5,
+    "feels_like": 4,
+    "humidity": 70,
+    "wind_speed": 6,
+    "wind_dir": "NE",
+    "precip": 0,
+    "visibility": 10,
+    "uv": 1
+  },
+  "weather_tomorrow": {
+    "date": "2026-03-25",
+    "condition": "晴",
+    "temp_high": 22,
+    "temp_low": 10,
+    "sunrise": "06:11",
+    "sunset": "18:31"
   }
 }

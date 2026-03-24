@@ -85,38 +85,63 @@ def download_cover(tmdb_id, tmdb_type, poster_path):
 
 
 def insert_recommendation(conn, item):
-    """REPLACE INTO MySQL 生产库"""
+    """安全写入推荐：
+    - 新记录：INSERT（status='recommended'）
+    - 已有记录（任何状态）：只更新推荐相关字段，绝不覆盖 status/my_rating/comment/watch_count
+    """
     now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
-    conn.execute(
-        """REPLACE INTO douban_watch_history
-        (subject_id, title, kind, year, url, intro, summary,
-         genres, countries, cover_url, status, tmdb_id,
-         recommendation_note, recommended_at, recommend_rank,
-         recommend_source, douban_rating, douban_rating_count)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
-        (
-            item["subject_id"],
-            item["title"],
-            item["kind"],
-            item["year"],
-            item["url"],
-            item["intro"],
-            item["summary"],
-            item["genres"],
-            item["countries"],
-            item["cover_url"],
-            "recommended",
-            str(item["tmdb_id"]),
-            item["recommendation_note"],
-            now,
-            item.get("rank", 1),
-            item.get("source", "openclaw-curated"),
-            item.get("rating", 0),
-            item.get("votes", 0),
-        ),
+
+    # INSERT 新记录
+    insert_sql = (
+        "INSERT INTO douban_watch_history"
+        " (subject_id, title, kind, year, url, intro, summary,"
+        "  genres, countries, cover_url, status, tmdb_id,"
+        "  recommendation_note, recommended_at, recommend_rank,"
+        "  recommend_source, douban_rating, douban_rating_count)"
+        " VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+        " ON DUPLICATE KEY UPDATE"
+        "  title               = VALUES(title),"
+        "  kind                = VALUES(kind),"
+        "  year                = VALUES(year),"
+        "  url                 = VALUES(url),"
+        "  intro               = VALUES(intro),"
+        "  summary             = VALUES(summary),"
+        "  genres              = VALUES(genres),"
+        "  countries           = VALUES(countries),"
+        "  cover_url           = VALUES(cover_url),"
+        "  tmdb_id             = VALUES(tmdb_id),"
+        "  recommendation_note = VALUES(recommendation_note),"
+        "  recommended_at      = VALUES(recommended_at),"
+        "  recommend_rank      = VALUES(recommend_rank),"
+        "  recommend_source    = VALUES(recommend_source),"
+        "  douban_rating       = VALUES(douban_rating),"
+        "  douban_rating_count = VALUES(douban_rating_count)"
     )
+    # 注意：ON DUPLICATE KEY UPDATE 中故意省略 status/my_rating/comment/watch_count
+    # 这些字段只由用户操作写入，cron 不覆盖
+
+    conn.execute(insert_sql, (
+        item["subject_id"],
+        item["title"],
+        item["kind"],
+        item["year"],
+        item["url"],
+        item["intro"],
+        item["summary"],
+        item["genres"],
+        item["countries"],
+        item["cover_url"],
+        "recommended",
+        str(item["tmdb_id"]),
+        item["recommendation_note"],
+        now,
+        item.get("rank", 1),
+        item.get("source", "openclaw-curated"),
+        item.get("rating", 0),
+        item.get("votes", 0),
+    ))
     conn.commit()
-    print(f"OK: inserted '{item['title']}' (tmdb_id={item['tmdb_id']}) -> MySQL")
+    print(f"OK: inserted/updated '{item['title']}' (tmdb_id={item['tmdb_id']}) -> MySQL")
 
 
 def main():
@@ -164,14 +189,25 @@ def main():
         conn.close()
         sys.exit(0)
 
-    # 去重检查
-    if not args.force:
-        dupes = check_duplicate(conn, args.tmdb_id, args.title)
-        if dupes:
-            print(f"DUPLICATE: {[dict(r) for r in dupes]}")
-            print("Use --force to override.")
+    # 去重检查：
+    # - status='collect'   → 用户已看过，绝对不推
+    # - status='recommended' → 已在推荐列表，跳过（避免重复）
+    # - status='wish' 或不存在 → 允许插入
+    existing = conn.execute(
+        "SELECT subject_id, status, my_rating FROM douban_watch_history"
+        " WHERE tmdb_id=%s OR subject_id=%s LIMIT 1",
+        (str(args.tmdb_id), f"{'tmdb:tv:' if args.tmdb_type == 'tv' else 'tmdb:movie:'}{args.tmdb_id}")
+    ).fetchone()
+    if existing:
+        st = existing['status']
+        if st == 'collect':
+            print(f"SKIP: {args.title} (tmdb:{args.tmdb_id}) already watched by user (status=collect), will NOT recommend")
             conn.close()
-            sys.exit(2)
+            sys.exit(4)
+        if st == 'recommended':
+            print(f"SKIP: {args.title} (tmdb:{args.tmdb_id}) already in recommendations (status=recommended)")
+            conn.close()
+            sys.exit(0)
 
     # 下载封面（必须成功才写入）
     cover_url = download_cover(args.tmdb_id, args.tmdb_type, args.poster_path)
@@ -181,7 +217,7 @@ def main():
         sys.exit(3)
 
     endpoint = "tv" if args.tmdb_type == "tv" else "movie"
-    prefix = "tmdb_tv_" if args.tmdb_type == "tv" else "tmdb_"
+    prefix = "tmdb:tv:" if args.tmdb_type == "tv" else "tmdb:movie:"
 
     item = {
         "subject_id": f"{prefix}{args.tmdb_id}",
