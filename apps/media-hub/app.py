@@ -352,7 +352,7 @@ def metadata_enrichment_missing(item) -> bool:
         return False
     if not str(item.get('tmdb_id') or '').strip():
         return False
-    if str(item.get('kind') or '').strip().lower() not in {'movie', 'tv'}:
+    if canonical_media_kind(item.get('kind')) not in {'movie', 'tv'}:
         return False
     fields = ['year', 'url', 'intro', 'summary', 'genres', 'countries', 'directors', 'actors']
     return any(not item.get(field) for field in fields)
@@ -373,7 +373,7 @@ def enqueue_metadata_enrichment(item):
         return
     subject_id = str(item.get('subject_id') or '').strip()
     tmdb_id = str(item.get('tmdb_id') or '').strip()
-    kind = str(item.get('kind') or '').strip().lower()
+    kind = canonical_media_kind(item.get('kind'))
     if not subject_id or not tmdb_id or kind not in {'movie', 'tv'}:
         return
     retry_key = f'{subject_id}:{tmdb_id}:{kind}'
@@ -546,11 +546,27 @@ def tmdb_image_url(path: str | None):
     return f'https://image.tmdb.org/t/p/w500{path}'
 
 
+def canonical_media_kind(value: str | None) -> str:
+    raw = str(value or '').strip().lower()
+    mapping = {
+        'movie': 'movie',
+        '电影': 'movie',
+        'tv': 'tv',
+        '剧集': 'tv',
+        '电视剧': 'tv',
+        'show': 'tv',
+        '综艺': 'tv',
+        'anime': 'tv',
+        '动画': 'tv',
+    }
+    return mapping.get(raw, raw)
+
+
 def tmdb_fetch_detail(tmdb_id: str, media_type: str = 'movie', append_to_response: str = ''):
     api_key = read_tmdb_key()
     if not api_key:
         raise RuntimeError('TMDB API key missing')
-    media_type = 'tv' if str(media_type).lower() == 'tv' else 'movie'
+    media_type = 'tv' if canonical_media_kind(media_type) == 'tv' else 'movie'
     url = f'https://api.themoviedb.org/3/{media_type}/{tmdb_id}'
     params = {'api_key': api_key, 'language': 'zh-CN'}
     if append_to_response:
@@ -1191,17 +1207,16 @@ def enqueue_cover_localize(item):
     try:
         subject_id = str(item.get('subject_id') or '').strip()
         tmdb_id = str(item.get('tmdb_id') or '').strip()
-        kind = str(item.get('kind') or '').strip().lower()
+        kind = canonical_media_kind(item.get('kind'))
         cover = normalize_cover_url(item.get('cover_url'))
     except Exception:
         return
     if not subject_id or not tmdb_id or kind not in {'movie', 'tv'}:
         return
-    if not cover or not cover.startswith('/covers/'):
-        return
-    local_path = local_cover_file_from_url(cover)
-    if local_path and local_path.exists():
-        return
+    if cover and cover.startswith('/covers/'):
+        local_path = local_cover_file_from_url(cover)
+        if local_path and local_path.exists():
+            return
     retry_key = f'{subject_id}:{tmdb_id}:{kind}'
     retry_after = _cover_retry_after.get(retry_key)
     if retry_after and datetime.utcnow() < retry_after:
@@ -1359,14 +1374,15 @@ def download_cover_to_local(url: str, subject_id: str) -> str:
 
 def cover_url(item):
     """Return normalized cover URL or None. Works for sqlite3.Row and dict."""
+    row = dict(item) if not isinstance(item, dict) else item
     try:
-        enqueue_metadata_enrichment(dict(item) if not isinstance(item, dict) else item)
+        enqueue_metadata_enrichment(row)
     except Exception:
         pass
     try:
-        value = item['cover_url']
+        value = row['cover_url']
     except Exception:
-        value = item.get('cover_url') if hasattr(item, 'get') else None
+        value = row.get('cover_url') if hasattr(row, 'get') else None
     normalized = normalize_cover_url(value)
     if normalized and normalized.startswith('/covers/'):
         local_path = local_cover_file_from_url(normalized)
@@ -1375,7 +1391,14 @@ def cover_url(item):
             return normalized
         bump_request_metric('cover_missing', 1)
         try:
-            enqueue_cover_localize(dict(item) if not isinstance(item, dict) else item)
+            enqueue_cover_localize(row)
+        except Exception:
+            pass
+        return None
+    if not normalized and row.get('tmdb_id'):
+        bump_request_metric('cover_missing', 1)
+        try:
+            enqueue_cover_localize(row)
         except Exception:
             pass
         return None
