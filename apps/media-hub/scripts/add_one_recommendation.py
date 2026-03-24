@@ -115,10 +115,12 @@ def insert_recommendation(conn, item):
         "  recommend_rank      = VALUES(recommend_rank),"
         "  recommend_source    = VALUES(recommend_source),"
         "  douban_rating       = VALUES(douban_rating),"
-        "  douban_rating_count = VALUES(douban_rating_count)"
+        "  douban_rating_count = VALUES(douban_rating_count),"
+        "  status              = COALESCE(status, 'recommended')"
     )
-    # 注意：ON DUPLICATE KEY UPDATE 中故意省略 status/my_rating/comment/watch_count
-    # 这些字段只由用户操作写入，cron 不覆盖
+    # status 用 COALESCE(status, 'recommended')：
+    # - 原来有值（collect/wish/recommended）→ 保留原值，cron 不覆盖用户手动状态
+    # - status 是 NULL（异常/从未设置过）→ 自动补为 'recommended'
 
     conn.execute(insert_sql, (
         item["subject_id"],
