@@ -103,7 +103,7 @@
       <p class="media-rec-note">💡 {{ item.recommendation_note[:90] }}</p>
       {% endif %}
       {% if item.directors or item.actors %}
-      <p class="rec-credits" style="font-size:11px;margin:4px 0 2px;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ item.directors[:30] }}{% if item.directors and item.actors %} · {% endif %}{{ item.actors[:40] }}</p>
+      <p class="rec-credits" style="font-size:11px;margin:4px 0 2px;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ (item.directors or '')[:30] }}{% if item.directors and item.actors %} · {% endif %}{{ (item.actors or '')[:40] }}</p>
       {% endif %}
       <div class="media-actions">
         {% if status == 'dislike' %}
