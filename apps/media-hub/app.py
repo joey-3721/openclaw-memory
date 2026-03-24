@@ -34,6 +34,7 @@ MYSQL_PASSWORD = os.getenv('MYSQL_PASSWORD', 'Joey@2026!')
 MYSQL_DB = os.getenv('MYSQL_DB', 'media_hub')
 COVERS_DIR = Path(os.getenv('MEDIA_HUB_COVERS_DIR', '/app/covers'))
 CONFIG_DIR = Path(os.getenv('MEDIA_HUB_CONFIG_DIR', str(BASE_DIR / 'config')))
+BEIJING_TZ = ZoneInfo('Asia/Shanghai')
 
 
 def adapt_sql(sql: str) -> str:
@@ -904,6 +905,52 @@ def load_recommended_items(conn):
     return items
 
 
+def current_featured_bucket(now=None):
+    now = now or datetime.now(BEIJING_TZ)
+    return now.strftime('%Y%m%d%H')
+
+
+def featured_candidates(items, limit=8):
+    if not items:
+        return []
+    return items[:limit] if len(items) >= limit else items
+
+
+def stable_pick_index(items, bucket, salt='default'):
+    if not items:
+        return 0
+    subject_ids = '|'.join(str(item.get('subject_id') or '') for item in items)
+    digest = hashlib.sha256(f'{bucket}|{salt}|{subject_ids}'.encode('utf-8')).hexdigest()
+    return int(digest[:8], 16) % len(items)
+
+
+def pick_featured_item(items, request=None, limit=8):
+    candidates = featured_candidates(items, limit=limit)
+    if not candidates:
+        return None, current_featured_bucket()
+    bucket = current_featured_bucket()
+    cookie_value = ((request.cookies.get('featured_pick') if request else '') or '').strip()
+    if ':' in cookie_value:
+        cookie_bucket, cookie_subject_id = cookie_value.split(':', 1)
+        if cookie_bucket == bucket:
+            matched = next((item for item in candidates if item.get('subject_id') == cookie_subject_id), None)
+            if matched:
+                return matched, bucket
+    return candidates[stable_pick_index(candidates, bucket)], bucket
+
+
+def pick_alternate_featured_item(items, request=None, limit=8):
+    candidates = featured_candidates(items, limit=limit)
+    if not candidates:
+        return None, current_featured_bucket()
+    current_item, bucket = pick_featured_item(candidates, request=request, limit=limit)
+    if len(candidates) <= 1:
+        return current_item, bucket
+    remaining = [item for item in candidates if item.get('subject_id') != current_item.get('subject_id')]
+    next_index = stable_pick_index(remaining, bucket, salt=f'shuffle|{current_item.get("subject_id")}')
+    return remaining[next_index], bucket
+
+
 def load_cached_recommendations(conn, cache_key='default', max_age_hours=12):
     rows = conn.execute(
         "SELECT * FROM recommendation_cache WHERE cache_key=? AND generated_at >= datetime('now', ?) ORDER BY rank_order ASC",
@@ -1004,7 +1051,7 @@ def home(request: Request):
     rows = conn.execute('SELECT status, COUNT(*) as cnt FROM douban_watch_history GROUP BY status').fetchall()
     counts = {r['status']: r['cnt'] for r in rows}
     profile = load_profile(conn)
-    recs = load_recommended_items(conn)[:6]
+    recs = load_recommended_items(conn)
     recent_rows = conn.execute('SELECT * FROM douban_watch_history WHERE status="collect" AND COALESCE(recommend_feedback, "") != "dislike" ORDER BY watched_date DESC LIMIT 8').fetchall()
     recent = []
     for r in recent_rows:
@@ -1042,13 +1089,14 @@ def home(request: Request):
     month_years = sorted(month_by_year.keys())
     selected_month_year = month_years[-1] if month_years else None
     monthly_stats = month_by_year.get(selected_month_year, [])
-    tonight_pick = random.choice(recs[:6]) if len(recs) >= 2 else (recs[0] if recs else None)
+    tonight_pick, featured_bucket = pick_featured_item(recs, request=request, limit=8)
     return templates.TemplateResponse('index.html', {
         'request': request,
         'counts': counts,
         'profile': profile,
         'recent': recent,
         'surprise': dict(tonight_pick) if tonight_pick else None,
+        'featured_bucket': featured_bucket,
         'site_stats': get_site_stats(),
         'yearly_stats': yearly_stats,
         'current_year': current_year,
@@ -1355,7 +1403,8 @@ def library(request: Request, status: str = Query('collect'), kind: str = Query(
 @app.get('/recommendations', response_class=HTMLResponse)
 def recommendations(request: Request, sort: str = Query('date')):
     conn = get_conn()
-    recs_with_reason = load_recommended_items(conn)
+    featured_recs = load_recommended_items(conn)
+    recs_with_reason = list(featured_recs)
     if sort == 'rating':
         recs_with_reason.sort(key=lambda x: x.get('douban_rating') or 0, reverse=True)
     elif sort == 'year':
@@ -1364,12 +1413,13 @@ def recommendations(request: Request, sort: str = Query('date')):
         random.shuffle(recs_with_reason)
     else:
         recs_with_reason.sort(key=lambda x: (x.get('recommended_at') or '', x.get('recommend_rank') or 0), reverse=True)
-    tonight_pick = random.choice(recs_with_reason[:8]) if len(recs_with_reason) >= 8 else (recs_with_reason[0] if recs_with_reason else None)
+    tonight_pick, featured_bucket = pick_featured_item(featured_recs, request=request, limit=8)
     return templates.TemplateResponse('recommendations.html', {
         'request': request,
         'recs': recs_with_reason,
         'surprise': dict(tonight_pick) if tonight_pick else None,
         'today_pick': dict(tonight_pick) if tonight_pick else None,
+        'featured_bucket': featured_bucket,
         'sort': sort,
         'last_updated': (lambda dt: (dt + timedelta(hours=8)).strftime('%m-%d %H:%M') if dt else '')(
             (tonight_pick.get('recommended_at') if isinstance(tonight_pick.get('recommended_at'), datetime)
@@ -1377,6 +1427,18 @@ def recommendations(request: Request, sort: str = Query('date')):
         ) if tonight_pick and tonight_pick.get('recommended_at') else '',
         'site_stats': get_site_stats(),
     })
+
+
+@app.post('/api/featured/shuffle', response_class=JSONResponse)
+def shuffle_featured(request: Request):
+    conn = get_conn()
+    featured_recs = load_recommended_items(conn)
+    picked, bucket = pick_alternate_featured_item(featured_recs, request=request, limit=8)
+    if not picked:
+        raise HTTPException(404, 'No recommendations available')
+    response = JSONResponse({'ok': True, 'subject_id': picked.get('subject_id'), 'bucket': bucket})
+    response.set_cookie('featured_pick', f'{bucket}:{picked.get("subject_id")}', max_age=7200, path='/', samesite='lax')
+    return response
 
 
 @app.get('/api/surprise', response_class=JSONResponse)

@@ -8,6 +8,10 @@
       <div class="tonight-cover" style="{{ surprise._cover_style }}">
         {% if surprise._cover_url %}<img src="{{ surprise._cover_url }}" alt="{{ surprise.title }}" onerror="this.style.display='none'; this.parentElement.classList.add('cover-img-failed')">{% else %}<div class="cover-fallback-title">{{ surprise.title[:8] }}</div>{% endif %}
         {% if surprise.status == 'collect' %}<div class="cover-watched-overlay"><span>已看</span></div>{% endif %}
+        <div class="rec-cover-overlay tonight-cover-overlay">
+          <span class="rec-badge">{{ surprise._display_kind or '内容' }}</span>
+          <div class="rec-rating-badge">{{ surprise._display_rating or '-' }}</div>
+        </div>
       </div>
       <div class="tonight-info">
         <div class="tonight-head">
@@ -18,7 +22,6 @@
             </div>
             <div class="tonight-meta">{{ surprise.year }} · {{ surprise._display_kind or surprise.kind }} · TMDB {{ surprise._display_rating or '-' }}</div>
           </div>
-          <div class="rating-badge-lg">{{ surprise._display_rating or '-' }}</div>
         </div>
         <p class="reason-text">{{ surprise._reason }}</p>
         {% if surprise.directors or surprise.actors %}

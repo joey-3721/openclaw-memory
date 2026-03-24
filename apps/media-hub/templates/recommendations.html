@@ -271,7 +271,7 @@ document.addEventListener('DOMContentLoaded', function() {
   if (shuffleBtn) {
     shuffleBtn.addEventListener('click', function() {
       shuffleBtn.classList.add('loading');
-      fetch('/api/surprise').then(function() { window.location.reload(); }).catch(function() { window.location.reload(); });
+      fetch('/api/featured/shuffle', { method: 'POST' }).then(function() { window.location.reload(); }).catch(function() { window.location.reload(); });
     });
   }
 
