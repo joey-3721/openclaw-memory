@@ -10,12 +10,16 @@ import random
 import hashlib
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
+from contextvars import ContextVar
 import os
 import re
 import json
+import threading
+import queue
 import requests
 import urllib.request
 from urllib.parse import quote
+import time
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -61,11 +65,18 @@ MYSQL_PORT = int(os.getenv('MYSQL_PORT', '3306'))
 MYSQL_USER = os.getenv('MYSQL_USER', 'joey')
 MYSQL_PASSWORD = os.getenv('MYSQL_PASSWORD', 'Joey@2026!')
 MYSQL_DB = os.getenv('MYSQL_DB', 'media_hub')
-COVERS_DIR = Path(os.getenv('MEDIA_HUB_COVERS_DIR', '/app/covers'))
+_covers_dir_raw = Path(os.getenv('MEDIA_HUB_COVERS_DIR', '/app/covers'))
+COVERS_DIR = _covers_dir_raw if _covers_dir_raw.is_absolute() else (BASE_DIR / _covers_dir_raw).resolve()
 CONFIG_DIR = Path(os.getenv('MEDIA_HUB_CONFIG_DIR', str(BASE_DIR / 'config')))
 BEIJING_TZ = ZoneInfo('Asia/Shanghai')
 RUNTIME_CACHE_TTL_SECONDS = int(os.getenv('MEDIA_HUB_RUNTIME_CACHE_TTL_SECONDS', '20'))
 _runtime_cache = {}
+METADATA_ENRICH_RETRY_COOLDOWN_SECONDS = int(os.getenv('MEDIA_HUB_METADATA_ENRICH_RETRY_COOLDOWN_SECONDS', '21600'))
+_metadata_retry_after = {}
+_metadata_queue = queue.Queue()
+_metadata_pending = set()
+_metadata_lock = threading.Lock()
+_metadata_worker_started = False
 
 
 def get_runtime_cache(key):
@@ -128,7 +139,11 @@ class MySQLConn:
     def execute(self, sql, params=None):
         sql = adapt_sql(sql)
         cur = self._conn.cursor()
+        started = time.perf_counter()
         cur.execute(sql, params or ())
+        elapsed_ms = (time.perf_counter() - started) * 1000
+        bump_request_metric('db_query_count', 1)
+        bump_request_metric('db_time_ms', round(elapsed_ms, 2))
         return cur
 
     def cursor(self):
@@ -156,7 +171,11 @@ class MySQLCursor:
         self._cur = cur
 
     def execute(self, sql, params=None):
+        started = time.perf_counter()
         self._cur.execute(adapt_sql(sql), params or ())
+        elapsed_ms = (time.perf_counter() - started) * 1000
+        bump_request_metric('db_query_count', 1)
+        bump_request_metric('db_time_ms', round(elapsed_ms, 2))
         return self
 
     def fetchone(self):
@@ -175,7 +194,9 @@ SECRETS_DIR = CONFIG_DIR / 'secrets'
 COOKIE_PATH = CONFIG_DIR / 'douban_cookie.json'
 TMDB_KEY_PATH = SECRETS_DIR / 'tmdb.json'
 TMDB_LOG_PATH = BASE_DIR / 'logs' / 'tmdb_failures.log'
+REQUEST_PERF_LOG_PATH = BASE_DIR / 'logs' / 'request_perf.log'
 COVERS_DIR.mkdir(parents=True, exist_ok=True)
+REQUEST_METRICS = ContextVar('request_metrics', default=None)
 
 
 def log_tmdb_failure(stage: str, detail: str, extra: dict | None = None):
@@ -192,9 +213,59 @@ def log_tmdb_failure(stage: str, detail: str, extra: dict | None = None):
     except Exception:
         pass
 
+
+def current_request_metrics():
+    return REQUEST_METRICS.get()
+
+
+def bump_request_metric(key: str, amount=1):
+    metrics = current_request_metrics()
+    if metrics is None:
+        return
+    metrics[key] = metrics.get(key, 0) + amount
+
+
+def log_request_perf(payload: dict):
+    try:
+        REQUEST_PERF_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with REQUEST_PERF_LOG_PATH.open('a', encoding='utf-8') as f:
+            f.write(json.dumps(payload, ensure_ascii=False) + '\n')
+    except Exception:
+        pass
+
 app = FastAPI(title='Media Hub')
 app.mount('/static', StaticFiles(directory=str(BASE_DIR / 'static')), name='static')
 templates = Jinja2Templates(directory=str(BASE_DIR / 'templates'))
+
+
+@app.middleware('http')
+async def request_perf_middleware(request: Request, call_next):
+    metrics = {
+        'path': request.url.path,
+        'db_query_count': 0,
+        'db_time_ms': 0,
+        'cover_local_hit': 0,
+        'cover_missing': 0,
+        'cover_tmdb_attempt': 0,
+        'cover_tmdb_fail': 0,
+    }
+    token = REQUEST_METRICS.set(metrics)
+    started = time.perf_counter()
+    try:
+        response = await call_next(request)
+        return response
+    finally:
+        duration_ms = round((time.perf_counter() - started) * 1000, 1)
+        REQUEST_METRICS.reset(token)
+        if request.url.path in {'/', '/recommendations'}:
+            payload = {
+                'ts': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC'),
+                'path': request.url.path,
+                'query': dict(request.query_params),
+                'duration_ms': duration_ms,
+                **metrics,
+            }
+            log_request_perf(payload)
 
 
 @app.get('/covers/{filename:path}')
@@ -270,6 +341,89 @@ def serve_cover(filename: str):
 
 def get_conn():
     return MySQLConn()
+
+
+def metadata_enrichment_missing(item) -> bool:
+    if not item:
+        return False
+    if not str(item.get('tmdb_id') or '').strip():
+        return False
+    if str(item.get('kind') or '').strip().lower() not in {'movie', 'tv'}:
+        return False
+    fields = ['year', 'url', 'intro', 'summary', 'genres', 'countries', 'directors', 'actors']
+    return any(not item.get(field) for field in fields)
+
+
+def _start_metadata_worker_if_needed():
+    global _metadata_worker_started
+    with _metadata_lock:
+        if _metadata_worker_started:
+            return
+        worker = threading.Thread(target=_metadata_enrichment_worker, name='media-hub-metadata-enricher', daemon=True)
+        worker.start()
+        _metadata_worker_started = True
+
+
+def enqueue_metadata_enrichment(item):
+    if not metadata_enrichment_missing(item):
+        return
+    subject_id = str(item.get('subject_id') or '').strip()
+    tmdb_id = str(item.get('tmdb_id') or '').strip()
+    kind = str(item.get('kind') or '').strip().lower()
+    if not subject_id or not tmdb_id or kind not in {'movie', 'tv'}:
+        return
+    retry_key = f'{subject_id}:{tmdb_id}:{kind}'
+    retry_after = _metadata_retry_after.get(retry_key)
+    if retry_after and datetime.utcnow() < retry_after:
+        return
+    with _metadata_lock:
+        if retry_key in _metadata_pending:
+            return
+        _metadata_pending.add(retry_key)
+    _start_metadata_worker_if_needed()
+    _metadata_queue.put((retry_key, subject_id, tmdb_id, kind))
+
+
+def _metadata_enrichment_worker():
+    while True:
+        retry_key, subject_id, tmdb_id, kind = _metadata_queue.get()
+        try:
+            conn = get_conn()
+            try:
+                row = conn.execute('SELECT * FROM douban_watch_history WHERE subject_id=? LIMIT 1', (subject_id,)).fetchone()
+                if not row:
+                    continue
+                current = dict(row)
+                if not metadata_enrichment_missing(current):
+                    _metadata_retry_after.pop(retry_key, None)
+                    continue
+                raw = tmdb_fetch_detail(tmdb_id, media_type=kind, append_to_response='credits')
+                enriched = extract_tmdb_enrichment_fields(raw, kind)
+                updates = {}
+                for field in ['year', 'url', 'intro', 'summary', 'genres', 'countries', 'directors', 'actors', 'douban_rating', 'douban_rating_count']:
+                    if not current.get(field) and enriched.get(field):
+                        updates[field] = enriched[field]
+                if updates:
+                    set_clause = ', '.join(f'{field}=?' for field in updates)
+                    conn.execute(
+                        f'UPDATE douban_watch_history SET {set_clause} WHERE subject_id=?',
+                        list(updates.values()) + [subject_id]
+                    )
+                    conn.commit()
+                _metadata_retry_after.pop(retry_key, None)
+            finally:
+                conn.close()
+        except Exception as e:
+            _metadata_retry_after[retry_key] = datetime.utcnow() + timedelta(seconds=METADATA_ENRICH_RETRY_COOLDOWN_SECONDS)
+            log_tmdb_failure('metadata_enrich', f'{type(e).__name__}: {e}', {
+                'subject_id': subject_id,
+                'tmdb_id': tmdb_id,
+                'kind': kind,
+            })
+        finally:
+            with _metadata_lock:
+                _metadata_pending.discard(retry_key)
+            _metadata_queue.task_done()
 
 
 def ensure_schema(conn):
@@ -378,13 +532,16 @@ def tmdb_image_url(path: str | None):
     return f'https://image.tmdb.org/t/p/w500{path}'
 
 
-def tmdb_fetch_detail(tmdb_id: str, media_type: str = 'movie'):
+def tmdb_fetch_detail(tmdb_id: str, media_type: str = 'movie', append_to_response: str = ''):
     api_key = read_tmdb_key()
     if not api_key:
         raise RuntimeError('TMDB API key missing')
     media_type = 'tv' if str(media_type).lower() == 'tv' else 'movie'
     url = f'https://api.themoviedb.org/3/{media_type}/{tmdb_id}'
-    resp = requests.get(url, params={'api_key': api_key}, timeout=20)
+    params = {'api_key': api_key, 'language': 'zh-CN'}
+    if append_to_response:
+        params['append_to_response'] = append_to_response
+    resp = requests.get(url, params=params, timeout=20)
     resp.raise_for_status()
     return resp.json()
 
@@ -418,6 +575,49 @@ def tmdb_to_item(raw: dict, media_type: str):
         'status': None,
         'source': 'tmdb',
         'countries': '',
+    }
+
+
+def join_names(values, limit=None):
+    items = [str(v).strip() for v in (values or []) if str(v).strip()]
+    if limit is not None:
+        items = items[:limit]
+    return '/'.join(items)
+
+
+def extract_tmdb_enrichment_fields(raw: dict, media_type: str) -> dict:
+    release_raw = raw.get('release_date') or raw.get('first_air_date') or ''
+    year = int(release_raw[:4]) if release_raw[:4].isdigit() else None
+    genres = join_names([g.get('name') for g in raw.get('genres', []) if isinstance(g, dict)])
+    countries = join_names(
+        [c.get('name') for c in raw.get('production_countries', []) if isinstance(c, dict)] or
+        [c.get('iso_3166_1') for c in raw.get('production_countries', []) if isinstance(c, dict)] or
+        raw.get('origin_country', [])
+    )
+    credits = raw.get('credits') or {}
+    cast = credits.get('cast') or []
+    crew = credits.get('crew') or []
+    if media_type == 'movie':
+        directors = join_names([p.get('name') for p in crew if p.get('job') == 'Director'], limit=5)
+    else:
+        directors = join_names(
+            [p.get('name') for p in raw.get('created_by', []) if isinstance(p, dict)] or
+            [p.get('name') for p in crew if p.get('job') in {'Director', 'Series Director'}],
+            limit=5
+        )
+    actors = join_names([p.get('name') for p in cast if isinstance(p, dict)], limit=12)
+    overview = (raw.get('overview') or '').strip()
+    return {
+        'year': year,
+        'url': f'https://www.themoviedb.org/{media_type}/{raw.get("id")}' if raw.get('id') else None,
+        'intro': overview or None,
+        'summary': overview or None,
+        'genres': genres or None,
+        'countries': countries or None,
+        'directors': directors or None,
+        'actors': actors or None,
+        'douban_rating': round((raw.get('vote_average') or 0), 1) if raw.get('vote_average') else None,
+        'douban_rating_count': raw.get('vote_count') or None,
     }
 
 
@@ -909,6 +1109,24 @@ def local_cover_file_from_url(url: str | None):
     return COVERS_DIR / filename
 
 
+def persist_cover_url(subject_id: str, cover_url_value: str):
+    if not subject_id or not cover_url_value:
+        return
+    conn = None
+    try:
+        conn = get_conn()
+        conn.execute('UPDATE douban_watch_history SET cover_url=? WHERE subject_id=?', (cover_url_value, subject_id))
+        conn.commit()
+    except Exception:
+        pass
+    finally:
+        try:
+            if conn:
+                conn.close()
+        except Exception:
+            pass
+
+
 def ensure_cover_available(item) -> str | None:
     """Ensure local cover file exists when cover_url points to /covers/... .
 
@@ -927,8 +1145,10 @@ def ensure_cover_available(item) -> str | None:
         return normalized
     local_path = local_cover_file_from_url(normalized)
     if local_path and local_path.exists():
+        bump_request_metric('cover_local_hit', 1)
         _cover_retry_after.pop(normalized, None)
         return normalized
+    bump_request_metric('cover_missing', 1)
 
     retry_after = _cover_retry_after.get(normalized)
     if retry_after and datetime.utcnow() < retry_after:
@@ -956,6 +1176,7 @@ def ensure_cover_available(item) -> str | None:
         return normalized
 
     try:
+        bump_request_metric('cover_tmdb_attempt', 1)
         raw = tmdb_fetch_detail(tmdb_id, media_type=kind)
         poster_path = (raw or {}).get('poster_path')
         if poster_path:
@@ -964,11 +1185,22 @@ def ensure_cover_available(item) -> str | None:
                 subject_id = str(item.get('subject_id') if hasattr(item, 'get') else item['subject_id'])
                 try:
                     saved_url = download_cover_to_local(remote_url, subject_id)
+                    persist_cover_url(subject_id, saved_url)
                     _cover_retry_after.pop(normalized, None)
                     return saved_url
-                except Exception:
+                except Exception as e:
+                    _cover_retry_after[normalized] = datetime.utcnow() + timedelta(seconds=COVER_RETRY_COOLDOWN_SECONDS)
+                    log_tmdb_failure('download_cover_to_local', f'{type(e).__name__}: {e}', {
+                        'subject_id': subject_id,
+                        'tmdb_id': tmdb_id,
+                        'kind': kind,
+                        'title': title,
+                        'remote_url': remote_url,
+                        'covers_dir': str(COVERS_DIR),
+                    })
                     return remote_url
     except Exception as e:
+        bump_request_metric('cover_tmdb_fail', 1)
         _cover_retry_after[normalized] = datetime.utcnow() + timedelta(seconds=COVER_RETRY_COOLDOWN_SECONDS)
         log_tmdb_failure('ensure_cover_available', f'{type(e).__name__}: {e}', {
             'tmdb_id': tmdb_id,
@@ -1015,6 +1247,10 @@ def download_cover_to_local(url: str, subject_id: str) -> str:
 
 def cover_url(item):
     """Return normalized cover URL or None. Works for sqlite3.Row and dict."""
+    try:
+        enqueue_metadata_enrichment(dict(item) if not isinstance(item, dict) else item)
+    except Exception:
+        pass
     value = ensure_cover_available(item)
     if value:
         return value
