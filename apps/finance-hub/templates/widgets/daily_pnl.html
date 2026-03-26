@@ -1,0 +1,13 @@
+{# Widget: 每日盈亏 #}
+{% set d = widget.data %}
+{% set ch = d.change_cny|default(0) %}
+{% set cp = d.change_pct|default(0) %}
+<div class="widget-pnl">
+  <span class="widget-label">今日盈亏</span>
+  <strong class="widget-big-number {{ 'positive' if ch >= 0 else 'negative' }}">
+    {{ '+' if ch >= 0 }}¥ {{ "{:,.2f}".format(ch) }}
+  </strong>
+  <span class="widget-change {{ 'positive' if cp >= 0 else 'negative' }}">
+    {{ '+' if cp >= 0 }}{{ "{:.2f}".format(cp) }}%
+  </span>
+</div>

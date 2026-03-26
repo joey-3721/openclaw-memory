@@ -1,0 +1,114 @@
+<FlexQueryResponse queryName="finance_hub_basic" type="AF">
+<FlexStatements count="1">
+<FlexStatement accountId="U18090885" fromDate="20250326" toDate="20260325" period="Last365CalendarDays" whenGenerated="20260326;023515">
+<Trades>
+<Trade accountId="U18090885" currency="USD" symbol="GOOG" description="ALPHABET INC-CL C" tradeDate="20260211" quantity="5" tradePrice="310.77" ibCommission="-0.34475725" netCash="-1554.19475725" buySell="BUY" />
+<Trade accountId="U18090885" currency="USD" symbol="NVDA" description="NVIDIA CORP" tradeDate="20251124" quantity="1" tradePrice="178.75" ibCommission="-0.34917925" netCash="-179.09917925" buySell="BUY" />
+<Trade accountId="U18090885" currency="USD" symbol="NVDA" description="NVIDIA CORP" tradeDate="20251210" quantity="10" tradePrice="181.6" ibCommission="-0.33925725" netCash="-1816.33925725" buySell="BUY" />
+<Trade accountId="U18090885" currency="USD" symbol="NVDA" description="NVIDIA CORP" tradeDate="20260127" quantity="-10" tradePrice="187.3" ibCommission="-0.35420725" netCash="1872.64579275" buySell="SELL" />
+<Trade accountId="U18090885" currency="USD" symbol="NVDA" description="NVIDIA CORP" tradeDate="20260206" quantity="10" tradePrice="175.23" ibCommission="-0.35225725" netCash="-1752.65225725" buySell="BUY" />
+<Trade accountId="U18090885" currency="USD" symbol="NVDA" description="NVIDIA CORP" tradeDate="20260209" quantity="-10" tradePrice="190" ibCommission="-0.33820725" netCash="1899.66179275" buySell="SELL" />
+<Trade accountId="U18090885" currency="USD" symbol="NVDA" description="NVIDIA CORP" tradeDate="20260217" quantity="10" tradePrice="181" ibCommission="-0.33925725" netCash="-1810.33925725" buySell="BUY" />
+<Trade accountId="U18090885" currency="USD" symbol="NVDA" description="NVIDIA CORP" tradeDate="20260218" quantity="-10" tradePrice="190" ibCommission="-0.33820725" netCash="1899.66179275" buySell="SELL" />
+<Trade accountId="U18090885" currency="USD" symbol="NVDA" description="NVIDIA CORP" tradeDate="20260226" quantity="10" tradePrice="186" ibCommission="-0.33625725" netCash="-1860.33625725" buySell="BUY" />
+<Trade accountId="U18090885" currency="USD" symbol="NVDA" description="NVIDIA CORP" tradeDate="20260302" quantity="10" tradePrice="176" ibCommission="-0.34625725" netCash="-1760.34625725" buySell="BUY" />
+<Trade accountId="U18090885" currency="USD" symbol="NVDA" description="NVIDIA CORP" tradeDate="20260311" quantity="-6" tradePrice="186" ibCommission="-0.34482725" netCash="1115.65517275" buySell="SELL" />
+<Trade accountId="U18090885" currency="USD" symbol="O" description="REALTY INCOME CORP" tradeDate="20260302" quantity="5" tradePrice="67.14" ibCommission="-0.35125725" netCash="-336.05125725" buySell="BUY" />
+<Trade accountId="U18090885" currency="USD" symbol="QQQI" description="NEOS NASDAQ-100 HIGH INC ETF" tradeDate="20251111" quantity="1270" tradePrice="55" ibCommission="-6.37794" netCash="-69856.37794" buySell="BUY" />
+<Trade accountId="U18090885" currency="USD" symbol="QQQI" description="NEOS NASDAQ-100 HIGH INC ETF" tradeDate="20251204" quantity="30" tradePrice="54.5" ibCommission="-0.31725725" netCash="-1635.31725725" buySell="BUY" />
+<Trade accountId="U18090885" currency="USD" symbol="QQQI" description="NEOS NASDAQ-100 HIGH INC ETF" tradeDate="20251226" quantity="20" tradePrice="54.56" ibCommission="-0.32825725" netCash="-1091.52825725" buySell="BUY" />
+<Trade accountId="U18090885" currency="USD" symbol="QQQI" description="NEOS NASDAQ-100 HIGH INC ETF" tradeDate="20251229" quantity="3" tradePrice="54.2" ibCommission="-0.34695725" netCash="-162.94695725" buySell="BUY" />
+<Trade accountId="U18090885" currency="USD" symbol="QQQI" description="NEOS NASDAQ-100 HIGH INC ETF" tradeDate="20260210" quantity="13" tradePrice="53.55" ibCommission="-0.33595725" netCash="-696.48595725" buySell="BUY" />
+<Trade accountId="U18090885" currency="USD" symbol="QQQI" description="NEOS NASDAQ-100 HIGH INC ETF" tradeDate="20260210" quantity="13" tradePrice="53.55" ibCommission="0.0143" netCash="-696.1357" buySell="BUY" />
+<Trade accountId="U18090885" currency="USD" symbol="QQQI" description="NEOS NASDAQ-100 HIGH INC ETF" tradeDate="20260210" quantity="11" tradePrice="53.55" ibCommission="0.0121" netCash="-589.0379" buySell="BUY" />
+<Trade accountId="U18090885" currency="USD" symbol="QQQI" description="NEOS NASDAQ-100 HIGH INC ETF" tradeDate="20260210" quantity="40" tradePrice="53.5" ibCommission="-0.30625725" netCash="-2140.30625725" buySell="BUY" />
+<Trade accountId="U18090885" currency="USD" symbol="QQQI" description="NEOS NASDAQ-100 HIGH INC ETF" tradeDate="20260218" quantity="20" tradePrice="52" ibCommission="-0.32825725" netCash="-1040.32825725" buySell="BUY" />
+<Trade accountId="U18090885" currency="USD" symbol="QQQM" description="INVESCO NASDAQ 100 ETF" tradeDate="20251203" quantity="1" tradePrice="255.5" ibCommission="-0.34915725" netCash="-255.84915725" buySell="BUY" />
+<Trade accountId="U18090885" currency="USD" symbol="QQQM" description="INVESCO NASDAQ 100 ETF" tradeDate="20260113" quantity="10" tradePrice="258.65" ibCommission="-0.35225725" netCash="-2586.85225725" buySell="BUY" />
+<Trade accountId="U18090885" currency="USD" symbol="QQQM" description="INVESCO NASDAQ 100 ETF" tradeDate="20260113" quantity="59" tradePrice="258.64" ibCommission="-0.28535725" netCash="-15260.04535725" buySell="BUY" />
+<Trade accountId="U18090885" currency="USD" symbol="QQQM" description="INVESCO NASDAQ 100 ETF" tradeDate="20260127" quantity="-70" tradePrice="258.97" ibCommission="-0.58790725" netCash="18127.31209275" buySell="SELL" />
+<Trade accountId="U18090885" currency="USD" symbol="QQQM" description="INVESCO NASDAQ 100 ETF" tradeDate="20260206" quantity="5" tradePrice="248.73" ibCommission="-0.33525725" netCash="-1243.98525725" buySell="BUY" />
+<Trade accountId="U18090885" currency="USD" symbol="QQQM" description="INVESCO NASDAQ 100 ETF" tradeDate="20260210" quantity="65" tradePrice="253.56" ibCommission="-0.55825725" netCash="-16481.95825725" buySell="BUY" />
+<Trade accountId="U18090885" currency="USD" symbol="QQQM" description="INVESCO NASDAQ 100 ETF" tradeDate="20260212" quantity="10" tradePrice="252" ibCommission="-0.33925725" netCash="-2520.33925725" buySell="BUY" />
+<Trade accountId="U18090885" currency="USD" symbol="SPYI" description="NEOS S&amp;P 500 HIGH INCOME ETF" tradeDate="20260226" quantity="15" tradePrice="52.1" ibCommission="-0.32925725" netCash="-781.82925725" buySell="BUY" />
+<Trade accountId="U18090885" currency="USD" symbol="VOO" description="VANGUARD S&amp;P 500 ETF" tradeDate="20251203" quantity="1" tradePrice="626.6" ibCommission="-0.34885725" netCash="-626.94885725" buySell="BUY" />
+<Trade accountId="U18090885" currency="USD" symbol="CBBTC_122225_91000_NO" description="Will Bitcoin's price exceed $91,000 on December 22, 2025 at 4 PM CT? - NO" tradeDate="20251222" quantity="5" tradePrice="0.87" ibCommission="0" netCash="-4.35" buySell="BUY" />
+<Trade accountId="U18090885" currency="USD" symbol="CBBTC_122225_91000_NO" description="Will Bitcoin's price exceed $91,000 on December 22, 2025 at 4 PM CT? - NO" tradeDate="20251223" quantity="-5" tradePrice="1" ibCommission="0" netCash="5" buySell="SELL" />
+<Trade accountId="U18090885" currency="USD" symbol="CBBTC_122925_88000_YES" description="Will Bitcoin's price exceed $88,000 on December 29, 2025 at 4 PM CT? - YES" tradeDate="20251229" quantity="5" tradePrice="0.76" ibCommission="0" netCash="-3.8" buySell="BUY" />
+<Trade accountId="U18090885" currency="USD" symbol="CBBTC_122925_88000_YES" description="Will Bitcoin's price exceed $88,000 on December 29, 2025 at 4 PM CT? - YES" tradeDate="20251230" quantity="-5" tradePrice="0" ibCommission="0" netCash="0" buySell="SELL" />
+<Trade accountId="U18090885" currency="CNH" symbol="USD.CNH" description="USD.CNH" tradeDate="20251222" quantity="0.14026067" tradePrice="7.03403682" ibCommission="0" netCash="0" buySell="BUY" />
+<Trade accountId="U18090885" currency="CNH" symbol="USD.CNH" description="USD.CNH" tradeDate="20251222" quantity="0.00190521" tradePrice="7.03403682" ibCommission="0" netCash="0" buySell="BUY" />
+<Trade accountId="U18090885" currency="CNH" symbol="USD.CNH" description="USD.CNH" tradeDate="20251223" quantity="0.28473536" tradePrice="7.02406618" ibCommission="0" netCash="0" buySell="BUY" />
+<Trade accountId="U18090885" currency="CNH" symbol="USD.CNH" description="USD.CNH" tradeDate="20251229" quantity="88.2" tradePrice="7.00556" ibCommission="0" netCash="0" buySell="BUY" />
+<Trade accountId="U18090885" currency="CNH" symbol="USD.CNH" description="USD.CNH" tradeDate="20251229" quantity="0.01021848" tradePrice="7.00035317" ibCommission="0" netCash="0" buySell="BUY" />
+<Trade accountId="U18090885" currency="CNH" symbol="USD.CNH" description="USD.CNH" tradeDate="20251231" quantity="869.52" tradePrice="6.98478" ibCommission="0" netCash="0" buySell="BUY" />
+<Trade accountId="U18090885" currency="CNH" symbol="USD.CNH" description="USD.CNH" tradeDate="20260113" quantity="568.99" tradePrice="6.97057" ibCommission="0" netCash="0" buySell="BUY" />
+<Trade accountId="U18090885" currency="CNH" symbol="USD.CNH" description="USD.CNH" tradeDate="20260113" quantity="0.0076145" tradePrice="6.97596119" ibCommission="0" netCash="0" buySell="BUY" />
+<Trade accountId="U18090885" currency="CNH" symbol="USD.CNH" description="USD.CNH" tradeDate="20260123" quantity="5" tradePrice="6.96552" ibCommission="0" netCash="0" buySell="BUY" />
+<Trade accountId="U18090885" currency="CNH" symbol="USD.CNH" description="USD.CNH" tradeDate="20260123" quantity="1.08830037" tradePrice="6.95288444" ibCommission="0" netCash="0" buySell="BUY" />
+<Trade accountId="U18090885" currency="CNH" symbol="USD.CNH" description="USD.CNH" tradeDate="20260203" quantity="1.44141638" tradePrice="6.93762061" ibCommission="0" netCash="0" buySell="BUY" />
+<Trade accountId="U18090885" currency="CNH" symbol="USD.CNH" description="USD.CNH" tradeDate="20260211" quantity="182.54" tradePrice="6.91183" ibCommission="0" netCash="0" buySell="BUY" />
+<Trade accountId="U18090885" currency="CNH" symbol="USD.CNH" description="USD.CNH" tradeDate="20260211" quantity="0.0069485" tradePrice="6.91132452" ibCommission="0" netCash="0" buySell="BUY" />
+<Trade accountId="U18090885" currency="CNH" symbol="USD.CNH" description="USD.CNH" tradeDate="20260212" quantity="2520.06" tradePrice="6.89998" ibCommission="0" netCash="0" buySell="BUY" />
+<Trade accountId="U18090885" currency="CNH" symbol="USD.CNH" description="USD.CNH" tradeDate="20260212" quantity="0.33" tradePrice="6.90054" ibCommission="0" netCash="0" buySell="BUY" />
+<Trade accountId="U18090885" currency="CNH" symbol="USD.CNH" description="USD.CNH" tradeDate="20260212" quantity="5" tradePrice="6.90701" ibCommission="0" netCash="0" buySell="BUY" />
+<Trade accountId="U18090885" currency="CNH" symbol="USD.CNH" description="USD.CNH" tradeDate="20260226" quantity="44.81" tradePrice="6.84736" ibCommission="0" netCash="0" buySell="BUY" />
+<Trade accountId="U18090885" currency="CNH" symbol="USD.CNH" description="USD.CNH" tradeDate="20260226" quantity="0.00692774" tradePrice="6.84783682" ibCommission="0" netCash="0" buySell="BUY" />
+<Trade accountId="U18090885" currency="CNH" symbol="USD.CNH" description="USD.CNH" tradeDate="20260302" quantity="0.34" tradePrice="6.87017" ibCommission="0" netCash="0" buySell="BUY" />
+<Trade accountId="U18090885" currency="CNH" symbol="USD.CNH" description="USD.CNH" tradeDate="20260302" quantity="1760.04" tradePrice="6.86967" ibCommission="0" netCash="0" buySell="BUY" />
+<Trade accountId="U18090885" currency="CNH" symbol="USD.CNH" description="USD.CNH" tradeDate="20260302" quantity="335.66" tradePrice="6.90488" ibCommission="0" netCash="0" buySell="BUY" />
+<Trade accountId="U18090885" currency="CNH" symbol="USD.CNH" description="USD.CNH" tradeDate="20260302" quantity="0.35" tradePrice="6.90539" ibCommission="0" netCash="0" buySell="BUY" />
+<Trade accountId="U18090885" currency="CNH" symbol="USD.CNH" description="USD.CNH" tradeDate="20260302" quantity="0.0075145" tradePrice="6.90407337" ibCommission="0" netCash="0" buySell="BUY" />
+<Trade accountId="U18090885" currency="CNH" symbol="USD.CNH" description="USD.CNH" tradeDate="20260311" quantity="4.3" tradePrice="6.87824" ibCommission="0" netCash="0" buySell="BUY" />
+<Trade accountId="U18090885" currency="CNH" symbol="USD.CNH" description="USD.CNH" tradeDate="20260323" quantity="76.08" tradePrice="6.91113" ibCommission="0" netCash="0" buySell="BUY" />
+<Trade accountId="U18090885" currency="CNH" symbol="USD.CNH" description="USD.CNH" tradeDate="20260324" quantity="0.13" tradePrice="6.89107" ibCommission="0" netCash="0" buySell="BUY" />
+<Trade accountId="U18090885" currency="HKD" symbol="USD.HKD" description="USD.HKD" tradeDate="20251110" quantity="-10" tradePrice="7.7728" ibCommission="-2" netCash="0" buySell="SELL" />
+<Trade accountId="U18090885" currency="HKD" symbol="USD.HKD" description="USD.HKD" tradeDate="20251118" quantity="-0.00025696" tradePrice="7.78337713" ibCommission="0" netCash="0" buySell="SELL" />
+<Trade accountId="U18090885" currency="HKD" symbol="USD.HKD" description="USD.HKD" tradeDate="20260223" quantity="-1279.75" tradePrice="7.814" ibCommission="-2" netCash="0" buySell="SELL" />
+<Trade accountId="U18090885" currency="HKD" symbol="USD.HKD" description="USD.HKD" tradeDate="20260223" quantity="0.12356576" tradePrice="7.82174582" ibCommission="0" netCash="0" buySell="BUY" />
+<Trade accountId="U18090885" currency="USD" symbol="T 4 3/4 11/15/53" description="T 4 3/4 11/15/53" tradeDate="20251113" quantity="1000" tradePrice="101.1488375" ibCommission="-5" netCash="-1016.49" buySell="BUY" />
+<Trade accountId="U18090885" currency="USD" symbol="T 4 3/4 11/15/53" description="T 4 3/4 11/15/53" tradeDate="20251208" quantity="1000" tradePrice="98.9379" ibCommission="-5" netCash="-994.38" buySell="BUY" />
+<Trade accountId="U18090885" currency="USD" symbol="T 4 3/4 11/15/53" description="T 4 3/4 11/15/53" tradeDate="20251231" quantity="1000" tradePrice="98.609775" ibCommission="-5" netCash="-991.1" buySell="BUY" />
+<Trade accountId="U18090885" currency="USD" symbol="T 4 3/4 11/15/53" description="T 4 3/4 11/15/53" tradeDate="20260109" quantity="5000" tradePrice="97.98086875" ibCommission="-5" netCash="-4904.04" buySell="BUY" />
+<Trade accountId="U18090885" currency="USD" symbol="T 4 3/4 11/15/53" description="T 4 3/4 11/15/53" tradeDate="20260123" quantity="-5000" tradePrice="98.702725" ibCommission="-5" netCash="4930.14" buySell="SELL" />
+<Trade accountId="U18090885" currency="USD" symbol="T 4 3/4 11/15/53" description="T 4 3/4 11/15/53" tradeDate="20260212" quantity="-4000" tradePrice="100.1011625" ibCommission="-5" netCash="3999.05" buySell="SELL" />
+<Trade accountId="U18090885" currency="USD" symbol="T 4 3/4 11/15/53" description="T 4 3/4 11/15/53" tradeDate="20260311" quantity="1000" tradePrice="98.22305625" ibCommission="-5" netCash="-987.23" buySell="BUY" />
+<Trade accountId="U18090885" currency="USD" symbol="T 4 3/4 11/15/53" description="T 4 3/4 11/15/53" tradeDate="20260323" quantity="1000" tradePrice="96.37149375" ibCommission="-5" netCash="-968.71" buySell="BUY" />
+</Trades><CashTransactions>
+<CashTransaction accountId="U18090885" currency="USD" symbol="QQQI" description="QQQI(US78433H6751) CASH DIVIDEND USD 0.6304 PER SHARE (Ordinary Dividend)" dateTime="20251128;202000" amount="800.61" type="Dividends" />
+<CashTransaction accountId="U18090885" currency="USD" symbol="VOO" description="VOO(US9229083632) CASH DIVIDEND USD 1.771 PER SHARE (Ordinary Dividend)" dateTime="20251224;202000" amount="1.77" type="Dividends" />
+<CashTransaction accountId="U18090885" currency="USD" symbol="NVDA" description="NVDA(US67066G1040) CASH DIVIDEND USD 0.01 PER SHARE (Ordinary Dividend)" dateTime="20251226;202000" amount="0.01" type="Dividends" />
+<CashTransaction accountId="U18090885" currency="USD" symbol="QQQI" description="QQQI(US78433H6751) CASH DIVIDEND USD 0.641285 PER SHARE (Ordinary Dividend)" dateTime="20251226;202000" amount="833.67" type="Dividends" />
+<CashTransaction accountId="U18090885" currency="USD" symbol="QQQM" description="QQQM(US46138G6492) CASH DIVIDEND USD 0.32301 PER SHARE (Ordinary Dividend)" dateTime="20251226;202000" amount="0.32" type="Dividends" />
+<CashTransaction accountId="U18090885" currency="USD" symbol="QQQI" description="QQQI(US78433H6751) CASH DIVIDEND USD 0.6359 PER SHARE (Ordinary Dividend)" dateTime="20260123;202000" amount="841.3" type="Dividends" />
+<CashTransaction accountId="U18090885" currency="USD" symbol="QQQI" description="QQQI(US78433H6751) CASH DIVIDEND USD 0.614 PER SHARE (Ordinary Dividend)" dateTime="20260220;202000" amount="859.6" type="Dividends" />
+<CashTransaction accountId="U18090885" currency="USD" symbol="GOOG" description="GOOG(US02079K1079) CASH DIVIDEND USD 0.21 PER SHARE (Ordinary Dividend)" dateTime="20260316;202000" amount="1.05" type="Dividends" />
+<CashTransaction accountId="U18090885" currency="USD" symbol="QQQI" description="QQQI(US78433H6751) CASH DIVIDEND USD 0.6089 PER SHARE (Ordinary Dividend)" dateTime="20260320;202000" amount="864.64" type="Dividends" />
+<CashTransaction accountId="U18090885" currency="USD" symbol="SPYI" description="SPYI(US78433H3030) CASH DIVIDEND USD 0.5104 PER SHARE (Ordinary Dividend)" dateTime="20260320;202000" amount="7.66" type="Dividends" />
+<CashTransaction accountId="U18090885" currency="CNH" symbol="" description="CASH RECEIPTS / ELECTRONIC FUND TRANSFERS" dateTime="20251221;221819" amount="1" type="Deposits/Withdrawals" />
+<CashTransaction accountId="U18090885" currency="CNH" symbol="" description="CASH RECEIPTS / ELECTRONIC FUND TRANSFERS" dateTime="20251222;204631" amount="2" type="Deposits/Withdrawals" />
+<CashTransaction accountId="U18090885" currency="CNH" symbol="" description="CASH RECEIPTS / ELECTRONIC FUND TRANSFERS" dateTime="20251229" amount="700" type="Deposits/Withdrawals" />
+<CashTransaction accountId="U18090885" currency="CNH" symbol="" description="CASH RECEIPTS / ELECTRONIC FUND TRANSFERS" dateTime="20251231" amount="10000" type="Deposits/Withdrawals" />
+<CashTransaction accountId="U18090885" currency="CNH" symbol="" description="CASH RECEIPTS / ELECTRONIC FUND TRANSFERS" dateTime="20260202;210009" amount="10" type="Deposits/Withdrawals" />
+<CashTransaction accountId="U18090885" currency="CNH" symbol="" description="CASH RECEIPTS / ELECTRONIC FUND TRANSFERS" dateTime="20260211;193926" amount="10000" type="Deposits/Withdrawals" />
+<CashTransaction accountId="U18090885" currency="CNH" symbol="" description="CASH RECEIPTS / ELECTRONIC FUND TRANSFERS" dateTime="20260211" amount="10000" type="Deposits/Withdrawals" />
+<CashTransaction accountId="U18090885" currency="CNH" symbol="" description="CASH RECEIPTS / ELECTRONIC FUND TRANSFERS" dateTime="20260301;214546" amount="15000" type="Deposits/Withdrawals" />
+<CashTransaction accountId="U18090885" currency="HKD" symbol="" description="DISBURSEMENT INITIATED BY jiayi li" dateTime="20251118" amount="-77.73" type="Deposits/Withdrawals" />
+<CashTransaction accountId="U18090885" currency="HKD" symbol="" description="DISBURSEMENT INITIATED BY jiayi li" dateTime="20260223;004007" amount="-9999" type="Deposits/Withdrawals" />
+<CashTransaction accountId="U18090885" currency="USD" symbol="" description="CASH RECEIPTS / ELECTRONIC FUND TRANSFERS" dateTime="20251110" amount="20" type="Deposits/Withdrawals" />
+<CashTransaction accountId="U18090885" currency="USD" symbol="" description="CASH RECEIPTS / ELECTRONIC FUND TRANSFERS" dateTime="20251111" amount="71108" type="Deposits/Withdrawals" />
+<CashTransaction accountId="U18090885" currency="USD" symbol="" description="CASH RECEIPTS / ELECTRONIC FUND TRANSFERS" dateTime="20251202;203618" amount="4950" type="Deposits/Withdrawals" />
+<CashTransaction accountId="U18090885" currency="USD" symbol="" description="CASH RECEIPTS / ELECTRONIC FUND TRANSFERS" dateTime="20251229;223202" amount="127.87" type="Deposits/Withdrawals" />
+<CashTransaction accountId="U18090885" currency="USD" symbol="" description="CASH RECEIPTS / ELECTRONIC FUND TRANSFERS" dateTime="20260107" amount="22210" type="Deposits/Withdrawals" />
+<CashTransaction accountId="U18090885" currency="USD" symbol="" description="DISBURSEMENT INITIATED BY jiayi li" dateTime="20260123;040001" amount="-35" type="Deposits/Withdrawals" />
+<CashTransaction accountId="U18090885" currency="USD" symbol="" description="DISBURSEMENT INITIATED BY jiayi li" dateTime="20260127;081723" amount="-25800" type="Deposits/Withdrawals" />
+<CashTransaction accountId="U18090885" currency="USD" symbol="" description="CASH RECEIPTS / ELECTRONIC FUND TRANSFERS" dateTime="20260129" amount="1" type="Deposits/Withdrawals" />
+<CashTransaction accountId="U18090885" currency="USD" symbol="" description="CASH RECEIPTS / ELECTRONIC FUND TRANSFERS" dateTime="20260206" amount="3000" type="Deposits/Withdrawals" />
+<CashTransaction accountId="U18090885" currency="USD" symbol="" description="CASH RECEIPTS / ELECTRONIC FUND TRANSFERS" dateTime="20260209;220655" amount="20000" type="Deposits/Withdrawals" />
+<CashTransaction accountId="U18090885" currency="USD" symbol="" description="USD CREDIT INT FOR NOV-2025" dateTime="20251203" amount="4.07" type="Broker Interest Received" />
+<CashTransaction accountId="U18090885" currency="USD" symbol="" description="USD CREDIT INT FOR JAN-2026" dateTime="20260204" amount="6.7" type="Broker Interest Received" />
+<CashTransaction accountId="U18090885" currency="USD" symbol="" description="USD CREDIT INT FOR FEB-2026" dateTime="20260304" amount="1.04" type="Broker Interest Received" />
+</CashTransactions>
+</FlexStatement>
+</FlexStatements>
+</FlexQueryResponse>

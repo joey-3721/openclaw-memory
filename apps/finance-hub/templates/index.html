@@ -1,159 +1,53 @@
 {% extends 'base.html' %}
 {% block content %}
-<header class="topbar">
-  <div class="topbar-spacer" aria-hidden="true"></div>
-  <div class="topbar-actions">
-    <span class="status-pill {% if db_status.ok %}ok{% endif %}">
-      <span class="status-dot"></span>
-      <span class="status-text">{{ db_status.message }}</span>
-    </span>
+<header class="page-header">
+  <div>
+    <h1 class="page-title">仪表盘</h1>
+    <p class="page-subtitle">资产总览与数据分析</p>
+  </div>
+  <div class="dashboard-actions">
+    <button class="btn btn-ghost dashboard-manage-btn"
+            id="btn-open-widget-picker"
+            type="button"
+            onclick="openWidgetPicker()"
+            hidden>
+      添加组件
+    </button>
+    <button class="btn btn-ghost" id="btn-edit-dashboard" type="button" onclick="toggleEditMode()">编辑布局</button>
   </div>
 </header>
 
-<section class="hero-grid">
-  <article class="hero-card hero-balance">
-    <div class="hero-copy">
-      <span class="card-kicker">净资产</span>
-      <h2>{{ site_stats.net_worth }}</h2>
-      <p>现金、投资与储蓄目标的合并视图</p>
+<section class="dashboard-library-panel" id="widget-picker-panel" hidden>
+  <div class="dashboard-library-head">
+    <div>
+      <p class="widget-picker-kicker">组件中心</p>
+      <h2>添加你想看的模块</h2>
     </div>
-    <div class="hero-ring">
-      <div class="ring-core">
-        <strong>{{ site_stats.budget_usage }}%</strong>
-        <span>预算进度</span>
-      </div>
-    </div>
-  </article>
-
-  <article class="hero-card hero-spotlight">
-    <span class="card-kicker">本月摘要</span>
-    <div class="spotlight-grid">
-      <div class="spotlight-item">
-        <span>总现金</span>
-        <strong>{{ site_stats.cash_balance }}</strong>
-      </div>
-      <div class="spotlight-item">
-        <span>月内流入</span>
-        <strong>{{ site_stats.month_income }}</strong>
-      </div>
-      <div class="spotlight-item">
-        <span>月内支出</span>
-        <strong>{{ site_stats.month_spending }}</strong>
-      </div>
-      <div class="spotlight-item">
-        <span>储蓄率</span>
-        <strong>{{ site_stats.monthly_saving_rate }}%</strong>
-      </div>
-    </div>
-  </article>
+    <button class="modal-close" type="button" onclick="closeWidgetPicker()" aria-label="关闭">×</button>
+  </div>
+  <p class="widget-picker-copy">可以先添加回来，再拖动到你想要的位置。后续新组件也会出现在这里。</p>
+  <div class="widget-picker-list" id="widget-picker-list"></div>
 </section>
 
-<section class="metric-grid">
-  {% for account in accounts %}
-  <article class="metric-card tone-{{ account.tone }}">
-    <div class="metric-icon"></div>
-    <div class="metric-copy">
-      <span>{{ account.type }}</span>
-      <strong>{{ account.balance }}</strong>
-      <p>{{ account.name }}</p>
-    </div>
-    <div class="metric-change">{{ account.change }}</div>
-  </article>
+<section class="widget-grid" id="widget-grid" data-live-url="/api/dashboard/live-page">
+  {% for widget in widgets %}
+  {% include 'partials/dashboard_widget_card.html' %}
   {% endfor %}
+
+  {% if not widgets %}
+  <div class="empty-state">
+    <p>暂无组件数据</p>
+    <p class="text-soft">请先到「资产」页面添加您的资产</p>
+  </div>
+  {% endif %}
 </section>
+{% endblock %}
 
-<section class="board-grid">
-  <article class="panel chart-panel">
-    <div class="panel-head">
-      <div>
-        <span class="panel-eyebrow">7 天现金流</span>
-        <h3>收入与支出趋势</h3>
-      </div>
-      <button class="ghost-btn">按天</button>
-    </div>
-    <div class="line-chart">
-      {% for row in trend %}
-      <div class="line-col">
-        <div class="line-stack">
-          <span class="line income" style="height: {{ row.income * 7 }}px"></span>
-          <span class="line spend" style="height: {{ row.spend * 7 }}px"></span>
-        </div>
-        <span class="line-label">{{ row.label }}</span>
-      </div>
-      {% endfor %}
-    </div>
-  </article>
-
-  <article class="panel pie-panel">
-    <div class="panel-head">
-      <div>
-        <span class="panel-eyebrow">分类占比</span>
-        <h3>支出结构</h3>
-      </div>
-      <button class="ghost-btn">本月</button>
-    </div>
-    <div class="pie-layout">
-      <div class="pie-visual"></div>
-      <div class="pie-legend">
-        {% for item in category_mix %}
-        <div class="legend-row">
-          <span class="legend-dot" style="background: {{ item.color }}"></span>
-          <div class="legend-copy">
-            <strong>{{ item.name }}</strong>
-            <span>{{ item.amount }}</span>
-          </div>
-          <em>{{ item.share }}%</em>
-        </div>
-        {% endfor %}
-      </div>
-    </div>
-  </article>
-</section>
-
-<section class="board-grid lower-grid">
-  <article class="panel">
-    <div class="panel-head">
-      <div>
-        <span class="panel-eyebrow">预算追踪</span>
-        <h3>本月预算使用</h3>
-      </div>
-      <button class="ghost-btn">查看全部</button>
-    </div>
-    <div class="budget-list">
-      {% for budget in budgets %}
-      <div class="budget-row">
-        <div class="budget-meta">
-          <strong>{{ budget.name }}</strong>
-          <span>¥ {{ budget.spent }} / ¥ {{ budget.limit }}</span>
-        </div>
-        <div class="budget-bar">
-          <span style="width: {{ budget.ratio }}%"></span>
-        </div>
-      </div>
-      {% endfor %}
-    </div>
-  </article>
-
-  <article class="panel">
-    <div class="panel-head">
-      <div>
-        <span class="panel-eyebrow">最近活动</span>
-        <h3>账户动态</h3>
-      </div>
-      <button class="ghost-btn">导出</button>
-    </div>
-    <div class="activity-list">
-      {% for item in activities %}
-      <div class="activity-row">
-        <div class="activity-badge {{ item.kind }}"></div>
-        <div class="activity-copy">
-          <strong>{{ item.title }}</strong>
-          <span>{{ item.meta }}</span>
-        </div>
-        <div class="activity-amount {{ item.kind }}">{{ item.amount }}</div>
-      </div>
-      {% endfor %}
-    </div>
-  </article>
-</section>
+{% block scripts %}
+<script>
+  window.__DASHBOARD_DATA__ = {{ dashboard_data_json | safe }};
+  window.__DASHBOARD_LAYOUT__ = {{ dashboard_layout_json | safe }};
+</script>
+<script src="/static/js/chart-config.js?v=2"></script>
+<script src="/static/js/dashboard.js?v=6"></script>
 {% endblock %}

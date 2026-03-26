@@ -1,0 +1,18 @@
+{% set d = widget.data %}
+{% set label = d.label | default(widget.display_name) %}
+{% set value = d.value_cny | default(0) %}
+{% set subvalue = d.subvalue %}
+{% set tone = d.tone | default('neutral') %}
+{% set is_signed = tone == 'signed' %}
+{% set display_value = value | abs if is_signed else value %}
+<div class="widget-performance-metric">
+  <span class="widget-label">{{ label }}</span>
+  <strong class="widget-big-number {% if is_signed %}{{ 'positive' if value >= 0 else 'negative' }}{% endif %}">
+    {% if is_signed %}{{ '+' if value >= 0 else '-' }}{% else %}¥ {% endif %}{% if is_signed %}¥ {% endif %}{{ "{:,.2f}".format(display_value) }}
+  </strong>
+  {% if subvalue is not none %}
+  <span class="widget-change {{ 'positive' if subvalue >= 0 else 'negative' }}">
+    {{ '+' if subvalue >= 0 else '' }}{{ "{:.2f}".format(subvalue) }}%
+  </span>
+  {% endif %}
+</div>

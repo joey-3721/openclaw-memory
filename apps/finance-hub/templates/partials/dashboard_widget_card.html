@@ -1,0 +1,33 @@
+<article class="widget widget-w{{ widget.width }}"
+         data-widget-id="{{ widget.id }}"
+         data-widget-type="{{ widget.widget_type }}"
+         data-sort="{{ widget.sort_order }}">
+  <div class="widget-header">
+    <div class="widget-header-main">
+      <span class="widget-title">{{ widget.display_name }}</span>
+    </div>
+    <div class="widget-header-actions">
+      <button class="widget-remove-btn"
+              type="button"
+              hidden
+              data-widget-remove="{{ widget.id }}"
+              aria-label="移除组件">
+        <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+          <path d="M6 6L14 14M14 6L6 14"></path>
+        </svg>
+      </button>
+      <span class="widget-drag-handle" style="display:none;" aria-label="拖拽排序">⋮⋮</span>
+    </div>
+  </div>
+  <div class="widget-body">
+    {% if widget.is_loading %}
+    <div class="widget-loading-shell">
+      <div class="loading-line loading-line-lg"></div>
+      <div class="loading-line"></div>
+      <div class="loading-block"></div>
+    </div>
+    {% else %}
+    {% include widget.component_template %}
+    {% endif %}
+  </div>
+</article>

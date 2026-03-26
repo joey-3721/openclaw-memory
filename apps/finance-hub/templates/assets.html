@@ -1,0 +1,127 @@
+{% extends 'base.html' %}
+{% block content %}
+<header class="page-header">
+  <div>
+    <h1 class="page-title">我的资产</h1>
+    <p class="page-subtitle">管理您的股票、债券和现金资产</p>
+  </div>
+  <div class="dashboard-actions">
+    <button class="btn btn-primary" onclick="openAddAssetModal()">+ 添加资产</button>
+  </div>
+</header>
+
+<div id="assets-page-content" data-refresh-url="/assets/live-content">
+  {% include 'partials/assets_content.html' %}
+</div>
+
+<!-- Add Asset Modal -->
+<div class="modal-overlay" id="add-asset-modal" style="display:none;" onclick="closeModalOnOverlay(event)">
+  <div class="modal-sheet">
+    <div class="modal-header">
+      <h2>添加资产</h2>
+      <button class="modal-close" onclick="closeModal('add-asset-modal')">&times;</button>
+    </div>
+    <form id="add-asset-form" onsubmit="submitAsset(event)">
+      <div class="form-group">
+        <label>资产类型</label>
+        <select id="asset-type-select" name="asset_type_code" required onchange="onAssetTypeChange()">
+          <option value="">请选择</option>
+          <option value="STOCK">股票</option>
+          <option value="BOND">债券</option>
+          <option value="CASH">现金 (美元)</option>
+        </select>
+      </div>
+
+      <div class="form-group" id="ticker-group" style="display:none;">
+        <label>股票代码</label>
+        <div class="input-with-status">
+          <input type="text" id="ticker-input" name="ticker_symbol"
+                 placeholder="例如: QQQ, AAPL" oninput="onTickerInput(this.value)">
+          <span class="input-status" id="ticker-status"></span>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>资产名称</label>
+        <input type="text" id="asset-name-input" name="asset_name"
+               placeholder="例如: 纳斯达克100ETF" required>
+      </div>
+
+      <div class="form-group">
+        <label id="quantity-label">数量</label>
+        <input type="number" name="quantity" step="any" min="0.000001"
+               placeholder="0.00" required>
+      </div>
+
+      <div class="form-group" id="price-group">
+        <label>买入单价 (USD)</label>
+        <input type="number" name="price_per_unit" step="any" min="0"
+               placeholder="0.00">
+      </div>
+
+      <div class="form-group">
+        <label id="date-label">买入日期</label>
+        <input type="date" name="buy_date" required>
+      </div>
+
+      <div class="form-group">
+        <label>备注 (可选)</label>
+        <input type="text" name="note" placeholder="备注信息">
+      </div>
+
+      <button type="submit" class="btn btn-primary btn-block" id="submit-asset-btn">
+        确认添加
+      </button>
+    </form>
+  </div>
+</div>
+
+<!-- Transaction Modal -->
+<div class="modal-overlay" id="transaction-modal" style="display:none;" onclick="closeModalOnOverlay(event)">
+  <div class="modal-sheet">
+    <div class="modal-header">
+      <h2 id="tx-modal-title">买入/卖出</h2>
+      <button class="modal-close" onclick="closeModal('transaction-modal')">&times;</button>
+    </div>
+    <form id="transaction-form" onsubmit="submitTransaction(event)">
+      <input type="hidden" id="tx-asset-id" name="asset_id">
+      <input type="hidden" id="tx-direction" name="direction">
+
+      <div class="form-group">
+        <label>数量</label>
+        <input type="number" name="quantity" step="any" min="0.000001"
+               placeholder="0.00" required>
+      </div>
+
+      <div class="form-group" id="tx-price-group">
+        <label>单价 (USD)</label>
+        <input type="number" name="price_per_unit" step="any" min="0"
+               placeholder="0.00">
+      </div>
+
+      <div class="form-group">
+        <label>日期</label>
+        <input type="date" name="transaction_date" required>
+      </div>
+
+      <div class="form-group">
+        <label>手续费 (USD)</label>
+        <input type="number" name="fee" step="0.01" value="0" min="0">
+      </div>
+
+      <div class="form-group">
+        <label>备注</label>
+        <input type="text" name="note" placeholder="可选">
+      </div>
+
+      <button type="submit" class="btn btn-primary btn-block" id="submit-tx-btn">
+        确认
+      </button>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/assets.js?v=9"></script>
+{% endblock %}

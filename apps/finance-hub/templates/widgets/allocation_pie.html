@@ -1,0 +1,22 @@
+{# Widget: 资产配置 — doughnut chart #}
+{% set alloc_items = widget.data["items"] | default([]) %}
+<div class="widget-allocation">
+  {% if alloc_items %}
+  <div class="allocation-layout">
+    <div class="allocation-chart-wrap" aria-label="资产配置饼图">
+      <canvas id="chart-allocation"></canvas>
+    </div>
+    <div class="allocation-legend">
+      {% for item in alloc_items %}
+      <div class="legend-item">
+        <span class="legend-dot" style="background:{{ item.color }}"></span>
+        <span>{{ item.type_name }}</span>
+        <strong>{{ item.pct }}%</strong>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% else %}
+  <p class="text-soft">暂无资产数据</p>
+  {% endif %}
+</div>

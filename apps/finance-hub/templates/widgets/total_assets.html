@@ -1,0 +1,12 @@
+{# Widget: 资产总金额 — big number card #}
+{% set d = widget.data %}
+<div class="widget-total-assets">
+  <span class="widget-label">资产总值 (CNY)</span>
+  <strong class="widget-big-number">¥ {{ "{:,.0f}".format(d.total_cny|default(0)) }}</strong>
+  {% set ch = d.change_cny|default(0) %}
+  {% set cp = d.change_pct|default(0) %}
+  <span class="widget-change {{ 'positive' if ch >= 0 else 'negative' }}">
+    {{ '+' if ch >= 0 }}¥ {{ "{:,.2f}".format(ch) }}
+    ({{ '+' if cp >= 0 }}{{ "{:.2f}".format(cp) }}%)
+  </span>
+</div>

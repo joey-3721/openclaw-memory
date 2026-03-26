@@ -1,0 +1,113 @@
+{% extends 'base.html' %}
+{% block content %}
+<header class="page-header">
+  <div>
+    <h1 class="page-title">设置</h1>
+  </div>
+</header>
+
+<section class="settings-shell">
+  <div class="settings-content settings-content-single">
+    <section class="settings-card settings-panel" id="settings-ibkr">
+      <button class="settings-panel-toggle" type="button"
+              data-settings-panel-toggle="ibkr"
+              aria-expanded="false">
+        <span class="settings-panel-title">IBKR 同步</span>
+        <span class="settings-panel-chevron" aria-hidden="true">⌄</span>
+      </button>
+
+      <div class="settings-panel-body" id="settings-panel-body-ibkr" hidden>
+        <div class="settings-card-head">
+          <button class="btn btn-ghost" id="btn-settings-sync-ibkr" type="button"
+                  onclick="syncIBKRFromSettings()" disabled>
+            同步 IBKR
+          </button>
+        </div>
+
+        <div class="settings-status-grid">
+          <div class="settings-status-pill">
+            <span>上次同步</span>
+            <strong id="settings-ibkr-last-sync">点击展开后加载</strong>
+          </div>
+          <div class="settings-status-pill">
+            <span>最近导入到</span>
+            <strong id="settings-ibkr-last-import">点击展开后加载</strong>
+          </div>
+          <div class="settings-status-pill">
+            <span>Token 有效期</span>
+            <strong id="settings-ibkr-token-expiry">点击展开后加载</strong>
+          </div>
+        </div>
+
+        <form class="settings-form" id="ibkr-settings-form" onsubmit="saveIBKRSettings(event)">
+          <div class="form-group">
+            <label>Flex Query ID</label>
+            <input type="text" id="settings-flex-query-id" name="flex_query_id"
+                   value=""
+                   placeholder="例如 1447894" required>
+          </div>
+          <div class="form-group">
+            <label>新 Token</label>
+            <input type="text" id="settings-flex-token" name="flex_token"
+                   placeholder="留空则保留当前 token">
+          </div>
+          <div class="form-group">
+            <label>Token 有效期</label>
+            <input type="date" id="settings-token-expires-at" name="token_expires_at"
+                   value="">
+          </div>
+          <label class="settings-checkbox">
+            <input type="checkbox" id="settings-ibkr-enabled" name="is_enabled">
+            <span>启用 IBKR 自动同步</span>
+          </label>
+          <div class="settings-form-actions">
+            <button class="btn btn-primary" id="btn-save-ibkr-settings" type="submit">保存设置</button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <section class="settings-card settings-panel snapshot-rebuild-block" id="settings-snapshots"
+             data-status="{{ snapshot_rebuild_status.status }}"
+             data-is-running="{{ 'true' if snapshot_rebuild_status.is_running else 'false' }}">
+      <button class="settings-panel-toggle" type="button"
+              data-settings-panel-toggle="snapshots"
+              aria-expanded="false">
+        <span class="settings-panel-title">历史快照</span>
+        <span class="settings-panel-chevron" aria-hidden="true">⌄</span>
+      </button>
+
+      <div class="settings-panel-body" id="settings-panel-body-snapshots" hidden>
+        <div class="settings-card-head">
+          <button class="btn btn-ghost" id="btn-rebuild-snapshots" type="button"
+                  onclick="rebuildSnapshotsFromSettings()" disabled>
+            <span class="btn-spinner" id="snapshot-rebuild-spinner" hidden></span>
+            重建历史快照
+          </button>
+        </div>
+
+        <div class="settings-status-grid settings-status-grid-compact">
+          <div class="settings-status-pill">
+            <span>上次回填</span>
+            <strong id="snapshot-rebuild-last-completed">点击展开后加载</strong>
+          </div>
+          <div class="settings-status-pill">
+            <span>当前状态</span>
+            <strong id="snapshot-rebuild-copy">点击展开后加载</strong>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    {% if current_user %}
+    <section class="settings-card settings-logout-card">
+      <a href="/logout" class="btn btn-ghost settings-logout-btn">退出登录</a>
+    </section>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/settings.js?v=3"></script>
+{% endblock %}
