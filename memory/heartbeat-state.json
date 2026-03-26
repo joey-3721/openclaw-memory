@@ -2,61 +2,41 @@
   "lastChecks": {
     "recommendation": "2026-03-23 01:17:00",
     "feishu_heartbeat": "2026-03-23 00:10:00",
-    "weather": "2026-03-24 00:32:00"
+    "weather": "2026-03-26 00:30:00"
   },
   "recommendation_count": 143,
-  "last_action": "send weather report for 2026-03-24",
+  "last_action": "send weather report for 2026-03-26",
   "weather": {
-    "lastReportDate": "2026-03-24",
-    "lastReportTs": "2026-03-24T00:32:00+08:00",
-    "lastReportLocalTime": "2026-03-24 00:32",
+    "lastReportDate": "2026-03-26",
+    "lastReportTs": "2026-03-26T00:30:00+08:00",
+    "lastReportLocalTime": "2026-03-26 00:30",
     "snapshots": {
-      "2026-03-24": {
-        "date": "2026-03-24",
-        "condition": "晴",
-        "temp": 5,
-        "feelsLike": 4,
-        "humidity": 70,
-        "windSpeed": 6,
-        "windDir": "NE",
-        "high": 21,
-        "low": 9,
-        "rainChance": 0,
-        "observedAt": "2026-03-24T08:00+08:00"
-      },
-      "2026-03-23": {
-        "date": "2026-03-23",
-        "condition": "薄雾",
-        "temp": 10,
+      "2026-03-26": {
+        "date": "2026-03-26",
+        "condition": "薄雾转晴",
+        "temp": 11,
         "feelsLike": 10,
-        "humidity": 71,
-        "windSpeed": 5,
-        "windDir": "SE",
-        "high": 21,
-        "low": 9,
+        "humidity": 82,
+        "windSpeed": 8,
+        "windDir": "ENE",
+        "high": 25,
+        "low": 12,
         "rainChance": 0,
-        "observedAt": "2026-03-23T00:00+08:00"
+        "observedAt": "2026-03-26T08:14+08:00"
+      },
+      "2026-03-25": {
+        "date": "2026-03-25",
+        "condition": "雾",
+        "temp": 8,
+        "feelsLike": 7,
+        "humidity": 87,
+        "windSpeed": 7,
+        "windDir": "NNE",
+        "high": 24,
+        "low": 11,
+        "rainChance": 0,
+        "observedAt": "2026-03-25T08:29+08:00"
       }
     }
-  },
-  "weather_today": {
-    "date": "2026-03-24",
-    "condition": "晴",
-    "temp": 5,
-    "feels_like": 4,
-    "humidity": 70,
-    "wind_speed": 6,
-    "wind_dir": "NE",
-    "precip": 0,
-    "visibility": 10,
-    "uv": 1
-  },
-  "weather_tomorrow": {
-    "date": "2026-03-25",
-    "condition": "晴",
-    "temp_high": 22,
-    "temp_low": 10,
-    "sunrise": "06:11",
-    "sunset": "18:31"
   }
 }

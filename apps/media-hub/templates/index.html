@@ -25,7 +25,7 @@
         </div>
         <p class="reason-text">{{ surprise._reason }}</p>
         {% if surprise.directors or surprise.actors %}
-        <p class="tonight-credits">🎬 {{ surprise.directors[:40] }}{% if surprise.directors and surprise.actors %} · {% endif %}{{ surprise.actors[:50] }}</p>
+        <p class="tonight-credits">🎬 {{ (surprise.directors or '')[:40] }}{% if surprise.directors and surprise.actors %} · {% endif %}{{ (surprise.actors or '')[:50] }}</p>
         {% endif %}
         <div class="tonight-actions">
           <a class="btn primary" href="/recommendations">去推荐页操作</a>
