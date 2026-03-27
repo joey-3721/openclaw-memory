@@ -2,15 +2,28 @@
   "lastChecks": {
     "recommendation": "2026-03-23 01:17:00",
     "feishu_heartbeat": "2026-03-23 00:10:00",
-    "weather": "2026-03-26 00:30:00"
+    "weather": "2026-03-27 00:30:00"
   },
   "recommendation_count": 143,
-  "last_action": "send weather report for 2026-03-26",
+  "last_action": "send weather report for 2026-03-27",
   "weather": {
-    "lastReportDate": "2026-03-26",
-    "lastReportTs": "2026-03-26T00:30:00+08:00",
-    "lastReportLocalTime": "2026-03-26 00:30",
+    "lastReportDate": "2026-03-27",
+    "lastReportTs": "2026-03-27T00:30:00+08:00",
+    "lastReportLocalTime": "2026-03-27 00:30",
     "snapshots": {
+      "2026-03-27": {
+        "date": "2026-03-27",
+        "condition": "多云",
+        "temp": 13.5,
+        "feelsLike": 9.8,
+        "humidity": 25,
+        "windSpeed": 5.4,
+        "windDir": "N",
+        "high": 20.5,
+        "low": 11.1,
+        "rainChance": 3,
+        "observedAt": "2026-03-27T08:30+08:00"
+      },
       "2026-03-26": {
         "date": "2026-03-26",
         "condition": "薄雾转晴",
@@ -23,19 +36,6 @@
         "low": 12,
         "rainChance": 0,
         "observedAt": "2026-03-26T08:14+08:00"
-      },
-      "2026-03-25": {
-        "date": "2026-03-25",
-        "condition": "雾",
-        "temp": 8,
-        "feelsLike": 7,
-        "humidity": 87,
-        "windSpeed": 7,
-        "windDir": "NNE",
-        "high": 24,
-        "low": 11,
-        "rainChance": 0,
-        "observedAt": "2026-03-25T08:29+08:00"
       }
     }
   }
