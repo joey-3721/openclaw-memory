@@ -266,6 +266,58 @@ TABLE_STATEMENTS = [
     ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
       COMMENT='结算付款记录表：保存现实中谁已经给谁转过多少钱，用来抵扣未结算关系并计算最优路径'
     """,
+    """
+    CREATE TABLE IF NOT EXISTS ai_model_configs (
+        id BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT 'AI 模型配置主键',
+        provider_code VARCHAR(40) NOT NULL COMMENT '模型提供商代码，例如 MINIMAX',
+        provider_name VARCHAR(80) NOT NULL COMMENT '模型提供商名称，例如 MiniMax',
+        model_code VARCHAR(80) NOT NULL COMMENT '模型代码，例如 MiniMax-M2.7',
+        model_name VARCHAR(120) NOT NULL COMMENT '模型展示名称，例如 MiniMax M2.7',
+        api_base_url VARCHAR(255) NOT NULL COMMENT '接口基础地址，例如 https://api.minimax.chat',
+        api_path VARCHAR(255) NULL COMMENT '接口路径，可按具体能力细分，例如 /v1/text/chatcompletion_v2',
+        api_token VARCHAR(500) NULL COMMENT '调用模型用的 Token 或 Bearer 凭证，允许后续直接在数据库中维护',
+        request_timeout_seconds INT NOT NULL DEFAULT 60 COMMENT '接口请求超时时间，单位秒',
+        is_enabled TINYINT(1) NOT NULL DEFAULT 1 COMMENT '是否启用该模型配置',
+        is_default TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否作为当前默认模型',
+        extra_config JSON NULL COMMENT '额外配置 JSON，例如 group_id、headers、能力标签等',
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+        UNIQUE KEY uniq_ai_provider_model (provider_code, model_code),
+        INDEX idx_ai_model_default_enabled (is_default, is_enabled)
+    ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+      COMMENT='AI 模型配置表：保存提供商、模型名称、接口地址和 token，供后续接入 AI 识别与对话能力'
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS ai_ledger_jobs (
+        id BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT 'AI 记账任务主键',
+        job_id VARCHAR(64) NOT NULL COMMENT '前端轮询用的任务 ID',
+        ledger_book_id BIGINT NOT NULL COMMENT '所属账本 ID',
+        user_id INT NOT NULL COMMENT '发起任务的用户 ID',
+        input_type VARCHAR(20) NOT NULL COMMENT '输入类型：TEXT / IMAGE',
+        status VARCHAR(20) NOT NULL DEFAULT 'QUEUED' COMMENT '任务状态：QUEUED / RUNNING / SUCCEEDED / FAILED',
+        source_text TEXT NULL COMMENT '原始文本输入，文本任务时使用',
+        source_file_name VARCHAR(255) NULL COMMENT '原始图片文件名，图片任务时使用',
+        error_message VARCHAR(500) NULL COMMENT '失败原因，便于前端提示',
+        created_count INT NOT NULL DEFAULT 0 COMMENT '成功写入账本的记录数',
+        result_payload JSON NULL COMMENT 'AI 返回结果摘要 JSON，便于调试和轮询展示',
+        started_at DATETIME NULL COMMENT '开始处理时间',
+        finished_at DATETIME NULL COMMENT '结束处理时间',
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+        UNIQUE KEY uniq_ai_ledger_job_id (job_id),
+        INDEX idx_ai_ledger_jobs_book_user (ledger_book_id, user_id, created_at),
+        INDEX idx_ai_ledger_jobs_status (status, created_at),
+        CONSTRAINT fk_ai_ledger_jobs_book
+            FOREIGN KEY (ledger_book_id) REFERENCES ledger_books(id)
+            ON DELETE CASCADE,
+        CONSTRAINT fk_ai_ledger_jobs_user
+            FOREIGN KEY (user_id) REFERENCES finance_users(id)
+            ON DELETE CASCADE
+    ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+      COMMENT='AI 记账任务表：保存异步识别与入账任务状态，供前端轮询查询'
+    """,
 ]
 
 
@@ -279,6 +331,23 @@ CATEGORY_SEEDS = [
     ("SERVICE", "服务", "service", "rose", 70),
     ("BILL", "账单", "bill", "amber", 80),
     ("OTHER", "其他", "other", "amber", 999),
+]
+
+
+AI_MODEL_SEEDS = [
+    (
+        "MINIMAX",
+        "MiniMax",
+        "MiniMax-M2.7",
+        "MiniMax M2.7",
+        "https://api.minimax.chat",
+        "/v1/text/chatcompletion_v2",
+        None,
+        60,
+        1,
+        1,
+        '{"notes":"默认预置的 MiniMax 文本模型配置，后续可直接在数据库里更新 token 或路径"}',
+    ),
 ]
 
 
@@ -357,6 +426,28 @@ def seed_categories(cur) -> None:
     )
 
 
+def seed_ai_models(cur) -> None:
+    cur.executemany(
+        """
+        INSERT INTO ai_model_configs
+            (provider_code, provider_name, model_code, model_name,
+             api_base_url, api_path, api_token, request_timeout_seconds,
+             is_enabled, is_default, extra_config)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CAST(%s AS JSON))
+        ON DUPLICATE KEY UPDATE
+            provider_name = VALUES(provider_name),
+            model_name = VALUES(model_name),
+            api_base_url = VALUES(api_base_url),
+            api_path = VALUES(api_path),
+            request_timeout_seconds = VALUES(request_timeout_seconds),
+            is_enabled = VALUES(is_enabled),
+            is_default = VALUES(is_default),
+            extra_config = VALUES(extra_config)
+        """,
+        AI_MODEL_SEEDS,
+    )
+
+
 def main() -> None:
     load_env_file(ENV_FILE)
     conn = connect()
@@ -377,6 +468,8 @@ def main() -> None:
                     print(f"[ledger-schema] alter step skipped: {exc}", flush=True)
             print("[ledger-schema] seeding categories", flush=True)
             seed_categories(cur)
+            print("[ledger-schema] seeding ai models", flush=True)
+            seed_ai_models(cur)
         conn.commit()
         print("Ledger schema initialized successfully.")
     except Exception:

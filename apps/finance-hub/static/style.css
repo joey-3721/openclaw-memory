@@ -2876,6 +2876,69 @@ body.dashboard-editing .widget:hover .widget-remove-btn {
   gap: 10px;
 }
 
+.ledger-entry-swipe {
+  position: relative;
+  overflow: hidden;
+  border-radius: 14px;
+  user-select: none;
+}
+
+.ledger-entry-swipe-actions {
+  position: absolute;
+  inset: 6px 6px 6px auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  padding-left: 8px;
+}
+
+.ledger-entry-swipe-actions form {
+  margin: 0;
+}
+
+.ledger-entry-action {
+  height: 100%;
+  min-width: 58px;
+  border: none;
+  border-radius: 20px;
+  padding: 0 12px;
+  font-size: 13px;
+  font-weight: 800;
+  color: #fff;
+  box-shadow: 0 10px 22px rgba(124, 156, 168, 0.16);
+}
+
+.ledger-entry-action-edit {
+  background: linear-gradient(180deg, #6db8ff, #4b8ef0);
+}
+
+.ledger-entry-action-delete {
+  background: linear-gradient(180deg, #ff8b9a, #f35f74);
+}
+
+.ledger-entry-swipe-card {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  width: 100%;
+  background: linear-gradient(180deg, #f8fcfc 0%, #ffffff 100%);
+  background-clip: padding-box;
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  touch-action: pan-y;
+  will-change: transform;
+  cursor: grab;
+}
+
+.ledger-entry-swipe.is-dragging .ledger-entry-swipe-card {
+  transition: none;
+  cursor: grabbing;
+}
+
+.ledger-entry-swipe.is-revealed .ledger-entry-swipe-card {
+  transform: translateX(-130px);
+}
+
 .ledger-settlement-item-compact,
 .ledger-entry-card-compact,
 .ledger-member-row-compact,
@@ -2943,6 +3006,19 @@ body.dashboard-editing .widget:hover .widget-remove-btn {
 .ledger-entry-card-compact {
   gap: 12px;
   align-items: center;
+}
+
+.ledger-entry-detail-trigger {
+  width: 100%;
+  border: none;
+  appearance: none;
+  -webkit-appearance: none;
+  background: linear-gradient(180deg, #f8fcfc 0%, #ffffff 100%);
+  border-radius: inherit;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
 }
 
 .ledger-entry-card-compact .ledger-entry-icon {
@@ -3909,6 +3985,191 @@ body.dashboard-editing .widget:hover .widget-remove-btn {
   border-radius: 24px 24px 0 0;
   padding: 24px;
   box-shadow: 0 -16px 48px rgba(0, 0, 0, 0.12);
+}
+
+.modal-sheet-ledger-ai {
+  max-width: 560px;
+}
+
+.modal-sheet-ledger-confirm {
+  max-width: 460px;
+}
+
+.ledger-ai-quick-form {
+  margin-bottom: 14px;
+}
+
+.ledger-ai-quickbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.ledger-ai-quick-input {
+  height: 54px;
+  border-radius: 999px;
+  border: 1px solid rgba(124, 146, 160, 0.16);
+  background: rgba(244, 243, 255, 0.95);
+  padding: 0 18px;
+  font-size: 18px;
+}
+
+.ledger-ai-round-button {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: 1px solid rgba(124, 146, 160, 0.16);
+  background: linear-gradient(145deg, rgba(241, 247, 255, 0.98), rgba(255, 248, 239, 0.98));
+  font-size: 24px;
+  color: #21495e;
+  cursor: pointer;
+}
+
+.ledger-ai-hint {
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(247, 252, 252, 0.92);
+  border: 1px solid rgba(124, 146, 160, 0.12);
+  margin-bottom: 12px;
+}
+
+.ledger-ai-hint strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.ledger-ai-hint p {
+  margin: 0;
+  color: var(--text-soft);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.ledger-ai-result-list {
+  display: grid;
+  gap: 10px;
+}
+
+.ledger-ai-status-card {
+  border-radius: 20px;
+  padding: 14px 16px;
+}
+
+.ledger-ai-status-loading {
+  background: linear-gradient(145deg, rgba(241, 248, 255, 0.98), rgba(250, 252, 255, 0.96));
+  border-color: rgba(92, 151, 255, 0.18);
+}
+
+.ledger-ai-status-empty {
+  background: linear-gradient(145deg, rgba(255, 249, 243, 0.98), rgba(255, 252, 247, 0.96));
+  border-color: rgba(255, 177, 102, 0.18);
+}
+
+.ledger-ai-result-card {
+  padding: 12px 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(124, 146, 160, 0.12);
+  background: rgba(255, 255, 255, 0.98);
+}
+
+.ledger-ai-result-card strong {
+  display: block;
+  font-size: 16px;
+}
+
+.ledger-ai-result-meta,
+.ledger-ai-result-note {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--text-soft);
+}
+
+.ledger-detail-sheet {
+  display: grid;
+  gap: 16px;
+}
+
+.ledger-detail-hero {
+  display: grid;
+  gap: 6px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: linear-gradient(145deg, rgba(241, 247, 255, 0.98), rgba(255, 248, 241, 0.98));
+  border: 1px solid rgba(124, 146, 160, 0.12);
+}
+
+.ledger-detail-hero strong {
+  font-size: 20px;
+  line-height: 1.2;
+}
+
+.ledger-detail-hero span {
+  font-size: 24px;
+  font-weight: 900;
+  color: var(--text);
+}
+
+.ledger-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.ledger-detail-item {
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(248, 252, 252, 0.96);
+  border: 1px solid rgba(124, 146, 160, 0.12);
+}
+
+.ledger-detail-item-full {
+  grid-column: 1 / -1;
+}
+
+.ledger-detail-item label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--text-soft);
+}
+
+.ledger-detail-item span {
+  display: block;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--text);
+  word-break: break-word;
+}
+
+.ledger-confirm-copy {
+  padding: 4px 0 18px;
+}
+
+.ledger-confirm-copy strong {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 18px;
+  line-height: 1.35;
+}
+
+.ledger-confirm-copy p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--text-soft);
+}
+
+.ledger-confirm-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.ledger-danger-button {
+  background: linear-gradient(180deg, #ff889b, #f16073);
+  border: none;
 }
 
 .widget-picker-kicker {

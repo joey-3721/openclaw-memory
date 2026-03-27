@@ -4,6 +4,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal, ROUND_HALF_UP
+import json
 from uuid import uuid4
 
 from ..db import get_cursor
@@ -139,6 +140,11 @@ LEDGER_CATEGORY_PRESETS = [
 
 
 PRESET_BY_CODE = {item["code"]: item for item in LEDGER_CATEGORY_PRESETS}
+SUBCATEGORY_ICON_BY_NAME = {
+    subcategory["name"]: subcategory["icon"]
+    for category in LEDGER_CATEGORY_PRESETS
+    for subcategory in category["subcategories"]
+}
 
 
 def _to_decimal(value: object) -> Decimal:
@@ -389,6 +395,19 @@ class LedgerService:
             raise ValueError("账本不存在或你无权访问")
         return row
 
+    def get_book_user_ids(self, book_id: int) -> list[int]:
+        with get_cursor() as cur:
+            cur.execute(
+                """
+                SELECT DISTINCT user_id
+                FROM ledger_book_members
+                WHERE ledger_book_id=%s
+                  AND user_id IS NOT NULL
+                """,
+                (book_id,),
+            )
+            return [int(row["user_id"]) for row in cur.fetchall() if row.get("user_id")]
+
     def get_book_detail(self, book_id: int, user_id: int) -> dict:
         book = self.get_book(book_id, user_id)
         members = self.get_book_members(book_id)
@@ -475,11 +494,14 @@ class LedgerService:
                     e.occurred_at,
                     e.subcategory_name,
                     e.note,
+                    e.merchant_name,
                     e.is_settled,
                     e.shared_group_key,
                     e.is_mirror,
+                    c.category_code,
                     c.category_name AS category,
-                    payer.member_name AS payer_name
+                    payer.member_name AS payer_name,
+                    payer.user_id AS payer_user_id
                 FROM ledger_entries e
                 LEFT JOIN ledger_categories c ON c.id=e.category_id
                 LEFT JOIN ledger_book_members payer ON payer.id=e.payer_member_id
@@ -493,11 +515,12 @@ class LedgerService:
 
             entry_ids = [entry["id"] for entry in entries]
             participants_by_entry: dict[int, list[str]] = defaultdict(list)
+            participant_ids_by_entry: dict[int, list[int]] = defaultdict(list)
             if entry_ids:
                 placeholders = ", ".join(["%s"] * len(entry_ids))
                 cur.execute(
                     f"""
-                    SELECT ep.ledger_entry_id, m.member_name
+                    SELECT ep.ledger_entry_id, m.member_name, m.user_id
                     FROM ledger_entry_participants ep
                     JOIN ledger_book_members m ON m.id=ep.member_id
                     WHERE ep.ledger_entry_id IN ({placeholders})
@@ -510,11 +533,26 @@ class LedgerService:
                     participants_by_entry[row["ledger_entry_id"]].append(
                         row["member_name"]
                     )
+                    if row.get("user_id"):
+                        participant_ids_by_entry[row["ledger_entry_id"]].append(
+                            int(row["user_id"])
+                        )
 
         for entry in entries:
             category = entry.get("category") or "其他"
             participants = participants_by_entry.get(entry["id"], [])
             entry["date"] = _now_display(entry["occurred_at"])
+            entry["occurred_at_display"] = (
+                entry["occurred_at"].strftime("%Y-%m-%d %H:%M:%S")
+                if entry.get("occurred_at")
+                else ""
+            )
+            entry["occurred_at_input"] = (
+                entry["occurred_at"].strftime("%Y-%m-%dT%H:%M")
+                if entry.get("occurred_at")
+                else ""
+            )
+            entry["amount_value"] = f"{_to_decimal(entry['amount']):.2f}"
             entry["amount"] = f"{entry['currency']} {entry['amount']}"
             entry["meta"] = (
                 f"{entry.get('payer_name') or '未知付款人'}付款"
@@ -525,6 +563,13 @@ class LedgerService:
                 )
             )
             entry["category"] = category
+            entry["subcategory_icon"] = SUBCATEGORY_ICON_BY_NAME.get(
+                entry.get("subcategory_name") or ""
+            )
+            entry["participant_names"] = participants
+            entry["participant_user_ids"] = participant_ids_by_entry.get(
+                entry["id"], []
+            )
         return entries
 
     def create_entry(
@@ -543,24 +588,50 @@ class LedgerService:
         share_main_user_id: int | None = None,
         main_share_mode: str = "EQUAL",
         mark_settled: bool = False,
+        merchant_name: str = "",
+        ai_source: str | None = None,
+        ai_confidence: float | None = None,
+        ai_raw_payload: dict | list | None = None,
     ) -> None:
-        book = self.get_book(book_id, actor_user_id)
-        title = (title or "").strip()
-        if not title:
-            raise ValueError("账单标题不能为空")
-
         amount_dec = _to_decimal(amount)
         if amount_dec <= ZERO:
             raise ValueError("金额必须大于 0")
-        occurred = datetime.fromisoformat(occurred_at)
-        category_id = self._get_category_id(category_code)
+        occurred = (
+            datetime.fromisoformat(occurred_at)
+            if (occurred_at or "").strip()
+            else datetime.now()
+        )
         main_share_mode = (main_share_mode or "EQUAL").upper()
         group_key = uuid4().hex
         payer_user_id = payer_user_id or actor_user_id
 
         with get_cursor() as cur:
-            owner_member = self._ensure_member(cur, book_id, actor_user_id, role="OWNER")
-            payer_member = self._ensure_member(cur, book_id, payer_user_id)
+            book = self._get_book_for_user(cur, book_id, actor_user_id)
+            category_id = self._get_category_id_in_tx(cur, category_code)
+            title = (
+                (title or "").strip()
+                or (subcategory_name or "").strip()
+                or PRESET_BY_CODE.get((category_code or "").strip().upper(), {}).get("name")
+                or "未命名账单"
+            )
+            member_cache: dict[tuple[int, int], dict] = {}
+            user_cache: dict[int, dict] = {}
+
+            owner_member = self._ensure_member(
+                cur,
+                book_id,
+                actor_user_id,
+                role="OWNER",
+                member_cache=member_cache,
+                user_cache=user_cache,
+            )
+            payer_member = self._ensure_member(
+                cur,
+                book_id,
+                payer_user_id,
+                member_cache=member_cache,
+                user_cache=user_cache,
+            )
 
             participant_user_ids = [int(user_id) for user_id in (participant_user_ids or [])]
             if book["book_type"] == "MAIN":
@@ -578,6 +649,8 @@ class LedgerService:
                 book_id=book_id,
                 participant_user_ids=participant_user_ids,
                 total_amount=amount_dec,
+                member_cache=member_cache,
+                user_cache=user_cache,
             )
 
             entry_id = self._insert_entry(
@@ -590,11 +663,15 @@ class LedgerService:
                 amount=amount_dec,
                 occurred_at=occurred,
                 subcategory_name=subcategory_name,
+                merchant_name=merchant_name,
                 note=note,
                 shared_group_key=group_key,
                 is_settled=mark_settled,
                 is_mirror=0,
                 mirror_source_entry_id=None,
+                ai_source=ai_source,
+                ai_confidence=ai_confidence,
+                ai_raw_payload=ai_raw_payload,
             )
             self._insert_participants(cur, entry_id, participant_rows)
             self._insert_settlement_items(
@@ -607,18 +684,31 @@ class LedgerService:
             )
 
             if book["book_type"] == "MAIN" and share_main_user_id:
-                target_main_book_id = self.ensure_main_book(share_main_user_id)
+                target_main_book_id = self._ensure_main_book_in_tx(
+                    cur, share_main_user_id
+                )
                 target_creator = self._ensure_member(
-                    cur, target_main_book_id, share_main_user_id, role="OWNER"
+                    cur,
+                    target_main_book_id,
+                    share_main_user_id,
+                    role="OWNER",
+                    member_cache=member_cache,
+                    user_cache=user_cache,
                 )
                 target_payer = self._ensure_member(
-                    cur, target_main_book_id, payer_user_id
+                    cur,
+                    target_main_book_id,
+                    payer_user_id,
+                    member_cache=member_cache,
+                    user_cache=user_cache,
                 )
                 target_participant_rows = self._build_participant_rows(
                     cur=cur,
                     book_id=target_main_book_id,
                     participant_user_ids=participant_user_ids,
                     total_amount=amount_dec,
+                    member_cache=member_cache,
+                    user_cache=user_cache,
                 )
                 mirror_entry_id = self._insert_entry(
                     cur=cur,
@@ -630,11 +720,15 @@ class LedgerService:
                     amount=amount_dec,
                     occurred_at=occurred,
                     subcategory_name=subcategory_name,
+                    merchant_name=merchant_name,
                     note=(note or "").strip() or f"来自共享记录 · {book['name']}",
                     shared_group_key=group_key,
                     is_settled=mark_settled,
                     is_mirror=1,
                     mirror_source_entry_id=entry_id,
+                    ai_source=ai_source,
+                    ai_confidence=ai_confidence,
+                    ai_raw_payload=ai_raw_payload,
                 )
                 self._insert_participants(cur, mirror_entry_id, target_participant_rows)
                 self._insert_settlement_items(
@@ -644,6 +738,179 @@ class LedgerService:
                     payer_member_id=target_payer["id"],
                     participant_rows=target_participant_rows,
                     mark_settled=mark_settled,
+                )
+
+    def create_ai_entries(
+        self,
+        book_id: int,
+        actor_user_id: int,
+        items: list[dict],
+        *,
+        source_payload: dict | None = None,
+    ) -> int:
+        created = 0
+        for item in items:
+            amount = str(item.get("amount") or "").strip()
+            if not amount or _to_decimal(amount) <= ZERO:
+                continue
+            title = str(item.get("title") or "").strip()
+            category_code = str(item.get("category_code") or "OTHER").strip().upper()
+            if category_code not in PRESET_BY_CODE:
+                category_code = "OTHER"
+            self.create_entry(
+                book_id,
+                actor_user_id,
+                title=title,
+                amount=amount,
+                occurred_at=str(item.get("occurred_at") or ""),
+                category_code=category_code,
+                subcategory_name=str(item.get("subcategory_name") or "").strip(),
+                note=str(item.get("note") or "").strip(),
+                merchant_name=str(item.get("merchant_name") or "").strip(),
+                payer_user_id=actor_user_id,
+                participant_user_ids=[actor_user_id],
+                ai_source=str(item.get("ai_source") or "MINIMAX").strip() or "MINIMAX",
+                ai_confidence=float(item.get("confidence") or 0),
+                ai_raw_payload={
+                    "item": item,
+                    "source": source_payload or {},
+                },
+            )
+            created += 1
+        return created
+
+    def update_entry(
+        self,
+        book_id: int,
+        entry_id: int,
+        actor_user_id: int,
+        *,
+        title: str,
+        amount: str,
+        occurred_at: str,
+        category_code: str,
+        subcategory_name: str = "",
+        note: str = "",
+        payer_user_id: int | None = None,
+        participant_user_ids: list[int] | None = None,
+        mark_settled: bool = False,
+    ) -> None:
+        amount_dec = _to_decimal(amount)
+        if amount_dec <= ZERO:
+            raise ValueError("金额必须大于 0")
+        occurred = (
+            datetime.fromisoformat(occurred_at)
+            if (occurred_at or "").strip()
+            else datetime.now()
+        )
+        payer_user_id = payer_user_id or actor_user_id
+
+        with get_cursor() as cur:
+            book = self._get_book_for_user(cur, book_id, actor_user_id)
+            existing = self._get_entry_for_update(cur, book_id, entry_id)
+            category_id = self._get_category_id_in_tx(cur, category_code)
+            title = (
+                (title or "").strip()
+                or (subcategory_name or "").strip()
+                or PRESET_BY_CODE.get((category_code or "").strip().upper(), {}).get("name")
+                or "未命名账单"
+            )
+            member_cache: dict[tuple[int, int], dict] = {}
+            user_cache: dict[int, dict] = {}
+            payer_member = self._ensure_member(
+                cur,
+                book_id,
+                payer_user_id,
+                member_cache=member_cache,
+                user_cache=user_cache,
+            )
+            participant_user_ids = [int(user_id) for user_id in (participant_user_ids or [])]
+            if book["book_type"] == "MAIN" or not participant_user_ids:
+                participant_user_ids = [actor_user_id]
+            participant_rows = self._build_participant_rows(
+                cur=cur,
+                book_id=book_id,
+                participant_user_ids=participant_user_ids,
+                total_amount=amount_dec,
+                member_cache=member_cache,
+                user_cache=user_cache,
+            )
+
+            cur.execute(
+                """
+                UPDATE ledger_entries
+                SET payer_member_id=%s,
+                    category_id=%s,
+                    title=%s,
+                    amount=%s,
+                    amount_in_base=%s,
+                    occurred_at=%s,
+                    subcategory_name=%s,
+                    note=%s,
+                    is_settled=%s,
+                    settled_at=%s
+                WHERE id=%s AND ledger_book_id=%s
+                """,
+                (
+                    payer_member["id"],
+                    category_id,
+                    title,
+                    amount_dec,
+                    amount_dec,
+                    occurred,
+                    subcategory_name.strip() or None,
+                    note.strip() or None,
+                    1 if mark_settled else 0,
+                    datetime.now() if mark_settled else None,
+                    entry_id,
+                    book_id,
+                ),
+            )
+            cur.execute(
+                "DELETE FROM ledger_entry_participants WHERE ledger_entry_id=%s",
+                (entry_id,),
+            )
+            cur.execute(
+                "DELETE FROM ledger_settlement_items WHERE ledger_entry_id=%s",
+                (entry_id,),
+            )
+            self._insert_participants(cur, entry_id, participant_rows)
+            self._insert_settlement_items(
+                cur=cur,
+                book_id=book_id,
+                entry_id=entry_id,
+                payer_member_id=payer_member["id"],
+                participant_rows=participant_rows,
+                mark_settled=mark_settled,
+            )
+
+            if existing.get("mirror_source_entry_id"):
+                cur.execute(
+                    """
+                    UPDATE ledger_entries
+                    SET mirror_source_entry_id=%s
+                    WHERE id=%s
+                    """,
+                    (existing["mirror_source_entry_id"], entry_id),
+                )
+
+    def delete_entry(self, book_id: int, entry_id: int, actor_user_id: int) -> None:
+        with get_cursor() as cur:
+            self._get_book_for_user(cur, book_id, actor_user_id)
+            existing = self._get_entry_for_update(cur, book_id, entry_id)
+            cur.execute(
+                "DELETE FROM ledger_entries WHERE id=%s AND ledger_book_id=%s",
+                (entry_id, book_id),
+            )
+            if existing.get("shared_group_key"):
+                cur.execute(
+                    """
+                    DELETE FROM ledger_entries
+                    WHERE shared_group_key=%s
+                      AND id<>%s
+                      AND is_mirror=1
+                    """,
+                    (existing["shared_group_key"], entry_id),
                 )
 
     def get_settlement_preview(
@@ -837,7 +1104,12 @@ class LedgerService:
         user_id: int,
         *,
         role: str = "MEMBER",
+        member_cache: dict[tuple[int, int], dict] | None = None,
+        user_cache: dict[int, dict] | None = None,
     ) -> dict:
+        cache_key = (book_id, user_id)
+        if member_cache is not None and cache_key in member_cache:
+            return member_cache[cache_key]
         cur.execute(
             """
             SELECT id, user_id, member_name, member_role
@@ -849,18 +1121,24 @@ class LedgerService:
         )
         row = cur.fetchone()
         if row:
+            if member_cache is not None:
+                member_cache[cache_key] = row
             return row
 
-        cur.execute(
-            """
-            SELECT username, COALESCE(display_name, username) AS display_name
-            FROM finance_users
-            WHERE id=%s
-            LIMIT 1
-            """,
-            (user_id,),
-        )
-        user = cur.fetchone()
+        user = user_cache.get(user_id) if user_cache is not None else None
+        if not user:
+            cur.execute(
+                """
+                SELECT username, COALESCE(display_name, username) AS display_name
+                FROM finance_users
+                WHERE id=%s
+                LIMIT 1
+                """,
+                (user_id,),
+            )
+            user = cur.fetchone()
+            if user and user_cache is not None:
+                user_cache[user_id] = user
         if not user:
             raise ValueError("共享用户不存在")
         cur.execute(
@@ -871,25 +1149,19 @@ class LedgerService:
             """,
             (book_id, user_id, user["display_name"], role),
         )
-        return {
+        row = {
             "id": cur.lastrowid,
             "user_id": user_id,
             "member_name": user["display_name"],
             "member_role": role,
         }
+        if member_cache is not None:
+            member_cache[cache_key] = row
+        return row
 
     def _get_category_id(self, category_code: str) -> int:
         with get_cursor() as cur:
-            cur.execute(
-                """
-                SELECT id
-                FROM ledger_categories
-                WHERE category_code=%s
-                LIMIT 1
-                """,
-                ((category_code or "").strip().upper(),),
-            )
-            row = cur.fetchone()
+            row = self._get_category_id_row(cur, category_code)
         if not row:
             raise ValueError("分类不存在")
         return int(row["id"])
@@ -909,6 +1181,21 @@ class LedgerService:
             return [actor_user_id]
         return [actor_user_id, share_main_user_id]
 
+    def _get_entry_for_update(self, cur, book_id: int, entry_id: int) -> dict:
+        cur.execute(
+            """
+            SELECT id, ledger_book_id, shared_group_key, mirror_source_entry_id, is_mirror
+            FROM ledger_entries
+            WHERE id=%s AND ledger_book_id=%s
+            LIMIT 1
+            """,
+            (entry_id, book_id),
+        )
+        row = cur.fetchone()
+        if not row:
+            raise ValueError("账单不存在")
+        return row
+
     def _build_participant_rows(
         self,
         *,
@@ -916,6 +1203,8 @@ class LedgerService:
         book_id: int,
         participant_user_ids: list[int],
         total_amount: Decimal,
+        member_cache: dict[tuple[int, int], dict] | None = None,
+        user_cache: dict[int, dict] | None = None,
     ) -> list[dict]:
         unique_user_ids = list(dict.fromkeys(participant_user_ids))
         if not unique_user_ids:
@@ -926,7 +1215,13 @@ class LedgerService:
         rows: list[dict] = []
         remainder = total_amount - (share_amount * len(unique_user_ids))
         for index, participant_user_id in enumerate(unique_user_ids):
-            member = self._ensure_member(cur, book_id, participant_user_id)
+            member = self._ensure_member(
+                cur,
+                book_id,
+                participant_user_id,
+                member_cache=member_cache,
+                user_cache=user_cache,
+            )
             owed = share_amount + (remainder if index == 0 else ZERO)
             rows.append(
                 {
@@ -950,22 +1245,27 @@ class LedgerService:
         amount: Decimal,
         occurred_at: datetime,
         subcategory_name: str,
+        merchant_name: str,
         note: str,
         shared_group_key: str,
         is_settled: bool,
         is_mirror: int,
         mirror_source_entry_id: int | None,
+        ai_source: str | None,
+        ai_confidence: float | None,
+        ai_raw_payload: dict | list | None,
     ) -> int:
         cur.execute(
             """
             INSERT INTO ledger_entries
                 (ledger_book_id, created_by_member_id, payer_member_id,
                  category_id, title, amount, currency, exchange_rate_to_base,
-                 amount_in_base, occurred_at, subcategory_name, note,
+                 amount_in_base, occurred_at, subcategory_name, merchant_name, note,
+                 ai_source, ai_confidence, ai_raw_payload,
                  status, shared_group_key, is_mirror, mirror_source_entry_id,
                  is_settled, settled_at)
-            VALUES (%s, %s, %s, %s, %s, %s, 'CNY', 1, %s, %s, %s, %s,
-                    'CONFIRMED', %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, 'CNY', 1, %s, %s, %s, %s, %s,
+                    %s, %s, %s, 'CONFIRMED', %s, %s, %s, %s, %s)
             """,
             (
                 book_id,
@@ -977,7 +1277,13 @@ class LedgerService:
                 amount,
                 occurred_at,
                 subcategory_name.strip() or None,
+                merchant_name.strip() or None,
                 note.strip() or None,
+                (ai_source or "").strip() or None,
+                None if ai_confidence is None else round(float(ai_confidence) * 100, 2),
+                json.dumps(ai_raw_payload, ensure_ascii=False)
+                if ai_raw_payload is not None
+                else None,
                 shared_group_key,
                 is_mirror,
                 mirror_source_entry_id,
@@ -988,22 +1294,26 @@ class LedgerService:
         return int(cur.lastrowid)
 
     def _insert_participants(self, cur, entry_id: int, rows: list[dict]) -> None:
-        for row in rows:
-            cur.execute(
-                """
-                INSERT INTO ledger_entry_participants
-                    (ledger_entry_id, member_id, share_ratio,
-                     fixed_amount, amount_owed_base, is_included)
-                VALUES (%s, %s, %s, %s, %s, 1)
-                """,
+        if not rows:
+            return
+        cur.executemany(
+            """
+            INSERT INTO ledger_entry_participants
+                (ledger_entry_id, member_id, share_ratio,
+                 fixed_amount, amount_owed_base, is_included)
+            VALUES (%s, %s, %s, %s, %s, 1)
+            """,
+            [
                 (
                     entry_id,
                     row["member_id"],
                     row["share_ratio"],
                     row["fixed_amount"],
                     row["amount_owed_base"],
-                ),
-            )
+                )
+                for row in rows
+            ],
+        )
 
     def _insert_settlement_items(
         self,
@@ -1015,19 +1325,14 @@ class LedgerService:
         participant_rows: list[dict],
         mark_settled: bool,
     ) -> None:
+        payload = []
         for row in participant_rows:
             if row["member_id"] == payer_member_id:
                 continue
             amount = _to_decimal(row["amount_owed_base"])
             if amount <= ZERO:
                 continue
-            cur.execute(
-                """
-                INSERT INTO ledger_settlement_items
-                    (ledger_book_id, ledger_entry_id, from_member_id, to_member_id,
-                     amount_base, status, settled_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-                """,
+            payload.append(
                 (
                     book_id,
                     entry_id,
@@ -1036,8 +1341,83 @@ class LedgerService:
                     amount,
                     "SETTLED" if mark_settled else "PENDING",
                     datetime.now() if mark_settled else None,
-                ),
+                )
             )
+        if not payload:
+            return
+        cur.executemany(
+            """
+            INSERT INTO ledger_settlement_items
+                (ledger_book_id, ledger_entry_id, from_member_id, to_member_id,
+                 amount_base, status, settled_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """,
+            payload,
+        )
+
+    def _get_book_for_user(self, cur, book_id: int, user_id: int) -> dict:
+        self._ensure_main_book_in_tx(cur, user_id)
+        cur.execute(
+            """
+            SELECT b.*
+            FROM ledger_books b
+            JOIN ledger_book_members m
+              ON m.ledger_book_id=b.id AND m.user_id=%s
+            WHERE b.id=%s
+            LIMIT 1
+            """,
+            (user_id, book_id),
+        )
+        row = cur.fetchone()
+        if not row:
+            raise ValueError("账本不存在或你无权访问")
+        return row
+
+    def _ensure_main_book_in_tx(self, cur, user_id: int) -> int:
+        cur.execute(
+            """
+            SELECT id
+            FROM ledger_books
+            WHERE owner_user_id=%s AND is_default_main=1
+            LIMIT 1
+            """,
+            (user_id,),
+        )
+        row = cur.fetchone()
+        if row:
+            book_id = int(row["id"])
+        else:
+            cur.execute(
+                """
+                INSERT INTO ledger_books
+                    (owner_user_id, book_type, name, description,
+                     base_currency, is_default_main, display_location)
+                VALUES (%s, 'MAIN', '主账本', '默认个人账本，不可删除',
+                        'CNY', 1, '默认总账')
+                """,
+                (user_id,),
+            )
+            book_id = int(cur.lastrowid)
+        self._ensure_member(cur, book_id, user_id, role="OWNER")
+        return book_id
+
+    def _get_category_id_in_tx(self, cur, category_code: str) -> int:
+        row = self._get_category_id_row(cur, category_code)
+        if not row:
+            raise ValueError("分类不存在")
+        return int(row["id"])
+
+    def _get_category_id_row(self, cur, category_code: str) -> dict | None:
+        cur.execute(
+            """
+            SELECT id
+            FROM ledger_categories
+            WHERE category_code=%s
+            LIMIT 1
+            """,
+            ((category_code or "").strip().upper(),),
+        )
+        return cur.fetchone()
 
     def _build_transfers(
         self,

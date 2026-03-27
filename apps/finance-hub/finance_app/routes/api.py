@@ -10,6 +10,7 @@ from fastapi import APIRouter, BackgroundTasks, Request
 from fastapi.responses import JSONResponse
 
 from ..services.auth import get_current_user
+from ..services.ai_service import AiService
 from ..services.ledger_service import LedgerService
 from ..services.page_cache_service import PageCacheService
 
@@ -63,6 +64,209 @@ def ledger_user_search(request: Request, q: str = ""):
     svc = LedgerService()
     return JSONResponse(
         {"users": svc.search_users(q, exclude_user_id=user["id"])}
+    )
+
+
+@router.post("/ledger/books/{book_id}/entries")
+async def ledger_create_entry_api(request: Request, book_id: int):
+    user = _require_user(request)
+    if not user:
+        return _unauthorized()
+
+    form = await request.form()
+    participant_user_ids = [
+        int(value)
+        for value in form.getlist("participant_user_ids")
+        if str(value).strip().isdigit()
+    ]
+    payer_user_id = form.get("payer_user_id")
+    share_main_user_id = form.get("share_main_user_id")
+    svc = LedgerService()
+    try:
+        svc.create_entry(
+            book_id,
+            user["id"],
+            title=str(form.get("title") or ""),
+            amount=str(form.get("amount") or ""),
+            occurred_at=str(form.get("occurred_at") or ""),
+            category_code=str(form.get("category_code") or ""),
+            subcategory_name=str(form.get("subcategory_name") or ""),
+            note=str(form.get("note") or ""),
+            payer_user_id=int(payer_user_id) if str(payer_user_id or "").isdigit() else None,
+            participant_user_ids=participant_user_ids,
+            share_main_user_id=(
+                int(share_main_user_id)
+                if str(share_main_user_id or "").isdigit()
+                else None
+            ),
+            main_share_mode=str(form.get("main_share_mode") or "EQUAL"),
+            mark_settled=str(form.get("mark_settled") or "") in {"1", "true", "on"},
+        )
+        invalidate_ids = LedgerService().get_book_user_ids(book_id)
+        if str(share_main_user_id or "").isdigit():
+            invalidate_ids.append(int(share_main_user_id))
+        _invalidate_live_page_caches(user["id"])
+        PageCacheService().invalidate_ledger_users(invalidate_ids)
+        return JSONResponse({"ok": True, "redirect_url": f"/ledger/books/{book_id}"})
+    except ValueError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+
+
+@router.post("/ledger/books/{book_id}/ai/extract-text")
+async def ledger_ai_extract_text(request: Request, book_id: int):
+    user = _require_user(request)
+    if not user:
+        return _unauthorized()
+
+    LedgerService().get_book(book_id, user["id"])
+    payload = await request.json()
+    try:
+        result = AiService().extract_expenses_from_text(str(payload.get("text") or ""))
+        return JSONResponse({"ok": True, **result})
+    except ValueError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+    except Exception as exc:
+        return JSONResponse({"ok": False, "error": f"AI 调用失败：{exc}"}, status_code=500)
+
+
+@router.post("/ledger/books/{book_id}/ai/extract-image")
+async def ledger_ai_extract_image(request: Request, book_id: int):
+    user = _require_user(request)
+    if not user:
+        return _unauthorized()
+
+    LedgerService().get_book(book_id, user["id"])
+    try:
+        form = await request.form()
+        image = form.get("image")
+        if image is None:
+            raise ValueError("请先选择一张图片")
+        file_bytes = await image.read()
+        result = AiService().extract_expenses_from_image(
+            file_bytes,
+            filename=getattr(image, "filename", None),
+            content_type=getattr(image, "content_type", None),
+        )
+        return JSONResponse({"ok": True, **result})
+    except ValueError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+    except Exception as exc:
+        return JSONResponse({"ok": False, "error": f"AI 图片识别失败：{exc}"}, status_code=500)
+
+
+@router.post("/ledger/books/{book_id}/ai/record-text")
+async def ledger_ai_record_text(
+    request: Request,
+    book_id: int,
+    background_tasks: BackgroundTasks,
+):
+    user = _require_user(request)
+    if not user:
+        return _unauthorized()
+
+    LedgerService().get_book(book_id, user["id"])
+    payload = await request.json()
+    try:
+        text = str(payload.get("text") or "").strip()
+        if not text:
+            raise ValueError("请输入要识别的文字")
+        svc = AiService()
+        job_id = svc.create_ledger_job(
+            book_id=book_id,
+            user_id=user["id"],
+            input_type="TEXT",
+            source_text=text,
+        )
+        background_tasks.add_task(
+            svc.run_text_job,
+            job_id=job_id,
+            book_id=book_id,
+            user_id=user["id"],
+            text=text,
+        )
+        return JSONResponse(
+            {
+                "ok": True,
+                "job_id": job_id,
+                "status": "QUEUED",
+            }
+        )
+    except ValueError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+    except Exception as exc:
+        return JSONResponse({"ok": False, "error": f"AI 调用失败：{exc}"}, status_code=500)
+
+
+@router.post("/ledger/books/{book_id}/ai/record-image")
+async def ledger_ai_record_image(
+    request: Request,
+    book_id: int,
+    background_tasks: BackgroundTasks,
+):
+    user = _require_user(request)
+    if not user:
+        return _unauthorized()
+
+    LedgerService().get_book(book_id, user["id"])
+    try:
+        form = await request.form()
+        image = form.get("image")
+        if image is None:
+            raise ValueError("请先选择一张图片")
+        file_bytes = await image.read()
+        svc = AiService()
+        job_id = svc.create_ledger_job(
+            book_id=book_id,
+            user_id=user["id"],
+            input_type="IMAGE",
+            source_file_name=getattr(image, "filename", "") or "",
+        )
+        background_tasks.add_task(
+            svc.run_image_job,
+            job_id=job_id,
+            book_id=book_id,
+            user_id=user["id"],
+            image_bytes=file_bytes,
+            filename=getattr(image, "filename", None),
+            content_type=getattr(image, "content_type", None),
+        )
+        return JSONResponse(
+            {
+                "ok": True,
+                "job_id": job_id,
+                "status": "QUEUED",
+            }
+        )
+    except ValueError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+    except Exception as exc:
+        return JSONResponse({"ok": False, "error": f"AI 图片识别失败：{exc}"}, status_code=500)
+
+
+@router.get("/ledger/ai/jobs/{job_id}")
+def ledger_ai_job_status(request: Request, job_id: str):
+    user = _require_user(request)
+    if not user:
+        return _unauthorized()
+    job = AiService().get_ledger_job(job_id, user["id"])
+    if not job:
+        return JSONResponse({"ok": False, "error": "任务不存在"}, status_code=404)
+    return JSONResponse(
+        {
+            "ok": True,
+            "job": {
+                "job_id": job["job_id"],
+                "status": job["status"],
+                "input_type": job["input_type"],
+                "created_count": job["created_count"],
+                "error_message": job["error_message"],
+                "finished_at": (
+                    job["finished_at"].isoformat(sep=" ")
+                    if job.get("finished_at")
+                    else None
+                ),
+            },
+        }
     )
 
 
