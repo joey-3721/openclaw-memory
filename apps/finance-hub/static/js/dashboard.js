@@ -9,6 +9,8 @@
   var editing = false;
   var dragEl = null;
   var touchLiftTimer = null;
+  var touchDragOrigin = null;
+  var touchDragActive = false;
   var autoScrollFrame = null;
   var autoScrollVelocity = 0;
   var trendRebuildPollTimer = null;
@@ -174,7 +176,11 @@
       node.classList.remove('dragging');
       node.classList.remove('drag-lifted');
       node.classList.remove('drag-armed');
+      node.style.removeProperty('--drag-x');
+      node.style.removeProperty('--drag-y');
     });
+    touchDragOrigin = null;
+    touchDragActive = false;
   }
 
   function runAutoScroll() {
@@ -682,22 +688,48 @@
       if (!editing) return;
       dragEl = e.target.closest('.widget');
       if (!dragEl) return;
+      touchDragActive = false;
+      var touch = e.touches[0];
+      touchDragOrigin = touch ? {
+        x: touch.clientX,
+        y: touch.clientY
+      } : null;
       dragEl.classList.add('drag-armed');
       dragEl.classList.add('drag-lifted');
       touchLiftTimer = window.setTimeout(function () {
         if (dragEl) {
           dragEl.classList.remove('drag-armed');
           dragEl.classList.add('dragging');
+          touchDragActive = true;
         }
-      }, 80);
+      }, 220);
     }, { passive: true });
 
     grid.addEventListener('touchmove', function (e) {
       if (!editing || !dragEl) return;
+      var touch = e.touches[0];
+      if (!touch) return;
+
+      if (!touchDragActive && touchDragOrigin) {
+        var deltaX = touch.clientX - touchDragOrigin.x;
+        var deltaY = touch.clientY - touchDragOrigin.y;
+        var moveDistance = Math.max(Math.abs(deltaX), Math.abs(deltaY));
+        if (moveDistance > 8) {
+          clearDraggingState();
+          dragEl = null;
+          touchTarget = null;
+          stopAutoScroll();
+        }
+        return;
+      }
+
       e.preventDefault();
       dragEl.classList.remove('drag-armed');
       dragEl.classList.add('dragging');
-      var touch = e.touches[0];
+      if (touch && touchDragOrigin) {
+        dragEl.style.setProperty('--drag-x', (touch.clientX - touchDragOrigin.x) + 'px');
+        dragEl.style.setProperty('--drag-y', (touch.clientY - touchDragOrigin.y) + 'px');
+      }
       updateAutoScroll(touch.clientY);
       var el = document.elementFromPoint(touch.clientX, touch.clientY);
       touchTarget = el ? el.closest('.widget') : null;

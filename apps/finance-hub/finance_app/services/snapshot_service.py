@@ -1328,7 +1328,7 @@ class SnapshotService:
             asset.get("distribution_net_usd", 0.0) for asset in assets
         )
         total_pnl_usd = (
-            unrealized_pnl_usd + realized_pnl_usd + income_pnl_usd
+            unrealized_pnl_usd + realized_pnl_usd
         )
         total_cost_basis_usd = sum(
             asset.get("cost_basis_usd", 0.0) for asset in assets

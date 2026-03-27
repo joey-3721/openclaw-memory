@@ -128,7 +128,7 @@
         {% if asset.ref_price is not none and asset.ref_label %}
         <span class="price-ref">vs {{ asset.ref_label }} ${{ "{:,.2f}".format(asset.ref_price) }}</span>
         {% endif %}
-        <span class="asset-position-calc">{{ "{:,.2f}".format(asset.position) }} 股 = ${{ "{:,.2f}".format(asset.value_usd) }}</span>
+        <span class="asset-position-calc asset-position-pill">{{ "{:,.2f}".format(asset.position) }} 股</span>
         {% elif asset.type_code in ['CASH', 'BOND'] %}
         <div class="asset-live-price">
           <span class="live-price-value">${{ "{:,.2f}".format(asset.position) }}</span>
@@ -149,6 +149,9 @@
             <span>总盈亏</span>
             <strong class="{{ 'positive' if asset.total_pnl_cny >= 0 else 'negative' }}">
               {{ '+' if asset.total_pnl_cny >= 0 }}¥ {{ "{:,.2f}".format(asset.total_pnl_cny) }}
+              <small class="asset-metric-inline-note">
+                ({{ '+' if asset.total_pnl_pct >= 0 else '' }}{{ "{:.1f}".format(asset.total_pnl_pct) }}%)
+              </small>
             </strong>
           </div>
         </div>
@@ -177,18 +180,27 @@
           <strong class="{{ 'positive' if asset.realized_pnl_cny >= 0 else 'negative' }}">
             {{ '+' if asset.realized_pnl_cny >= 0 }}¥ {{ "{:,.2f}".format(asset.realized_pnl_cny) }}
           </strong>
+          <em class="asset-metric-note {{ 'positive' if asset.realized_pnl_usd >= 0 else 'negative' }}">
+            {{ '+' if asset.realized_pnl_usd >= 0 }}${{ "{:,.2f}".format(asset.realized_pnl_usd) }}
+          </em>
         </div>
         <div class="asset-metric">
           <span>未实现</span>
           <strong class="{{ 'positive' if asset.unrealized_pnl_cny >= 0 else 'negative' }}">
             {{ '+' if asset.unrealized_pnl_cny >= 0 }}¥ {{ "{:,.2f}".format(asset.unrealized_pnl_cny) }}
           </strong>
+          <em class="asset-metric-note {{ 'positive' if asset.unrealized_pnl_usd >= 0 else 'negative' }}">
+            {{ '+' if asset.unrealized_pnl_usd >= 0 }}${{ "{:,.2f}".format(asset.unrealized_pnl_usd) }}
+          </em>
         </div>
         <div class="asset-metric">
           <span>分红/利息</span>
           <strong class="{{ 'positive' if asset.income_pnl_cny >= 0 else 'negative' }}">
             {{ '+' if asset.income_pnl_cny >= 0 }}¥ {{ "{:,.2f}".format(asset.income_pnl_cny) }}
           </strong>
+          <em class="asset-metric-note {{ 'positive' if asset.distribution_net_usd >= 0 else 'negative' }}">
+            {{ '+' if asset.distribution_net_usd >= 0 }}${{ "{:,.2f}".format(asset.distribution_net_usd) }}
+          </em>
         </div>
       </div>
       {% endif %}

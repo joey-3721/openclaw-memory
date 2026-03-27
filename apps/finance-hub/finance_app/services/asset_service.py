@@ -355,7 +355,14 @@ class AssetService:
             total_pnl_usd = (
                 unrealized_pnl_usd
                 + realized_pnl_usd
-                + income_pnl_usd
+            )
+            total_pnl_pct = (
+                round(
+                    float(total_pnl_usd / float(current_cost_basis) * 100),
+                    1,
+                )
+                if current_cost_basis > 0
+                else 0.0
             )
             unrealized_pnl_pct = (
                 round(
@@ -405,6 +412,7 @@ class AssetService:
                     "withholding_tax_usd": performance["withholding_tax_usd"],
                     "distribution_net_usd": income_pnl_usd,
                     "total_pnl_usd": total_pnl_usd,
+                    "total_pnl_pct": total_pnl_pct,
                     "realized_pnl_cny": realized_pnl_usd * rate_float,
                     "unrealized_pnl_cny": unrealized_pnl_usd * rate_float,
                     "income_pnl_cny": income_pnl_usd * rate_float,
@@ -561,7 +569,7 @@ class AssetService:
             unrealized_pnl_usd = float(value_usd - cost_basis_usd)
             realized_pnl_usd = 0.0
             income_pnl_usd = 0.0
-            total_pnl_usd = unrealized_pnl_usd + realized_pnl_usd + income_pnl_usd
+            total_pnl_usd = unrealized_pnl_usd + realized_pnl_usd
             total_pnl_cny = total_pnl_usd * today_rate_float
 
             result.append(
@@ -1640,13 +1648,7 @@ class AssetService:
                 "CLOSED": "收盘",
             }.get(state, state)
 
-            if state != "CLOSED" and close_today and close_today > 0:
-                ref_price = float(close_today)
-                ref_label = "收盘"
-                change_pct = round(
-                    (rt_price - ref_price) / ref_price * 100, 2
-                )
-            elif close_yesterday and close_yesterday > 0:
+            if close_yesterday and close_yesterday > 0:
                 ref_price = float(close_yesterday)
                 ref_label = "前收"
                 change_pct = round(

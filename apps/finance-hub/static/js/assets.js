@@ -7,6 +7,7 @@
   var IBKR_SYNC_CACHE_KEY = 'financeHub.assets.ibkrSyncStatus.v1';
   var SNAPSHOT_REBUILD_CACHE_KEY = 'financeHub.assets.snapshotRebuildStatus.v1';
   var ASSET_SUMMARY_EXPANDED_KEY = 'financeHub.assets.summaryExpanded.v1';
+  var ASSET_EXPANDED_IDS_KEY = 'financeHub.assets.expandedIds.v1';
   var LOCAL_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
   var LOCAL_CACHE_REFRESH_AFTER_MS = 60 * 1000;
 
@@ -29,6 +30,40 @@
     try {
       window.localStorage.removeItem(key);
     } catch (e) {}
+  }
+
+  function readExpandedAssetIds() {
+    var cached = readCache(ASSET_EXPANDED_IDS_KEY);
+    if (!cached || !Array.isArray(cached.value)) return [];
+    return cached.value
+      .map(function (id) { return String(id); })
+      .filter(Boolean);
+  }
+
+  function writeExpandedAssetIds(ids) {
+    writeCache(ASSET_EXPANDED_IDS_KEY, {
+      value: ids.map(function (id) { return String(id); }),
+      savedAt: Date.now()
+    });
+  }
+
+  function getExpandedAssetIdsFromDom() {
+    return Array.prototype.slice.call(
+      document.querySelectorAll('.asset-detail[id^="detail-"]')
+    )
+      .filter(function (el) { return el.style.display !== 'none'; })
+      .map(function (el) { return el.id.replace('detail-', ''); });
+  }
+
+  function restoreExpandedAssetDetails() {
+    var expandedIds = readExpandedAssetIds();
+    if (!expandedIds.length) return;
+    expandedIds.forEach(function (id) {
+      var el = document.getElementById('detail-' + id);
+      if (el) {
+        el.style.display = '';
+      }
+    });
   }
 
   function applyAssetSummaryExpanded(isExpanded) {
@@ -181,7 +216,9 @@
   /* ── Toggle asset detail ─────────────────────── */
   window.toggleAssetDetail = function (id) {
     var el = document.getElementById('detail-' + id);
+    if (!el) return;
     el.style.display = el.style.display === 'none' ? '' : 'none';
+    writeExpandedAssetIds(getExpandedAssetIdsFromDom());
   };
 
   /* ── Transaction modal ───────────────────────── */
@@ -580,6 +617,7 @@
           savedAt: Date.now()
         });
         initAssetSummaryToggle();
+        restoreExpandedAssetDetails();
       })
       .catch(function () {});
   }
@@ -596,6 +634,7 @@
     }
 
     initAssetSummaryToggle();
+    restoreExpandedAssetDetails();
 
     if (rebuildCache && rebuildCache.value) {
       applySnapshotRebuildStatus(rebuildCache.value, {

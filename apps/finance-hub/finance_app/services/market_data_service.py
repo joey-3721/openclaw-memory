@@ -282,12 +282,10 @@ class MarketDataService:
 
             rt_price = float(rt["last_price"])
 
-            # Reference price depends on market state:
-            # PRE/REGULAR/POST all compare against the latest daily close
-            # CLOSED has no meaningful delta to show
-            if state != "CLOSED" and latest_close and latest_close > 0:
-                ref_price = latest_close
-                ref_label = "收盘"
+            # PRE/REGULAR/POST all compare against the previous close.
+            if state != "CLOSED" and prev_close and prev_close > 0:
+                ref_price = prev_close
+                ref_label = "前收"
                 change_pct = round(
                     (rt_price - ref_price) / ref_price * 100, 2
                 )

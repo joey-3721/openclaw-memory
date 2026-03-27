@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, viewport-fit=cover">
   <title>{{ title or 'Finance Hub' }}</title>
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v=1">
-  <link rel="stylesheet" href="/static/style.css?v=20260327o">
+  <link rel="stylesheet" href="/static/style.css?v=20260327v">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   {% block head_extra %}{% endblock %}
 </head>
@@ -59,6 +59,27 @@
     <a href="/assets" class="mobile-nav-link {% if active_page == 'assets' %}active{% endif %}">资产</a>
     <a href="/settings" class="mobile-nav-link {% if active_page == 'settings' %}active{% endif %}">设置</a>
   </nav>
+
+  <script>
+    (function () {
+      function clearPressed() {
+        document.querySelectorAll('.mobile-nav-link.pressed').forEach(function (el) {
+          el.classList.remove('pressed');
+        });
+      }
+
+      document.addEventListener('touchstart', function (e) {
+        var link = e.target.closest('.mobile-nav-link');
+        if (!link) return;
+        clearPressed();
+        link.classList.add('pressed');
+      }, { passive: true });
+
+      document.addEventListener('touchend', clearPressed, { passive: true });
+      document.addEventListener('touchcancel', clearPressed, { passive: true });
+      document.addEventListener('click', clearPressed, { passive: true });
+    })();
+  </script>
 
   {% block scripts %}{% endblock %}
 </body>

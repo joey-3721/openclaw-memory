@@ -735,17 +735,30 @@ a {
 }
 
 .mobile-nav-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   text-align: center;
   padding: 12px 8px;
   border-radius: 16px;
   color: var(--text-soft);
   font-size: 13px;
   font-weight: 800;
+  transition: background 0.16s ease, color 0.16s ease, transform 0.16s ease, box-shadow 0.16s ease;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .mobile-nav-link.active {
   background: linear-gradient(135deg, #e7fbf6, #edf7ff);
   color: #149d87;
+}
+
+.mobile-nav-link:active,
+.mobile-nav-link.pressed {
+  background: linear-gradient(135deg, rgba(21, 183, 158, 0.16), rgba(79, 141, 246, 0.18));
+  color: #149d87;
+  transform: scale(0.96);
+  box-shadow: inset 0 0 0 1px rgba(21, 183, 158, 0.12);
 }
 
 .login-scene {
@@ -1598,13 +1611,15 @@ a {
   box-shadow: var(--shadow-md);
   backdrop-filter: blur(12px);
   overflow: hidden;
+  --drag-x: 0px;
+  --drag-y: 0px;
   transition: box-shadow 0.2s, transform 0.2s, border-color 0.2s;
 }
 
 .widget.dragging {
   opacity: 0.92;
   box-shadow: 0 22px 44px rgba(79, 141, 246, 0.28), 0 0 0 2px rgba(79, 141, 246, 0.36);
-  transform: scale(1.02) rotate(-1deg);
+  transform: translate3d(var(--drag-x), var(--drag-y), 0) scale(1.02) rotate(-1deg);
   z-index: 20;
 }
 
@@ -1616,7 +1631,7 @@ a {
 
 .widget.drag-lifted {
   box-shadow: 0 18px 38px rgba(21, 183, 158, 0.18), 0 0 0 2px rgba(21, 183, 158, 0.2);
-  transform: translateY(-8px) scale(1.015);
+  transform: translate3d(var(--drag-x), calc(var(--drag-y) - 8px), 0) scale(1.015);
   border-color: rgba(21, 183, 158, 0.28);
   z-index: 18;
 }
@@ -2357,6 +2372,17 @@ body.dashboard-editing .widget:hover .widget-remove-btn {
   margin-top: 2px;
 }
 
+.asset-position-pill {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(79, 141, 246, 0.08);
+  color: #4f8df6;
+  font-weight: 700;
+}
+
 .asset-value {
   text-align: right;
   display: grid;
@@ -2403,6 +2429,25 @@ body.dashboard-editing .widget:hover .widget-remove-btn {
   font-size: 13px;
   line-height: 1.15;
   font-variant-numeric: tabular-nums;
+}
+
+.asset-metric-inline-note {
+  display: inline;
+  margin-left: 4px;
+  font-size: 10px;
+  font-weight: 800;
+  font-style: normal;
+  opacity: 0.78;
+  white-space: nowrap;
+}
+
+.asset-metric-note {
+  display: block;
+  margin-top: 3px;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 700;
+  opacity: 0.78;
 }
 
 .asset-metric-primary strong {
@@ -2799,12 +2844,12 @@ body.dashboard-editing .widget:hover .widget-remove-btn {
   }
 
   .widget.drag-lifted {
-    transform: translateY(-10px) scale(1.02);
+    transform: translate3d(var(--drag-x), calc(var(--drag-y) - 10px), 0) scale(1.02);
     box-shadow: 0 22px 42px rgba(21, 183, 158, 0.22), 0 0 0 2px rgba(21, 183, 158, 0.24);
   }
 
   .widget.dragging {
-    transform: scale(1.03) rotate(-1deg);
+    transform: translate3d(var(--drag-x), var(--drag-y), 0) scale(1.03) rotate(-1deg);
   }
 
   .widget-big-number {
@@ -2959,6 +3004,11 @@ body.dashboard-editing .widget:hover .widget-remove-btn {
     margin-top: 1px;
   }
 
+  .asset-position-pill {
+    padding: 2px 7px;
+    font-size: 10px;
+  }
+
   .price-ref {
     display: none;
   }
@@ -2995,8 +3045,18 @@ body.dashboard-editing .widget:hover .widget-remove-btn {
     margin-top: 1px;
   }
 
+  .asset-metric-inline-note {
+    font-size: 9px;
+    margin-left: 3px;
+  }
+
   .asset-metric-primary strong {
     font-size: 11px;
+  }
+
+  .asset-metric-note {
+    font-size: 10px;
+    margin-top: 2px;
   }
 
   .asset-detail {
@@ -3004,9 +3064,13 @@ body.dashboard-editing .widget:hover .widget-remove-btn {
   }
 
   .asset-detail-metric-grid {
-    grid-template-columns: 1fr;
-    gap: 8px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
     padding: 12px 0 0;
+  }
+
+  .asset-detail-metric-grid .asset-metric {
+    padding: 6px 7px;
   }
 
   .asset-detail-grid {
