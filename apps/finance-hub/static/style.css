@@ -1928,6 +1928,7 @@ body.dashboard-editing .widget:hover .widget-remove-btn {
   display: block;
   font-size: 13px;
   margin-top: 4px;
+  white-space: nowrap;
 }
 
 .positive { color: #15b79e; }
@@ -2193,7 +2194,8 @@ body.dashboard-editing .widget:hover .widget-remove-btn {
 }
 
 .summary-label {
-  font-size: 12px;
+  font-size: 13px;
+  font-weight: 700;
   color: var(--text-soft);
 }
 
@@ -2204,16 +2206,16 @@ body.dashboard-editing .widget:hover .widget-remove-btn {
   white-space: nowrap;
   flex-wrap: nowrap;
   line-height: 1;
-  font-size: clamp(20px, 2vw, 22px);
-  font-weight: 800;
+  font-size: clamp(22px, 2.2vw, 24px);
+  font-weight: 900;
   font-variant-numeric: tabular-nums;
 }
 
 .summary-subvalue {
   display: inline-flex;
   align-items: center;
-  font-size: 13px;
-  font-weight: 700;
+  font-size: 14px;
+  font-weight: 800;
   white-space: nowrap;
 }
 
@@ -2806,9 +2808,9 @@ body.dashboard-editing .widget:hover .widget-remove-btn {
   }
 
   .widget-big-number {
-    font-size: 24px;
+    font-size: 21px;
     line-height: 1.12;
-    white-space: normal;
+    white-space: nowrap;
   }
 
   .widget-change {
@@ -2887,16 +2889,18 @@ body.dashboard-editing .widget:hover .widget-remove-btn {
   }
 
   .summary-label {
-    font-size: 11px;
+    font-size: 12px;
+    font-weight: 800;
   }
 
   .summary-value {
-    font-size: 14px;
+    font-size: 16px;
     line-height: 1.15;
   }
 
   .summary-subvalue {
-    font-size: 11px;
+    font-size: 12px;
+    font-weight: 800;
   }
 
   .asset-summary-toggle {
