@@ -1,7 +1,6 @@
 {# Widget: USD/CNY 汇率 #}
 {% set d = widget.data %}
 <div class="widget-fx">
-  <span class="widget-label">USD / CNY</span>
   {% if d.rate %}
   <strong class="widget-big-number">{{ "{:.4f}".format(d.rate) }}</strong>
   <span class="text-soft" style="font-size:12px;">{{ d.date|default('') }}</span>

@@ -3,9 +3,12 @@
   var tickerTimer = null;
   var snapshotRebuildPollTimer = null;
   var lastSnapshotRebuildStatus = null;
-  var ASSETS_CONTENT_CACHE_KEY = 'financeHub.assets.liveContent.v1';
+  var ASSETS_CONTENT_CACHE_KEY = 'financeHub.assets.liveContent.v3';
   var IBKR_SYNC_CACHE_KEY = 'financeHub.assets.ibkrSyncStatus.v1';
   var SNAPSHOT_REBUILD_CACHE_KEY = 'financeHub.assets.snapshotRebuildStatus.v1';
+  var ASSET_SUMMARY_EXPANDED_KEY = 'financeHub.assets.summaryExpanded.v1';
+  var LOCAL_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+  var LOCAL_CACHE_REFRESH_AFTER_MS = 60 * 1000;
 
   function readCache(key) {
     try {
@@ -20,6 +23,47 @@
     try {
       window.localStorage.setItem(key, JSON.stringify(value));
     } catch (e) {}
+  }
+
+  function clearCache(key) {
+    try {
+      window.localStorage.removeItem(key);
+    } catch (e) {}
+  }
+
+  function applyAssetSummaryExpanded(isExpanded) {
+    var more = document.getElementById('asset-summary-more');
+    var btn = document.getElementById('asset-summary-toggle');
+    if (!more || !btn) return;
+    more.hidden = !isExpanded;
+    btn.setAttribute('aria-expanded', isExpanded ? 'true' : 'false');
+    btn.classList.toggle('is-expanded', !!isExpanded);
+    var label = btn.querySelector('span');
+    if (label) {
+      label.textContent = isExpanded ? '收起更多指标' : '查看更多指标';
+    }
+  }
+
+  function initAssetSummaryToggle() {
+    var cached = readCache(ASSET_SUMMARY_EXPANDED_KEY);
+    applyAssetSummaryExpanded(!!(cached && cached.value));
+  }
+
+  window.toggleAssetSummaryMore = function () {
+    var btn = document.getElementById('asset-summary-toggle');
+    var expanded = btn && btn.getAttribute('aria-expanded') === 'true';
+    var next = !expanded;
+    applyAssetSummaryExpanded(next);
+    writeCache(ASSET_SUMMARY_EXPANDED_KEY, {
+      value: next,
+      savedAt: Date.now()
+    });
+  };
+
+  function afterAssetMutation() {
+    clearCache(ASSETS_CONTENT_CACHE_KEY);
+    pollSnapshotRebuildStatus({ notifyCompletion: false });
+    refreshAssetsPageContent();
   }
 
   /* ── Modal helpers ───────────────────────────── */
@@ -125,7 +169,7 @@
       .then(function (res) {
         if (res.ok) {
           closeModal('add-asset-modal');
-          location.reload();
+          afterAssetMutation();
         } else {
           alert(res.data.error || '添加失败');
         }
@@ -175,7 +219,7 @@
       .then(function (res) {
         if (res.ok) {
           closeModal('transaction-modal');
-          location.reload();
+          afterAssetMutation();
         } else {
           alert(res.data.error || '操作失败');
         }
@@ -207,7 +251,7 @@
           alert(res.data.error || '保存失败');
           return;
         }
-        location.reload();
+        afterAssetMutation();
       })
       .catch(function () { alert('网络错误'); });
   };
@@ -326,7 +370,7 @@
     if (!confirm('确定要删除这个资产吗？')) return;
     fetch('/api/assets/' + assetId, { method: 'DELETE' })
       .then(function (r) {
-        if (r.ok) location.reload();
+        if (r.ok) afterAssetMutation();
         else alert('删除失败');
       })
       .catch(function () { alert('网络错误'); });
@@ -398,24 +442,49 @@
     var copy = document.getElementById('snapshot-rebuild-copy');
     var spinner = document.getElementById('snapshot-rebuild-spinner');
     var block = document.getElementById('snapshot-rebuild-block');
+    var historyStatus = document.getElementById('assets-history-status');
+    var historyText = document.getElementById('assets-history-status-text');
     var previousStatus = lastSnapshotRebuildStatus;
-    if (!btn || !copy || !spinner || !block || !status) return;
+    if (!status) return;
 
-    block.dataset.status = status.status || 'IDLE';
-    block.dataset.isRunning = status.is_running ? 'true' : 'false';
-    btn.disabled = !!status.is_running;
-    spinner.hidden = !status.is_running;
+    if (btn && copy && spinner && block) {
+      block.dataset.status = status.status || 'IDLE';
+      block.dataset.isRunning = status.is_running ? 'true' : 'false';
+      btn.disabled = !!status.is_running;
+      spinner.hidden = !status.is_running;
 
-    if (status.is_running) {
-      copy.textContent = '正在回填：' + (status.refresh_from || '等待开始');
-      startSnapshotRebuildPolling();
-    } else {
-      stopSnapshotRebuildPolling();
-      if (status.status === 'FAILED') {
+      if (status.is_running) {
+        copy.textContent = '正在回填：' + (status.refresh_from || '等待开始');
+      } else if (status.status === 'FAILED') {
         copy.textContent = status.message || '历史回填失败';
       } else {
         copy.textContent = '上次回填：' + (status.last_completed_at_display || '尚未执行');
       }
+    }
+
+    if (historyStatus && historyText) {
+      historyStatus.hidden = !status.is_running;
+      if (status.is_running) {
+        var fromText = status.refresh_from || status.pending_refresh_from || '';
+        var currentText = status.last_snapshot_date || '';
+        var progressText = '';
+        if (status.rebuilt_days && status.total_days) {
+          progressText = '（' + status.rebuilt_days + '/' + status.total_days + '，' + (status.progress_pct || 0) + '%）';
+        }
+        if (fromText && currentText) {
+          historyText.textContent = '历史趋势更新中：从 ' + fromText + ' 开始，当前已回填到 ' + currentText + ' ' + progressText;
+        } else if (fromText) {
+          historyText.textContent = '历史趋势更新中：从 ' + fromText + ' 开始回填' + progressText;
+        } else {
+          historyText.textContent = '历史趋势更新中' + progressText;
+        }
+      }
+    }
+
+    if (status.is_running) {
+      startSnapshotRebuildPolling();
+    } else {
+      stopSnapshotRebuildPolling();
     }
 
     if (
@@ -510,12 +579,15 @@
           html: html,
           savedAt: Date.now()
         });
+        initAssetSummaryToggle();
       })
       .catch(function () {});
   }
 
   document.addEventListener('DOMContentLoaded', function () {
     var contentCache = readCache(ASSETS_CONTENT_CACHE_KEY);
+    var rebuildCache = readCache(SNAPSHOT_REBUILD_CACHE_KEY);
+    var now = Date.now();
     if (contentCache && contentCache.html) {
       var container = document.getElementById('assets-page-content');
       if (container) {
@@ -523,6 +595,26 @@
       }
     }
 
-    setTimeout(refreshAssetsPageContent, 0);
+    initAssetSummaryToggle();
+
+    if (rebuildCache && rebuildCache.value) {
+      applySnapshotRebuildStatus(rebuildCache.value, {
+        notifyCompletion: false
+      });
+    }
+
+    pollSnapshotRebuildStatus({ notifyCompletion: false });
+    if (
+      !contentCache ||
+      !contentCache.savedAt ||
+      (now - contentCache.savedAt) > LOCAL_CACHE_MAX_AGE_MS
+    ) {
+      setTimeout(refreshAssetsPageContent, 0);
+      return;
+    }
+
+    if ((now - contentCache.savedAt) > LOCAL_CACHE_REFRESH_AFTER_MS) {
+      setTimeout(refreshAssetsPageContent, 0);
+    }
   });
 })();

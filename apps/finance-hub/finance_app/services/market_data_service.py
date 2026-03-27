@@ -131,9 +131,12 @@ class MarketDataService:
     def backfill_prices(
         self, ticker: str, from_date: date
     ) -> int:
-        """Fetch and store prices from from_date to today."""
+        """Fetch and store daily closes from from_date to the last closed day."""
+        last_closed_day = date.today() - timedelta(days=1)
+        if from_date > last_closed_day:
+            return 0
         return self.fetch_and_save_daily_prices(
-            ticker, from_date, date.today()
+            ticker, from_date, last_closed_day
         )
 
     # ── Real-time quote (pre / regular / post market) ──
@@ -409,12 +412,15 @@ class MarketDataService:
 
         last_date = row["last_date"] if row else None
         today = date.today()
+        last_closed_day = today - timedelta(days=1)
 
         if last_date is None:
             self.backfill_prices(ticker, today - timedelta(days=365))
-        elif last_date < today:
+        elif last_date < last_closed_day:
             self.fetch_and_save_daily_prices(
-                ticker, last_date + timedelta(days=1), today
+                ticker,
+                last_date + timedelta(days=1),
+                last_closed_day,
             )
 
         # 2. Fetch real-time quote (includes pre/post market)

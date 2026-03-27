@@ -17,12 +17,377 @@ class SnapshotService:
         self._assets = AssetService()
         self._fx = ExchangeRateService()
 
+    def _ensure_snapshot_rows(
+        self, user_id: int, from_date: date, to_date: date
+    ) -> None:
+        """Ensure snapshot rows exist before applying incremental deltas."""
+        existing = self.get_existing_snapshot_dates(user_id, from_date, to_date)
+        current = from_date
+        while current <= to_date:
+            if current not in existing:
+                self.compute_snapshot(user_id, current)
+            current += timedelta(days=1)
+
+    def _get_asset_snapshot_meta(self, asset_id: int) -> dict | None:
+        """Return minimum asset fields needed for per-asset snapshot deltas."""
+        with get_cursor() as cur:
+            cur.execute(
+                """
+                SELECT ua.id, ua.user_id, ua.ticker_symbol,
+                       at2.type_code
+                FROM user_assets ua
+                JOIN asset_types at2 ON at2.id = ua.asset_type_id
+                WHERE ua.id = %s
+                """,
+                (asset_id,),
+            )
+            return cur.fetchone()
+
+    def _get_carried_fx_rates(
+        self, from_date: date, to_date: date
+    ) -> dict[date, Decimal]:
+        """Return a daily FX map using the latest known prior rate."""
+        latest_rate = self._fx.get_rate_for_date(from_date) or Decimal("7.2")
+        daily_rates: dict[date, Decimal] = {}
+        rate_rows = self._fx.get_rates_in_range(from_date, to_date)
+        current = from_date
+        while current <= to_date:
+            latest_rate = rate_rows.get(current, latest_rate)
+            daily_rates[current] = latest_rate
+            current += timedelta(days=1)
+        return daily_rates
+
+    def _get_asset_bucket_fields(self, type_code: str) -> tuple[str, str]:
+        """Return (bucket_field, total_field) for snapshot updates."""
+        if type_code == "STOCK":
+            return ("stock_value_cny", "total_value_cny")
+        if type_code == "BOND":
+            return ("bond_value_cny", "total_value_cny")
+        return ("cash_value_cny", "total_value_cny")
+
+    def _get_position_delta_rows(
+        self, asset_id: int, from_date: date, to_date: date
+    ) -> tuple[Decimal, dict[date, Decimal]]:
+        """Return initial position before range and daily tx deltas."""
+        with get_cursor() as cur:
+            cur.execute(
+                """
+                SELECT COALESCE(SUM(
+                    CASE WHEN direction = 'BUY' THEN quantity
+                         ELSE -quantity
+                    END
+                ), 0) AS position_before
+                FROM asset_transactions
+                WHERE user_asset_id = %s
+                  AND transaction_date < %s
+                """,
+                (asset_id, from_date),
+            )
+            before_row = cur.fetchone()
+
+            cur.execute(
+                """
+                SELECT transaction_date,
+                       COALESCE(SUM(
+                           CASE WHEN direction = 'BUY' THEN quantity
+                                ELSE -quantity
+                           END
+                       ), 0) AS qty_delta
+                FROM asset_transactions
+                WHERE user_asset_id = %s
+                  AND transaction_date BETWEEN %s AND %s
+                GROUP BY transaction_date
+                ORDER BY transaction_date
+                """,
+                (asset_id, from_date, to_date),
+            )
+            delta_rows = cur.fetchall()
+
+        before = Decimal(str((before_row or {}).get("position_before") or 0))
+        delta_by_date = {
+            row["transaction_date"]: Decimal(str(row["qty_delta"]))
+            for row in delta_rows
+        }
+        return before, delta_by_date
+
+    def _get_stock_price_series(
+        self, ticker: str, from_date: date, to_date: date
+    ) -> dict[date, Decimal | None]:
+        """Return daily carried stock close prices for a date range."""
+        with get_cursor() as cur:
+            cur.execute(
+                """
+                SELECT trade_date, close_price
+                FROM stock_daily_prices
+                WHERE ticker_symbol = %s
+                  AND trade_date <= %s
+                ORDER BY trade_date
+                """,
+                (ticker, to_date),
+            )
+            rows = cur.fetchall()
+
+        latest_price = None
+        price_by_date = {}
+        for row in rows:
+            trade_date = row["trade_date"]
+            latest_price = Decimal(str(row["close_price"]))
+            if trade_date >= from_date:
+                price_by_date[trade_date] = latest_price
+
+        carried = {}
+        current = from_date
+        while current <= to_date:
+            if current in price_by_date:
+                latest_price = price_by_date[current]
+            carried[current] = latest_price
+            current += timedelta(days=1)
+        return carried
+
+    def _build_asset_cny_series(
+        self, asset: dict, from_date: date, to_date: date
+    ) -> list[tuple[date, Decimal]]:
+        """Build one asset's daily CNY value series for snapshot deltas."""
+        asset_id = asset["id"]
+        type_code = asset["type_code"]
+        before_position, delta_by_date = self._get_position_delta_rows(
+            asset_id, from_date, to_date
+        )
+        daily_rates = self._get_carried_fx_rates(from_date, to_date)
+        price_series = {}
+        if type_code == "STOCK" and asset.get("ticker_symbol"):
+            price_series = self._get_stock_price_series(
+                asset["ticker_symbol"], from_date, to_date
+            )
+
+        values: list[tuple[date, Decimal]] = []
+        position = before_position
+        current = from_date
+        while current <= to_date:
+            position += delta_by_date.get(current, Decimal("0"))
+            usd_value = Decimal("0")
+            if position > 0:
+                if type_code == "STOCK":
+                    price = price_series.get(current)
+                    usd_value = position * price if price else Decimal("0")
+                elif type_code in {"BOND", "CASH"}:
+                    usd_value = position
+            values.append((current, usd_value * daily_rates[current]))
+            current += timedelta(days=1)
+        return values
+
+    def apply_cash_quantity_delta(
+        self, user_id: int, from_date: date, usd_delta: Decimal
+    ) -> int:
+        """Fast-path update snapshots for a cash quantity change."""
+        if not usd_delta:
+            return 0
+
+        to_date = date.today()
+        self._ensure_snapshot_rows(user_id, from_date, to_date)
+        daily_rates = self._get_carried_fx_rates(from_date, to_date)
+
+        updates = []
+        current = from_date
+        while current <= to_date:
+            delta_cny = usd_delta * daily_rates[current]
+            updates.append(
+                (str(delta_cny), str(delta_cny), user_id, current)
+            )
+            current += timedelta(days=1)
+
+        with get_cursor() as cur:
+            cur.executemany(
+                """
+                UPDATE daily_asset_snapshots
+                SET cash_value_cny = cash_value_cny + %s,
+                    total_value_cny = total_value_cny + %s
+                WHERE user_id = %s
+                  AND snapshot_date = %s
+                """,
+                updates,
+            )
+        return len(updates)
+
+    def apply_asset_position_delta(
+        self,
+        user_id: int,
+        asset_id: int,
+        from_date: date,
+        quantity_delta: Decimal,
+    ) -> int:
+        """Fast-path update snapshots for one transaction delta."""
+        if not quantity_delta:
+            return 0
+
+        asset = self._get_asset_snapshot_meta(asset_id)
+        if not asset:
+            return 0
+
+        to_date = date.today()
+        self._ensure_snapshot_rows(user_id, from_date, to_date)
+        daily_rates = self._get_carried_fx_rates(from_date, to_date)
+        bucket_field, total_field = self._get_asset_bucket_fields(
+            asset["type_code"]
+        )
+        price_series = {}
+        if asset["type_code"] == "STOCK" and asset.get("ticker_symbol"):
+            price_series = self._get_stock_price_series(
+                asset["ticker_symbol"], from_date, to_date
+            )
+
+        updates = []
+        current = from_date
+        while current <= to_date:
+            usd_value = Decimal("0")
+            if asset["type_code"] == "STOCK":
+                price = price_series.get(current)
+                usd_value = quantity_delta * price if price else Decimal("0")
+            else:
+                usd_value = quantity_delta
+            delta_cny = usd_value * daily_rates[current]
+            updates.append((str(delta_cny), str(delta_cny), user_id, current))
+            current += timedelta(days=1)
+
+        with get_cursor() as cur:
+            cur.executemany(
+                f"""
+                UPDATE daily_asset_snapshots
+                SET {bucket_field} = {bucket_field} + %s,
+                    {total_field} = {total_field} + %s
+                WHERE user_id = %s
+                  AND snapshot_date = %s
+                """,
+                updates,
+            )
+        return len(updates)
+
+    def apply_cash_asset_snapshot_delta(
+        self,
+        user_id: int,
+        asset_id: int,
+        from_date: date,
+        multiplier: int,
+    ) -> int:
+        """Fast-path add/remove one cash asset from historical snapshots."""
+        to_date = date.today()
+        self._ensure_snapshot_rows(user_id, from_date, to_date)
+        daily_rates = self._get_carried_fx_rates(from_date, to_date)
+
+        with get_cursor() as cur:
+            cur.execute(
+                """
+                SELECT transaction_date,
+                       COALESCE(SUM(
+                           CASE WHEN direction = 'BUY' THEN quantity
+                                ELSE -quantity
+                           END
+                       ), 0) AS qty_delta
+                FROM asset_transactions
+                WHERE user_asset_id = %s
+                  AND transaction_date BETWEEN %s AND %s
+                GROUP BY transaction_date
+                ORDER BY transaction_date
+                """,
+                (asset_id, from_date, to_date),
+            )
+            delta_rows = cur.fetchall()
+
+            cur.execute(
+                """
+                SELECT COALESCE(SUM(
+                    CASE WHEN direction = 'BUY' THEN quantity
+                         ELSE -quantity
+                    END
+                ), 0) AS position_before
+                FROM asset_transactions
+                WHERE user_asset_id = %s
+                  AND transaction_date < %s
+                """,
+                (asset_id, from_date),
+            )
+            before_row = cur.fetchone()
+
+        delta_by_date = {
+            row["transaction_date"]: Decimal(str(row["qty_delta"]))
+            for row in delta_rows
+        }
+        position = Decimal(str((before_row or {}).get("position_before") or 0))
+        updates = []
+        current = from_date
+        while current <= to_date:
+            position += delta_by_date.get(current, Decimal("0"))
+            delta_cny = position * daily_rates[current] * Decimal(multiplier)
+            updates.append(
+                (str(delta_cny), str(delta_cny), user_id, current)
+            )
+            current += timedelta(days=1)
+
+        with get_cursor() as cur:
+            cur.executemany(
+                """
+                UPDATE daily_asset_snapshots
+                SET cash_value_cny = cash_value_cny + %s,
+                    total_value_cny = total_value_cny + %s
+                WHERE user_id = %s
+                  AND snapshot_date = %s
+                """,
+                updates,
+            )
+        return len(updates)
+
+    def apply_asset_snapshot_delta(
+        self,
+        user_id: int,
+        asset_id: int,
+        from_date: date,
+        multiplier: int,
+    ) -> int:
+        """Fast-path add or remove one asset's full historical contribution."""
+        asset = self._get_asset_snapshot_meta(asset_id)
+        if not asset:
+            return 0
+
+        if asset["type_code"] == "CASH":
+            return self.apply_cash_asset_snapshot_delta(
+                user_id, asset_id, from_date, multiplier
+            )
+
+        to_date = date.today()
+        self._ensure_snapshot_rows(user_id, from_date, to_date)
+        bucket_field, total_field = self._get_asset_bucket_fields(
+            asset["type_code"]
+        )
+        value_series = self._build_asset_cny_series(asset, from_date, to_date)
+        updates = [
+            (
+                str(value_cny * Decimal(multiplier)),
+                str(value_cny * Decimal(multiplier)),
+                user_id,
+                value_date,
+            )
+            for value_date, value_cny in value_series
+        ]
+        with get_cursor() as cur:
+            cur.executemany(
+                f"""
+                UPDATE daily_asset_snapshots
+                SET {bucket_field} = {bucket_field} + %s,
+                    {total_field} = {total_field} + %s
+                WHERE user_id = %s
+                  AND snapshot_date = %s
+                """,
+                updates,
+            )
+        return len(updates)
+
     def get_rebuild_status(self, user_id: int) -> dict:
         """Return current snapshot rebuild status for a user."""
         with get_cursor() as cur:
             cur.execute(
                 """
-                SELECT status, refresh_from, started_at, finished_at,
+                SELECT status, refresh_from, pending_refresh_from,
+                       started_at, finished_at,
                        last_completed_at, last_snapshot_date,
                        rebuilt_days, message
                 FROM snapshot_rebuild_state
@@ -44,12 +409,22 @@ class SnapshotService:
         status = row["status"] or "IDLE"
         is_running = status in {"QUEUED", "RUNNING"}
         refresh_from = row["refresh_from"]
+        pending_refresh_from = row.get("pending_refresh_from")
         started_at = row["started_at"]
         finished_at = row["finished_at"]
         last_completed_at = row["last_completed_at"]
         last_snapshot_date = row["last_snapshot_date"]
         rebuilt_days = int(row["rebuilt_days"] or 0)
         message = row["message"] or ""
+        total_days = 0
+        progress_pct = 0.0
+        if refresh_from:
+            total_days = max((date.today() - refresh_from).days + 1, 0)
+            if total_days:
+                progress_pct = min(
+                    100.0,
+                    round((rebuilt_days / total_days) * 100, 1),
+                )
 
         return {
             "status": status,
@@ -57,6 +432,11 @@ class SnapshotService:
             "can_start": not is_running,
             "refresh_from": (
                 refresh_from.isoformat() if refresh_from else None
+            ),
+            "pending_refresh_from": (
+                pending_refresh_from.isoformat()
+                if pending_refresh_from
+                else None
             ),
             "started_at_iso": (
                 started_at.isoformat() if started_at else None
@@ -75,6 +455,8 @@ class SnapshotService:
                 else None
             ),
             "rebuilt_days": rebuilt_days,
+            "total_days": total_days,
+            "progress_pct": progress_pct,
             "message": message,
             "started_at_display": (
                 started_at.strftime("%Y-%m-%d %H:%M")
@@ -91,7 +473,69 @@ class SnapshotService:
                 if last_completed_at
                 else "尚未执行"
             ),
+            "last_snapshot_date_display": (
+                last_snapshot_date.strftime("%Y-%m-%d")
+                if last_snapshot_date
+                else "尚未开始"
+            ),
         }
+
+    def request_partial_refresh(
+        self, user_id: int, from_date: date
+    ) -> dict:
+        """Queue a partial historical rebuild from the earliest dirty date."""
+        with get_cursor() as cur:
+            cur.execute(
+                """
+                SELECT status, refresh_from, pending_refresh_from
+                FROM snapshot_rebuild_state
+                WHERE user_id = %s
+                """,
+                (user_id,),
+            )
+            row = cur.fetchone()
+
+        current_status = (row or {}).get("status") or "IDLE"
+        refresh_candidates = [from_date]
+        if row and row.get("refresh_from"):
+            refresh_candidates.append(row["refresh_from"])
+        if row and row.get("pending_refresh_from"):
+            refresh_candidates.append(row["pending_refresh_from"])
+        effective_from = min(refresh_candidates)
+
+        should_start_worker = current_status not in {"QUEUED", "RUNNING"}
+        if current_status == "RUNNING":
+            self._upsert_rebuild_state(
+                user_id=user_id,
+                status="RUNNING",
+                refresh_from=row.get("refresh_from") or effective_from,
+                pending_refresh_from=effective_from,
+                message=(
+                    "历史趋势更新中，完成后会继续补算更早的数据"
+                ),
+                rebuilt_days=0,
+                touch_started=False,
+                touch_finished=False,
+                touch_completed=False,
+            )
+        else:
+            self._upsert_rebuild_state(
+                user_id=user_id,
+                status="QUEUED",
+                refresh_from=effective_from,
+                pending_refresh_from=None,
+                message=(
+                    f"历史趋势更新中，将从 {effective_from.isoformat()} 开始回填"
+                ),
+                rebuilt_days=0,
+                touch_started=False,
+                touch_finished=False,
+                touch_completed=False,
+            )
+
+        status = self.get_rebuild_status(user_id)
+        status["should_start_worker"] = should_start_worker
+        return status
 
     def request_full_rebuild(self, user_id: int) -> dict:
         """Queue a full snapshot rebuild from the earliest asset date."""
@@ -109,6 +553,7 @@ class SnapshotService:
             user_id=user_id,
             status="QUEUED",
             refresh_from=refresh_from,
+            pending_refresh_from=None,
             message=message,
             rebuilt_days=0,
             touch_started=False,
@@ -124,6 +569,7 @@ class SnapshotService:
             user_id=user_id,
             status="RUNNING",
             refresh_from=refresh_from,
+            pending_refresh_from=None,
             message="正在重建历史快照...",
             rebuilt_days=0,
             touch_started=True,
@@ -146,6 +592,7 @@ class SnapshotService:
                     user_id=user_id,
                     status="SUCCEEDED",
                     refresh_from=None,
+                    pending_refresh_from=None,
                     message="没有资产历史可回填",
                     rebuilt_days=0,
                     touch_started=False,
@@ -155,13 +602,36 @@ class SnapshotService:
                 )
                 return
 
+            def report_progress(
+                current_date: date, built_days: int, total_days: int
+            ) -> None:
+                self._upsert_rebuild_state(
+                    user_id=user_id,
+                    status="RUNNING",
+                    refresh_from=refresh_from,
+                    pending_refresh_from=None,
+                    message=(
+                        f"历史趋势更新中，已回填到 {current_date.isoformat()} "
+                        f"（{built_days}/{total_days}）"
+                    ),
+                    rebuilt_days=built_days,
+                    touch_started=False,
+                    touch_finished=False,
+                    touch_completed=False,
+                    last_snapshot_date=current_date,
+                )
+
             rebuilt_days = self.backfill_snapshots(
-                user_id, refresh_from, recompute_existing=True
+                user_id,
+                refresh_from,
+                recompute_existing=True,
+                progress_callback=report_progress,
             )
             self._upsert_rebuild_state(
                 user_id=user_id,
                 status="SUCCEEDED",
                 refresh_from=refresh_from,
+                pending_refresh_from=None,
                 message=f"历史快照已重建，共回填 {rebuilt_days} 天",
                 rebuilt_days=rebuilt_days,
                 touch_started=False,
@@ -174,6 +644,7 @@ class SnapshotService:
                 user_id=user_id,
                 status="FAILED",
                 refresh_from=refresh_from,
+                pending_refresh_from=None,
                 message=f"历史快照重建失败: {exc}",
                 rebuilt_days=0,
                 touch_started=False,
@@ -187,6 +658,7 @@ class SnapshotService:
         user_id: int,
         status: str,
         refresh_from: date | None,
+        pending_refresh_from: date | None,
         message: str,
         rebuilt_days: int,
         touch_started: bool,
@@ -205,11 +677,12 @@ class SnapshotService:
             cur.execute(
                 f"""
                 INSERT INTO snapshot_rebuild_state
-                    (user_id, status, refresh_from, started_at, finished_at,
+                    (user_id, status, refresh_from, pending_refresh_from,
+                     started_at, finished_at,
                      last_completed_at, last_snapshot_date, rebuilt_days,
                      message)
                 VALUES (
-                    %s, %s, %s,
+                    %s, %s, %s, %s,
                     {'NOW()' if touch_started else 'NULL'},
                     {'NOW()' if touch_finished else 'NULL'},
                     {'NOW()' if touch_completed else 'NULL'},
@@ -218,6 +691,7 @@ class SnapshotService:
                 ON DUPLICATE KEY UPDATE
                     status = VALUES(status),
                     refresh_from = VALUES(refresh_from),
+                    pending_refresh_from = VALUES(pending_refresh_from),
                     started_at = {started_expr},
                     finished_at = {finished_expr},
                     last_completed_at = {completed_expr},
@@ -229,11 +703,136 @@ class SnapshotService:
                     user_id,
                     status,
                     refresh_from,
+                    pending_refresh_from,
                     last_snapshot_date,
                     rebuilt_days,
                     message,
                 ),
             )
+
+    def run_queued_refresh(self, user_id: int) -> None:
+        """Process queued partial refreshes, merging multiple edits."""
+        while True:
+            with get_cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT refresh_from, pending_refresh_from
+                    FROM snapshot_rebuild_state
+                    WHERE user_id = %s
+                    """,
+                    (user_id,),
+                )
+                row = cur.fetchone()
+
+            if not row:
+                return
+
+            refresh_from = (
+                row.get("pending_refresh_from") or row.get("refresh_from")
+            )
+            if not refresh_from:
+                return
+
+            self._upsert_rebuild_state(
+                user_id=user_id,
+                status="RUNNING",
+                refresh_from=refresh_from,
+                pending_refresh_from=None,
+                message=f"历史趋势更新中，从 {refresh_from.isoformat()} 开始回填",
+                rebuilt_days=0,
+                touch_started=True,
+                touch_finished=False,
+                touch_completed=False,
+            )
+
+            try:
+                def report_progress(
+                    current_date: date,
+                    built_days: int,
+                    total_days: int,
+                ) -> None:
+                    self._upsert_rebuild_state(
+                        user_id=user_id,
+                        status="RUNNING",
+                        refresh_from=refresh_from,
+                        pending_refresh_from=None,
+                        message=(
+                            f"历史趋势更新中，已回填到 "
+                            f"{current_date.isoformat()} "
+                            f"（{built_days}/{total_days}）"
+                        ),
+                        rebuilt_days=built_days,
+                        touch_started=False,
+                        touch_finished=False,
+                        touch_completed=False,
+                        last_snapshot_date=current_date,
+                    )
+
+                rebuilt_days = self.refresh_snapshots_from_date(
+                    user_id,
+                    refresh_from,
+                    progress_callback=report_progress,
+                )
+            except Exception as exc:
+                self._upsert_rebuild_state(
+                    user_id=user_id,
+                    status="FAILED",
+                    refresh_from=refresh_from,
+                    pending_refresh_from=None,
+                    message=f"历史趋势回填失败: {exc}",
+                    rebuilt_days=0,
+                    touch_started=False,
+                    touch_finished=True,
+                    touch_completed=False,
+                )
+                raise
+
+            with get_cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT pending_refresh_from
+                    FROM snapshot_rebuild_state
+                    WHERE user_id = %s
+                    """,
+                    (user_id,),
+                )
+                pending_row = cur.fetchone()
+
+            pending_refresh_from = (
+                pending_row.get("pending_refresh_from")
+                if pending_row
+                else None
+            )
+            if pending_refresh_from:
+                self._upsert_rebuild_state(
+                    user_id=user_id,
+                    status="QUEUED",
+                    refresh_from=pending_refresh_from,
+                    pending_refresh_from=None,
+                    message=(
+                        f"检测到新的历史变更，将继续从 "
+                        f"{pending_refresh_from.isoformat()} 回填"
+                    ),
+                    rebuilt_days=rebuilt_days,
+                    touch_started=False,
+                    touch_finished=False,
+                    touch_completed=False,
+                )
+                continue
+
+            self._upsert_rebuild_state(
+                user_id=user_id,
+                status="SUCCEEDED",
+                refresh_from=refresh_from,
+                pending_refresh_from=None,
+                message=f"历史趋势已更新，共回填 {rebuilt_days} 天",
+                rebuilt_days=rebuilt_days,
+                touch_started=False,
+                touch_finished=True,
+                touch_completed=True,
+                last_snapshot_date=date.today(),
+            )
+            return
 
     def compute_snapshot(
         self, user_id: int, snapshot_date: date
@@ -336,6 +935,7 @@ class SnapshotService:
         from_date: date,
         to_date: date | None = None,
         recompute_existing: bool = False,
+        progress_callback=None,
     ) -> int:
         """Compute snapshots for each date in range.
 
@@ -346,6 +946,7 @@ class SnapshotService:
         """
         to_date = to_date or date.today()
         today = date.today()
+        total_days = max((to_date - from_date).days + 1, 0)
 
         count = 0
         current = from_date
@@ -358,6 +959,8 @@ class SnapshotService:
             if recompute_existing or current == today or current not in existing:
                 self.compute_snapshot(user_id, current)
                 count += 1
+                if progress_callback:
+                    progress_callback(current, count, total_days)
             current += timedelta(days=1)
         return count
 
@@ -428,7 +1031,7 @@ class SnapshotService:
             )
             rows = cur.fetchall()
 
-        return [
+        trend = [
             {
                 "date": row["snapshot_date"].isoformat(),
                 "total_cny": float(row["total_value_cny"]),
@@ -438,6 +1041,9 @@ class SnapshotService:
             }
             for row in rows
         ]
+        return self._merge_live_today_point(
+            user_id, trend, live_today=self.get_live_portfolio_snapshot(user_id)
+        )
 
     def get_dashboard_snapshot_bundle(
         self, user_id: int, range_value: str | int | None = 30
@@ -480,6 +1086,7 @@ class SnapshotService:
                 )
                 trend_rows = cur.fetchall()
 
+        live_snapshot = self.get_live_portfolio_snapshot(user_id)
         latest = latest_rows[0] if latest_rows else None
         prev = latest_rows[1] if len(latest_rows) > 1 else None
         latest_snapshot = None
@@ -503,6 +1110,8 @@ class SnapshotService:
                 "change_cny": round(change, 2),
                 "change_pct": round(change_pct, 2),
             }
+        if live_snapshot:
+            latest_snapshot = live_snapshot
 
         trend = [
             {
@@ -517,10 +1126,77 @@ class SnapshotService:
             }
             for row in trend_rows
         ]
+        trend = self._merge_live_today_point(
+            user_id, trend, live_today=live_snapshot
+        )
         return {
             "latest_snapshot": latest_snapshot,
             "trend": trend,
         }
+
+    def get_live_portfolio_snapshot(self, user_id: int) -> dict:
+        assets = self._assets.get_user_assets_with_values(user_id)
+        total_cny = 0.0
+        stock_cny = 0.0
+        bond_cny = 0.0
+        cash_cny = 0.0
+        daily_change_cny = 0.0
+
+        for asset in assets:
+            value_cny = float(asset.get("value_cny", 0.0) or 0.0)
+            change_cny = float(asset.get("change_cny", 0.0) or 0.0)
+            total_cny += value_cny
+            daily_change_cny += change_cny
+            type_code = asset.get("type_code")
+            if type_code == "STOCK":
+                stock_cny += value_cny
+            elif type_code == "BOND":
+                bond_cny += value_cny
+            elif type_code == "CASH":
+                cash_cny += value_cny
+
+        prev_total_cny = total_cny - daily_change_cny
+        daily_change_pct = (
+            (daily_change_cny / prev_total_cny * 100)
+            if prev_total_cny
+            else 0.0
+        )
+        return {
+            "date": date.today().isoformat(),
+            "total_cny": round(total_cny, 2),
+            "stock_cny": round(stock_cny, 2),
+            "bond_cny": round(bond_cny, 2),
+            "cash_cny": round(cash_cny, 2),
+            "change_cny": round(daily_change_cny, 2),
+            "change_pct": round(daily_change_pct, 2),
+        }
+
+    def _merge_live_today_point(
+        self,
+        user_id: int,
+        trend: list[dict],
+        live_today: dict | None = None,
+    ) -> list[dict]:
+        """Replace/add today's trend point with live asset totals."""
+        today_iso = date.today().isoformat()
+        live_today = live_today or self.get_live_portfolio_snapshot(user_id)
+        if not trend:
+            return [live_today]
+
+        merged = []
+        replaced = False
+        for item in trend:
+            if item["date"] == today_iso:
+                merged.append({**item, **live_today})
+                replaced = True
+            else:
+                merged.append(item)
+
+        if not replaced:
+            merged.append(live_today)
+
+        merged.sort(key=lambda item: item["date"])
+        return merged
 
     def get_latest_snapshot(self, user_id: int) -> dict | None:
         """Most recent snapshot for summary widgets."""
@@ -785,13 +1461,14 @@ class SnapshotService:
         return refresh_from
 
     def refresh_snapshots_from_date(
-        self, user_id: int, from_date: date
+        self, user_id: int, from_date: date, progress_callback=None
     ) -> int:
         """Recompute snapshots from an effective transaction date onward."""
         return self.backfill_snapshots(
             user_id,
             from_date,
             recompute_existing=True,
+            progress_callback=progress_callback,
         )
 
     def get_recent_transaction_refresh_date(

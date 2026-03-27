@@ -2,14 +2,19 @@
 (function () {
   var D = window.__DASHBOARD_DATA__ || {};
   var layoutState = (window.__DASHBOARD_LAYOUT__ || []).slice();
-  var DASHBOARD_LIVE_CACHE_KEY = 'financeHub.dashboard.livePage.v1';
+  var DASHBOARD_LIVE_CACHE_KEY = 'financeHub.dashboard.livePage.v5';
   var trendChart = null;
   var allocationChart = null;
   var grid = null;
   var editing = false;
   var dragEl = null;
+  var touchLiftTimer = null;
   var autoScrollFrame = null;
   var autoScrollVelocity = 0;
+  var trendRebuildPollTimer = null;
+  var lastTrendRebuildStatus = null;
+  var LOCAL_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+  var LOCAL_CACHE_REFRESH_AFTER_MS = 60 * 1000;
 
   function debounce(fn, wait) {
     var timer = null;
@@ -48,6 +53,12 @@
   function writeCache(key, value) {
     try {
       window.localStorage.setItem(key, JSON.stringify(value));
+    } catch (e) {}
+  }
+
+  function clearCache(key) {
+    try {
+      window.localStorage.removeItem(key);
     } catch (e) {}
   }
 
@@ -121,6 +132,7 @@
 
   function persistLayoutState() {
     syncLayoutStateFromDom();
+    clearCache(DASHBOARD_LIVE_CACHE_KEY);
     return fetch('/api/dashboard/layout', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -151,6 +163,18 @@
       window.cancelAnimationFrame(autoScrollFrame);
       autoScrollFrame = null;
     }
+  }
+
+  function clearDraggingState() {
+    if (touchLiftTimer) {
+      clearTimeout(touchLiftTimer);
+      touchLiftTimer = null;
+    }
+    document.querySelectorAll('.widget.dragging, .widget.drag-lifted, .widget.drag-armed').forEach(function (node) {
+      node.classList.remove('dragging');
+      node.classList.remove('drag-lifted');
+      node.classList.remove('drag-armed');
+    });
   }
 
   function runAutoScroll() {
@@ -279,6 +303,69 @@
     }
     trendChart = buildTrendChart(el, D.trend_chart.labels, D.trend_chart.values);
     bindTrendRangeButtons(document);
+  }
+
+  function getActiveTrendRange() {
+    var active = document.querySelector('.range-btn.active');
+    return (
+      (active && (active.getAttribute('data-range') || active.getAttribute('data-days'))) ||
+      '30'
+    );
+  }
+
+  function applyTrendRebuildStatus(status) {
+    var badge = document.getElementById('trend-rebuild-status');
+    var text = badge ? badge.querySelector('.trend-status-text') : null;
+    if (!badge || !text || !status) return;
+
+    var isRunning = !!status.is_running;
+    badge.hidden = !isRunning;
+    if (isRunning) {
+      var fromText = status.refresh_from || status.pending_refresh_from || '';
+      var currentText = status.last_snapshot_date || '';
+      var progressText = '';
+      if (status.rebuilt_days && status.total_days) {
+        progressText = '（' + status.rebuilt_days + '/' + status.total_days + '，' + (status.progress_pct || 0) + '%）';
+      }
+      text.textContent = fromText && currentText
+        ? ('历史趋势更新中：从 ' + fromText + ' 开始，当前已回填到 ' + currentText + ' ' + progressText)
+        : (fromText
+          ? ('历史趋势更新中：从 ' + fromText + ' 回填' + progressText)
+          : ('历史趋势更新中' + progressText));
+      startTrendRebuildPolling();
+    } else {
+      stopTrendRebuildPolling();
+    }
+
+    if (
+      lastTrendRebuildStatus &&
+      lastTrendRebuildStatus.is_running &&
+      !isRunning
+    ) {
+      fetchTrendData(getActiveTrendRange());
+    }
+    lastTrendRebuildStatus = status;
+  }
+
+  function fetchTrendRebuildStatus() {
+    fetch('/api/snapshots/rebuild-status')
+      .then(function (r) {
+        if (!r.ok) throw new Error('Failed to load rebuild status');
+        return r.json();
+      })
+      .then(applyTrendRebuildStatus)
+      .catch(function () {});
+  }
+
+  function startTrendRebuildPolling() {
+    if (trendRebuildPollTimer) return;
+    trendRebuildPollTimer = window.setInterval(fetchTrendRebuildStatus, 3000);
+  }
+
+  function stopTrendRebuildPolling() {
+    if (!trendRebuildPollTimer) return;
+    window.clearInterval(trendRebuildPollTimer);
+    trendRebuildPollTimer = null;
   }
 
   function fetchTrendData(rangeValue) {
@@ -561,11 +648,14 @@
     grid.addEventListener('dragstart', function (e) {
       if (!editing) return;
       dragEl = e.target.closest('.widget');
-      if (dragEl) dragEl.classList.add('dragging');
+      if (dragEl) {
+        dragEl.classList.add('drag-lifted');
+        dragEl.classList.add('dragging');
+      }
     });
 
     grid.addEventListener('dragend', function () {
-      if (dragEl) dragEl.classList.remove('dragging');
+      clearDraggingState();
       dragEl = null;
       stopAutoScroll();
       if (editing) persistLayoutState();
@@ -591,11 +681,22 @@
     grid.addEventListener('touchstart', function (e) {
       if (!editing) return;
       dragEl = e.target.closest('.widget');
+      if (!dragEl) return;
+      dragEl.classList.add('drag-armed');
+      dragEl.classList.add('drag-lifted');
+      touchLiftTimer = window.setTimeout(function () {
+        if (dragEl) {
+          dragEl.classList.remove('drag-armed');
+          dragEl.classList.add('dragging');
+        }
+      }, 80);
     }, { passive: true });
 
     grid.addEventListener('touchmove', function (e) {
       if (!editing || !dragEl) return;
       e.preventDefault();
+      dragEl.classList.remove('drag-armed');
+      dragEl.classList.add('dragging');
       var touch = e.touches[0];
       updateAutoScroll(touch.clientY);
       var el = document.elementFromPoint(touch.clientX, touch.clientY);
@@ -612,10 +713,18 @@
     }, { passive: false });
 
     grid.addEventListener('touchend', function () {
+      clearDraggingState();
       dragEl = null;
       touchTarget = null;
       stopAutoScroll();
       if (editing) persistLayoutState();
+    });
+
+    grid.addEventListener('touchcancel', function () {
+      clearDraggingState();
+      dragEl = null;
+      touchTarget = null;
+      stopAutoScroll();
     });
 
     grid.addEventListener('click', function (e) {
@@ -641,6 +750,7 @@
   document.addEventListener('DOMContentLoaded', function () {
     grid = document.getElementById('widget-grid');
     var cache = readCache(DASHBOARD_LIVE_CACHE_KEY);
+    var now = Date.now();
     if (grid && cache && cache.html) {
       D = cache.dashboard_data || {};
       grid.innerHTML = cache.html;
@@ -650,7 +760,16 @@
     initDrag();
     initWidgetPicker();
     ensureEmptyState();
-    setTimeout(refreshDashboardLivePage, 0);
+    fetchTrendRebuildStatus();
+    if (
+      !cache ||
+      !cache.savedAt ||
+      (now - cache.savedAt) > LOCAL_CACHE_MAX_AGE_MS
+    ) {
+      setTimeout(refreshDashboardLivePage, 0);
+    } else if ((now - cache.savedAt) > LOCAL_CACHE_REFRESH_AFTER_MS) {
+      setTimeout(refreshDashboardLivePage, 0);
+    }
 
     var onResize = debounce(resizeCharts, 150);
     window.addEventListener('resize', onResize);

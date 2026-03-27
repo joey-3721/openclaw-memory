@@ -11,6 +11,7 @@ class Settings:
     base_dir: Path = BASE_DIR
     templates_dir: Path = BASE_DIR / "templates"
     static_dir: Path = BASE_DIR / "static"
+    logs_dir: Path = BASE_DIR / "logs"
     mysql_host: str = os.getenv("MYSQL_HOST", "120.244.13.159")
     mysql_port: int = int(os.getenv("MYSQL_PORT", "1479"))
     mysql_user: str = os.getenv("MYSQL_USER", "joey")

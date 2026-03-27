@@ -5,14 +5,22 @@ from datetime import date
 from time import perf_counter
 
 from fastapi import APIRouter, Form, Request
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.responses import (
+    FileResponse,
+    HTMLResponse,
+    JSONResponse,
+    RedirectResponse,
+)
 
 from ..config import settings
 from ..db import get_cursor
 from ..services.auth import authenticate_user, get_current_user
+from ..services.page_cache_service import PageCacheService
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+LIVE_PAGE_CACHE_TTL_SECONDS = 60
+PAGE_SHELL_CACHE_TTL_SECONDS = 60
 
 
 @router.get("/favicon.ico")
@@ -90,24 +98,42 @@ def dashboard_page(request: Request):
 
     from ..services.dashboard_service import DashboardService
 
-    svc = DashboardService()
-    layout = svc.get_user_layout(current_user["id"])
-    widgets = [
-        {
-            "id": item["id"],
-            "widget_type": item["widget_type"],
-            "display_name": item["display_name"],
-            "description": item.get("description", ""),
-            "component_template": item["component_template"],
-            "sort_order": item["sort_order"],
-            "width": item["width"],
-            "is_visible": item["is_visible"],
-            "data": {},
-            "is_loading": True,
-        }
-        for item in layout
-        if item["is_visible"]
-    ]
+    cache = PageCacheService()
+    cache_key = f"dashboard:shell:v2:{current_user['id']}"
+
+    def _build_html():
+        svc = DashboardService()
+        layout = svc.get_user_layout(current_user["id"])
+        widgets = [
+            {
+                "id": item["id"],
+                "widget_type": item["widget_type"],
+                "display_name": item["display_name"],
+                "description": item.get("description", ""),
+                "component_template": item["component_template"],
+                "sort_order": item["sort_order"],
+                "width": item["width"],
+                "is_visible": item["is_visible"],
+                "data": {},
+                "is_loading": True,
+            }
+            for item in layout
+            if item["is_visible"]
+        ]
+        template = request.app.state.templates.env.get_template(
+            "index.html"
+        )
+        return template.render(
+            {
+                "request": request,
+                "title": "Finance Hub",
+                "current_user": current_user,
+                "active_page": "dashboard",
+                "widgets": widgets,
+                "dashboard_data_json": "{}",
+                "dashboard_layout_json": svc.serialize_layout(layout),
+            }
+        )
 
     print(
         "PERF page dashboard",
@@ -120,18 +146,12 @@ def dashboard_page(request: Request):
         flush=True,
     )
 
-    return render_template(
-        request,
-        "index.html",
-        {
-            "title": "Finance Hub",
-            "current_user": current_user,
-            "active_page": "dashboard",
-            "widgets": widgets,
-            "dashboard_data_json": "{}",
-            "dashboard_layout_json": svc.serialize_layout(layout),
-        },
+    html = cache.get_or_set(
+        cache_key,
+        PAGE_SHELL_CACHE_TTL_SECONDS,
+        _build_html,
     )
+    return HTMLResponse(html)
 
 
 @router.get("/assets")
@@ -154,39 +174,52 @@ def assets_page(request: Request):
         flush=True,
     )
 
-    return render_template(
-        request,
-        "assets.html",
-        {
-            "title": "我的资产 · Finance Hub",
-            "current_user": current_user,
-            "active_page": "assets",
-            "assets": [],
-            "performance_summary": {
-                "total_cny": 0.0,
-                "daily_change_cny": 0.0,
-                "daily_change_pct": 0.0,
-                "total_pnl_cny": 0.0,
-                "realized_pnl_cny": 0.0,
-                "unrealized_pnl_cny": 0.0,
-                "income_pnl_cny": 0.0,
-                "total_return_pct": 0.0,
-            },
-            "is_assets_loading": True,
-            "ibkr_sync_status": {
-                "can_manual_sync": False,
-                "last_synced_at_display": "加载中...",
-            },
-            "snapshot_rebuild_status": {
-                "can_start": False,
-                "is_running": False,
-                "status": "IDLE",
-                "last_completed_at_display": "加载中...",
-                "refresh_from": None,
-            },
-            "today_iso": date.today().isoformat(),
-        },
+    cache = PageCacheService()
+    cache_key = f"assets:shell:v2:{user_id}"
+
+    def _build_html():
+        template = request.app.state.templates.env.get_template(
+            "assets.html"
+        )
+        return template.render(
+            {
+                "request": request,
+                "title": "我的资产 · Finance Hub",
+                "current_user": current_user,
+                "active_page": "assets",
+                "assets": [],
+                "performance_summary": {
+                    "total_cny": 0.0,
+                    "daily_change_cny": 0.0,
+                    "daily_change_pct": 0.0,
+                    "total_pnl_cny": 0.0,
+                    "realized_pnl_cny": 0.0,
+                    "unrealized_pnl_cny": 0.0,
+                    "income_pnl_cny": 0.0,
+                    "total_return_pct": 0.0,
+                },
+                "is_assets_loading": True,
+                "ibkr_sync_status": {
+                    "can_manual_sync": False,
+                    "last_synced_at_display": "加载中...",
+                },
+                "snapshot_rebuild_status": {
+                    "can_start": False,
+                    "is_running": False,
+                    "status": "IDLE",
+                    "last_completed_at_display": "加载中...",
+                    "refresh_from": None,
+                },
+                "today_iso": date.today().isoformat(),
+            }
+        )
+
+    html = cache.get_or_set(
+        cache_key,
+        PAGE_SHELL_CACHE_TTL_SECONDS,
+        _build_html,
     )
+    return HTMLResponse(html)
 
 
 @router.get("/assets/live-content")
@@ -242,21 +275,33 @@ def assets_live_content(request: Request):
             exc_info=True,
         )
 
-    assets = asset_svc.get_user_assets_with_values(user_id)
-    performance_summary = snapshot_svc.get_performance_summary(
-        user_id, assets=assets
+    cache = PageCacheService()
+    cache_key = f"assets:live_content:v2:{user_id}"
+
+    def _build_html():
+        assets = asset_svc.get_user_assets_with_values(user_id)
+        performance_summary = snapshot_svc.get_performance_summary(
+            user_id, assets=assets
+        )
+        response = render_template(
+            request,
+            "partials/assets_content.html",
+            {
+                "assets": assets,
+                "performance_summary": performance_summary,
+                "current_user": current_user,
+                "active_page": "assets",
+                "today_iso": date.today().isoformat(),
+            },
+        )
+        return response.body.decode("utf-8")
+
+    html = cache.get_or_set(
+        cache_key,
+        LIVE_PAGE_CACHE_TTL_SECONDS,
+        _build_html,
     )
-    return render_template(
-        request,
-        "partials/assets_content.html",
-        {
-            "assets": assets,
-            "performance_summary": performance_summary,
-            "current_user": current_user,
-            "active_page": "assets",
-            "today_iso": date.today().isoformat(),
-        },
-    )
+    return HTMLResponse(html)
 
 
 @router.get("/settings")

@@ -399,6 +399,7 @@ def ensure_schema() -> None:
                 status VARCHAR(20) NOT NULL DEFAULT 'IDLE'
                     COMMENT 'IDLE, QUEUED, RUNNING, SUCCEEDED, FAILED',
                 refresh_from DATE NULL,
+                pending_refresh_from DATE NULL,
                 started_at DATETIME NULL,
                 finished_at DATETIME NULL,
                 last_completed_at DATETIME NULL,
@@ -413,6 +414,17 @@ def ensure_schema() -> None:
             ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
             """
         )
+
+        try:
+            cur.execute(
+                """
+                ALTER TABLE snapshot_rebuild_state
+                ADD COLUMN pending_refresh_from DATE NULL
+                    AFTER refresh_from
+                """
+            )
+        except Exception:
+            pass
 
         # Migrate: add net_flow_cny column if table existed before this change
         try:

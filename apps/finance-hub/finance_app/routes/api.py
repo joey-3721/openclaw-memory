@@ -10,8 +10,10 @@ from fastapi import APIRouter, BackgroundTasks, Request
 from fastapi.responses import JSONResponse
 
 from ..services.auth import get_current_user
+from ..services.page_cache_service import PageCacheService
 
 router = APIRouter(prefix="/api")
+LIVE_PAGE_CACHE_TTL_SECONDS = 60
 
 
 def _require_user(request: Request) -> dict | None:
@@ -35,14 +37,21 @@ def _render_dashboard_widget(request: Request, widget: dict) -> str:
 def _queue_snapshot_refresh(
     background_tasks: BackgroundTasks, user_id: int, from_date: date
 ) -> None:
-    """Backfill snapshots after the response returns."""
+    """Queue partial snapshot rebuild after the response returns."""
     from ..services.snapshot_service import SnapshotService
 
-    background_tasks.add_task(
-        SnapshotService().refresh_snapshots_from_date,
-        user_id,
-        from_date,
-    )
+    svc = SnapshotService()
+    status = svc.request_partial_refresh(user_id, from_date)
+    if status.get("should_start_worker"):
+        background_tasks.add_task(
+            SnapshotService().run_queued_refresh,
+            user_id,
+        )
+
+
+def _invalidate_live_page_caches(user_id: int) -> None:
+    """Clear short-lived per-user page caches after any data mutation."""
+    PageCacheService().invalidate_user_pages(user_id)
 
 
 # ── Assets ────────────────────────────────────────────────
@@ -102,14 +111,21 @@ async def create_asset(
 
     data = await request.json()
     from ..services.asset_service import AssetService
+    from ..services.snapshot_service import SnapshotService
 
     svc = AssetService()
+    snapshot_svc = SnapshotService()
     try:
         asset_id = svc.create_asset(user["id"], data)
         buy_date = data.get("buy_date") or date.today().isoformat()
-        _queue_snapshot_refresh(
-            background_tasks, user["id"], date.fromisoformat(buy_date)
+        effective_date = date.fromisoformat(buy_date)
+        snapshot_svc.apply_asset_position_delta(
+            user["id"],
+            asset_id,
+            effective_date,
+            Decimal(str(data.get("quantity") or "0")),
         )
+        _invalidate_live_page_caches(user["id"])
         return JSONResponse(
             {"id": asset_id, "message": "资产已添加"},
             status_code=201,
@@ -230,20 +246,35 @@ def get_asset(request: Request, asset_id: int):
 
 
 @router.delete("/assets/{asset_id}")
-def delete_asset(request: Request, asset_id: int):
+def delete_asset(
+    request: Request, asset_id: int, background_tasks: BackgroundTasks
+):
     user = _require_user(request)
     if not user:
         return _unauthorized()
 
     from ..services.asset_service import AssetService
+    from ..services.snapshot_service import SnapshotService
 
     svc = AssetService()
+    snapshot_svc = SnapshotService()
     if not svc.verify_asset_ownership(asset_id, user["id"]):
         return JSONResponse(
             {"error": "资产不存在"}, status_code=404
         )
 
+    asset_detail = svc.get_asset_detail(asset_id)
+    refresh_from = svc.get_asset_first_activity_date(asset_id)
+    if asset_detail and refresh_from:
+        snapshot_svc.apply_asset_snapshot_delta(
+            user["id"], asset_id, refresh_from, -1
+        )
     svc.deactivate_asset(asset_id)
+    _invalidate_live_page_caches(user["id"])
+    if refresh_from and not asset_detail:
+        _queue_snapshot_refresh(
+            background_tasks, user["id"], refresh_from
+        )
     return JSONResponse({"message": "已删除"})
 
 
@@ -270,9 +301,17 @@ async def add_transaction(
     try:
         tx_id = svc.add_transaction(asset_id, data)
         tx_date = data.get("transaction_date") or date.today().isoformat()
-        _queue_snapshot_refresh(
-            background_tasks, user["id"], date.fromisoformat(tx_date)
+        effective_date = date.fromisoformat(tx_date)
+        asset_detail = svc.get_asset_detail(asset_id)
+        direction = (data.get("direction") or "BUY").upper()
+        quantity = Decimal(str(data.get("quantity") or "0"))
+        delta_quantity = quantity if direction == "BUY" else -quantity
+        from ..services.snapshot_service import SnapshotService
+
+        SnapshotService().apply_asset_position_delta(
+            user["id"], asset_id, effective_date, delta_quantity
         )
+        _invalidate_live_page_caches(user["id"])
         return JSONResponse(
             {"id": tx_id, "message": "交易已记录"},
             status_code=201,
@@ -348,6 +387,7 @@ async def save_bond_price(
         _queue_snapshot_refresh(
             background_tasks, user["id"], backfill_from
         )
+        _invalidate_live_page_caches(user["id"])
         return JSONResponse(
             {
                 "message": "债券价格已保存",
@@ -387,6 +427,7 @@ async def save_interest(
         _queue_snapshot_refresh(
             background_tasks, user["id"], saved_date
         )
+        _invalidate_live_page_caches(user["id"])
         return JSONResponse({"message": "利息已记录"})
     except ValueError as e:
         return JSONResponse({"error": str(e)}, status_code=400)
@@ -416,6 +457,7 @@ async def set_include_price_pnl(
         _queue_snapshot_refresh(
             background_tasks, user["id"], refresh_from
         )
+        _invalidate_live_page_caches(user["id"])
         return JSONResponse({"message": "已更新盈亏开关"})
     except ValueError as e:
         return JSONResponse({"error": str(e)}, status_code=400)
@@ -501,19 +543,29 @@ def dashboard_live_page(request: Request):
     except Exception:
         pass
 
-    svc = DashboardService()
-    data = svc.load_dashboard_data(user["id"])
-    html = "".join(
-        _render_dashboard_widget(request, widget)
-        for widget in data["widgets"]
-    )
-    return JSONResponse(
-        {
+    cache = PageCacheService()
+    cache_key = f"dashboard:live_page:v2:{user['id']}"
+
+    def _build_payload():
+        svc = DashboardService()
+        data = svc.load_dashboard_data(user["id"])
+        html = "".join(
+            _render_dashboard_widget(request, widget)
+            for widget in data["widgets"]
+        )
+        return {
             "html": html,
             "dashboard_data": json.loads(
                 data["dashboard_data_json"]
             ),
         }
+
+    return JSONResponse(
+        cache.get_or_set(
+            cache_key,
+            LIVE_PAGE_CACHE_TTL_SECONDS,
+            _build_payload,
+        )
     )
 
 
@@ -528,6 +580,7 @@ async def save_dashboard_layout(request: Request):
 
     svc = DashboardService()
     svc.save_layout(user["id"], layout)
+    _invalidate_live_page_caches(user["id"])
     return JSONResponse({"message": "布局已保存"})
 
 
@@ -542,6 +595,7 @@ def sync_ibkr(request: Request):
     svc = IBKRSyncService()
     try:
         result = svc.sync_user(user["id"], force=True)
+        _invalidate_live_page_caches(user["id"])
         return JSONResponse(result)
     except Exception as exc:
         return JSONResponse(
@@ -634,6 +688,7 @@ async def save_ibkr_config(request: Request):
             ),
             bool(data.get("is_enabled", True)),
         )
+        _invalidate_live_page_caches(user["id"])
         return JSONResponse(
             {
                 "message": "IBKR 设置已保存",
@@ -674,6 +729,7 @@ def show_dashboard_widget(request: Request, layout_id: int):
             }
         ],
     )
+    _invalidate_live_page_caches(user["id"])
 
     widget = svc.build_widget_payload(user["id"], item)
     return JSONResponse(
@@ -707,6 +763,7 @@ def hide_dashboard_widget(request: Request, layout_id: int):
             }
         ],
     )
+    _invalidate_live_page_caches(user["id"])
     return JSONResponse({"message": "组件已移除"})
 
 

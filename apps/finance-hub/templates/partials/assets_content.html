@@ -33,46 +33,61 @@
   {% endfor %}
 </section>
 {% elif assets %}
-<section class="asset-summary-bar">
-  <div class="summary-item summary-item-primary">
-    <span class="summary-label">资产总值 (CNY)</span>
-    <strong class="summary-value">¥ {{ "{:,.2f}".format(performance_summary.total_cny) }}</strong>
+<section class="asset-summary-shell" id="asset-summary-shell">
+  <div class="asset-summary-bar asset-summary-bar-primary">
+    <div class="summary-item summary-item-primary">
+      <span class="summary-label">资产总值 (CNY)</span>
+      <strong class="summary-value">¥ {{ "{:,.2f}".format(performance_summary.total_cny) }}</strong>
+    </div>
+    <div class="summary-item">
+      <span class="summary-label">今日变化</span>
+      <strong class="summary-value {{ 'positive' if performance_summary.daily_change_cny >= 0 else 'negative' }}">
+        {{ '+' if performance_summary.daily_change_cny >= 0 }}¥ {{ "{:,.2f}".format(performance_summary.daily_change_cny) }}
+      </strong>
+      <span class="summary-subvalue {{ 'positive' if performance_summary.daily_change_pct >= 0 else 'negative' }}">
+        {{ '+' if performance_summary.daily_change_pct >= 0 }}{{ "{:.2f}".format(performance_summary.daily_change_pct) }}%
+      </span>
+    </div>
   </div>
-  <div class="summary-item">
-    <span class="summary-label">今日变化</span>
-    <strong class="summary-value {{ 'positive' if performance_summary.daily_change_cny >= 0 else 'negative' }}">
-      {{ '+' if performance_summary.daily_change_cny >= 0 }}¥ {{ "{:,.2f}".format(performance_summary.daily_change_cny) }}
-    </strong>
-    <span class="summary-subvalue {{ 'positive' if performance_summary.daily_change_pct >= 0 else 'negative' }}">
-      {{ '+' if performance_summary.daily_change_pct >= 0 }}{{ "{:.2f}".format(performance_summary.daily_change_pct) }}%
-    </span>
-  </div>
-  <div class="summary-item">
-    <span class="summary-label">总盈亏</span>
-    <strong class="summary-value {{ 'positive' if performance_summary.total_pnl_cny >= 0 else 'negative' }}">
-      {{ '+' if performance_summary.total_pnl_cny >= 0 }}¥ {{ "{:,.2f}".format(performance_summary.total_pnl_cny) }}
-    </strong>
-    <span class="summary-subvalue {{ 'positive' if performance_summary.total_return_pct >= 0 else 'negative' }}">
-      {{ '+' if performance_summary.total_return_pct >= 0 }}{{ "{:.2f}".format(performance_summary.total_return_pct) }}%
-    </span>
-  </div>
-  <div class="summary-item">
-    <span class="summary-label">已实现盈亏</span>
-    <strong class="summary-value {{ 'positive' if performance_summary.realized_pnl_cny >= 0 else 'negative' }}">
-      {{ '+' if performance_summary.realized_pnl_cny >= 0 }}¥ {{ "{:,.2f}".format(performance_summary.realized_pnl_cny) }}
-    </strong>
-  </div>
-  <div class="summary-item">
-    <span class="summary-label">未实现盈亏</span>
-    <strong class="summary-value {{ 'positive' if performance_summary.unrealized_pnl_cny >= 0 else 'negative' }}">
-      {{ '+' if performance_summary.unrealized_pnl_cny >= 0 }}¥ {{ "{:,.2f}".format(performance_summary.unrealized_pnl_cny) }}
-    </strong>
-  </div>
-  <div class="summary-item">
-    <span class="summary-label">累计分红/利息</span>
-    <strong class="summary-value {{ 'positive' if performance_summary.income_pnl_cny >= 0 else 'negative' }}">
-      {{ '+' if performance_summary.income_pnl_cny >= 0 }}¥ {{ "{:,.2f}".format(performance_summary.income_pnl_cny) }}
-    </strong>
+
+  <button
+    class="asset-summary-toggle"
+    type="button"
+    id="asset-summary-toggle"
+    aria-expanded="false"
+    onclick="toggleAssetSummaryMore()">
+    <span>查看更多指标</span>
+    <span class="asset-summary-toggle-icon">⌄</span>
+  </button>
+
+  <div class="asset-summary-bar asset-summary-bar-more" id="asset-summary-more" hidden>
+    <div class="summary-item">
+      <span class="summary-label">总盈亏</span>
+      <strong class="summary-value {{ 'positive' if performance_summary.total_pnl_cny >= 0 else 'negative' }}">
+        {{ '+' if performance_summary.total_pnl_cny >= 0 }}¥ {{ "{:,.2f}".format(performance_summary.total_pnl_cny) }}
+      </strong>
+      <span class="summary-subvalue {{ 'positive' if performance_summary.total_return_pct >= 0 else 'negative' }}">
+        {{ '+' if performance_summary.total_return_pct >= 0 }}{{ "{:.2f}".format(performance_summary.total_return_pct) }}%
+      </span>
+    </div>
+    <div class="summary-item">
+      <span class="summary-label">已实现盈亏</span>
+      <strong class="summary-value {{ 'positive' if performance_summary.realized_pnl_cny >= 0 else 'negative' }}">
+        {{ '+' if performance_summary.realized_pnl_cny >= 0 }}¥ {{ "{:,.2f}".format(performance_summary.realized_pnl_cny) }}
+      </strong>
+    </div>
+    <div class="summary-item">
+      <span class="summary-label">未实现盈亏</span>
+      <strong class="summary-value {{ 'positive' if performance_summary.unrealized_pnl_cny >= 0 else 'negative' }}">
+        {{ '+' if performance_summary.unrealized_pnl_cny >= 0 }}¥ {{ "{:,.2f}".format(performance_summary.unrealized_pnl_cny) }}
+      </strong>
+    </div>
+    <div class="summary-item">
+      <span class="summary-label">累计分红/利息</span>
+      <strong class="summary-value {{ 'positive' if performance_summary.income_pnl_cny >= 0 else 'negative' }}">
+        {{ '+' if performance_summary.income_pnl_cny >= 0 }}¥ {{ "{:,.2f}".format(performance_summary.income_pnl_cny) }}
+      </strong>
+    </div>
   </div>
 </section>
 {% endif %}
@@ -124,38 +139,25 @@
         {% endif %}
       </div>
       <div class="asset-value">
-        <div class="asset-value-head">
-          <strong class="asset-value-total">¥ {{ "{:,.2f}".format(asset.value_cny) }}</strong>
-        </div>
         {% if asset.type_code == 'STOCK' %}
-        <div class="asset-metric-grid">
+        <div class="asset-metric-grid asset-metric-grid-primary">
+          <div class="asset-metric asset-metric-primary">
+            <span>总市值</span>
+            <strong>¥ {{ "{:,.2f}".format(asset.value_cny) }}</strong>
+          </div>
           <div class="asset-metric">
             <span>总盈亏</span>
             <strong class="{{ 'positive' if asset.total_pnl_cny >= 0 else 'negative' }}">
               {{ '+' if asset.total_pnl_cny >= 0 }}¥ {{ "{:,.2f}".format(asset.total_pnl_cny) }}
             </strong>
           </div>
-          <div class="asset-metric">
-            <span>已实现</span>
-            <strong class="{{ 'positive' if asset.realized_pnl_cny >= 0 else 'negative' }}">
-              {{ '+' if asset.realized_pnl_cny >= 0 }}¥ {{ "{:,.2f}".format(asset.realized_pnl_cny) }}
-            </strong>
-          </div>
-          <div class="asset-metric">
-            <span>未实现</span>
-            <strong class="{{ 'positive' if asset.unrealized_pnl_cny >= 0 else 'negative' }}">
-              {{ '+' if asset.unrealized_pnl_cny >= 0 }}¥ {{ "{:,.2f}".format(asset.unrealized_pnl_cny) }}
-            </strong>
-          </div>
-          <div class="asset-metric">
-            <span>分红/利息</span>
-            <strong class="{{ 'positive' if asset.income_pnl_cny >= 0 else 'negative' }}">
-              {{ '+' if asset.income_pnl_cny >= 0 }}¥ {{ "{:,.2f}".format(asset.income_pnl_cny) }}
-            </strong>
-          </div>
         </div>
         {% else %}
         <div class="asset-metric-grid asset-metric-grid-single">
+          <div class="asset-metric asset-metric-primary">
+            <span>总市值</span>
+            <strong>¥ {{ "{:,.2f}".format(asset.value_cny) }}</strong>
+          </div>
           <div class="asset-metric">
             <span>利息收入</span>
             <strong class="{{ 'positive' if asset.income_pnl_cny >= 0 else 'negative' }}">
@@ -168,12 +170,34 @@
     </div>
 
     <div class="asset-detail" id="detail-{{ asset.id }}" style="display:none;">
+      {% if asset.type_code == 'STOCK' %}
+      <div class="asset-detail-metric-grid">
+        <div class="asset-metric">
+          <span>已实现</span>
+          <strong class="{{ 'positive' if asset.realized_pnl_cny >= 0 else 'negative' }}">
+            {{ '+' if asset.realized_pnl_cny >= 0 }}¥ {{ "{:,.2f}".format(asset.realized_pnl_cny) }}
+          </strong>
+        </div>
+        <div class="asset-metric">
+          <span>未实现</span>
+          <strong class="{{ 'positive' if asset.unrealized_pnl_cny >= 0 else 'negative' }}">
+            {{ '+' if asset.unrealized_pnl_cny >= 0 }}¥ {{ "{:,.2f}".format(asset.unrealized_pnl_cny) }}
+          </strong>
+        </div>
+        <div class="asset-metric">
+          <span>分红/利息</span>
+          <strong class="{{ 'positive' if asset.income_pnl_cny >= 0 else 'negative' }}">
+            {{ '+' if asset.income_pnl_cny >= 0 }}¥ {{ "{:,.2f}".format(asset.income_pnl_cny) }}
+          </strong>
+        </div>
+      </div>
+      {% endif %}
       <div class="asset-detail-grid">
         <div class="detail-item">
           <span>市值 (USD)</span>
           <strong>${{ "{:,.2f}".format(asset.value_usd) }}</strong>
         </div>
-        <div class="detail-item">
+        <div class="detail-item detail-item-mobile-hidden">
           <span>市值 (CNY)</span>
           <strong>¥ {{ "{:,.2f}".format(asset.value_cny) }}</strong>
         </div>
@@ -208,33 +232,8 @@
             {{ '+' if asset.change_cny >= 0 }}¥ {{ "{:,.2f}".format(asset.change_cny) }}
           </strong>
         </div>
-        {% if asset.type_code == 'STOCK' %}
-        <div class="detail-item">
-          <span>总盈亏</span>
-          <strong class="{{ 'positive' if asset.total_pnl_cny >= 0 else 'negative' }}">
-            {{ '+' if asset.total_pnl_cny >= 0 }}¥ {{ "{:,.2f}".format(asset.total_pnl_cny) }}
-          </strong>
-        </div>
-        <div class="detail-item">
-          <span>已实现盈亏</span>
-          <strong class="{{ 'positive' if asset.realized_pnl_cny >= 0 else 'negative' }}">
-            {{ '+' if asset.realized_pnl_cny >= 0 }}¥ {{ "{:,.2f}".format(asset.realized_pnl_cny) }}
-          </strong>
-        </div>
-        <div class="detail-item">
-          <span>未实现盈亏</span>
-          <strong class="{{ 'positive' if asset.unrealized_pnl_cny >= 0 else 'negative' }}">
-            {{ '+' if asset.unrealized_pnl_cny >= 0 }}¥ {{ "{:,.2f}".format(asset.unrealized_pnl_cny) }}
-          </strong>
-        </div>
-        <div class="detail-item">
-          <span>分红/利息</span>
-          <strong class="{{ 'positive' if asset.income_pnl_cny >= 0 else 'negative' }}">
-            {{ '+' if asset.income_pnl_cny >= 0 }}¥ {{ "{:,.2f}".format(asset.income_pnl_cny) }}
-          </strong>
-        </div>
-        {% else %}
-        <div class="detail-item">
+        {% if asset.type_code != 'STOCK' %}
+        <div class="detail-item detail-item-mobile-hidden">
           <span>利息收入</span>
           <strong class="{{ 'positive' if asset.income_pnl_cny >= 0 else 'negative' }}">
             {{ '+' if asset.income_pnl_cny >= 0 }}¥ {{ "{:,.2f}".format(asset.income_pnl_cny) }}

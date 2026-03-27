@@ -1,14 +1,18 @@
 {% extends 'base.html' %}
 {% block content %}
 <header class="page-header">
-  <div>
+  <div class="page-header-copy">
     <h1 class="page-title">我的资产</h1>
-    <p class="page-subtitle">管理您的股票、债券和现金资产</p>
   </div>
   <div class="dashboard-actions">
     <button class="btn btn-primary" onclick="openAddAssetModal()">+ 添加资产</button>
   </div>
 </header>
+
+<div class="assets-history-status" id="assets-history-status" hidden>
+  <span class="btn-spinner assets-history-status-spinner"></span>
+  <span class="assets-history-status-text" id="assets-history-status-text">历史趋势更新中</span>
+</div>
 
 <div id="assets-page-content" data-refresh-url="/assets/live-content">
   {% include 'partials/assets_content.html' %}
@@ -123,5 +127,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="/static/js/assets.js?v=9"></script>
+<script src="/static/js/assets.js?v=16"></script>
 {% endblock %}

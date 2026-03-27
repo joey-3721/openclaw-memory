@@ -263,7 +263,7 @@ class DashboardService:
         return {}
 
     def _data_total_assets(self, user_id: int) -> dict:
-        summary = self._get_dashboard_assets_summary_cached(user_id)
+        summary = self._get_performance_summary_cached(user_id)
         if not summary:
             return {
                 "total_cny": 0,
@@ -311,7 +311,7 @@ class DashboardService:
         return {"items": items}
 
     def _data_daily_pnl(self, user_id: int) -> dict:
-        summary = self._get_dashboard_assets_summary_cached(user_id)
+        summary = self._get_performance_summary_cached(user_id)
         if not summary:
             return {"change_cny": 0, "change_pct": 0}
         return {
@@ -375,25 +375,19 @@ class DashboardService:
         return self._dashboard_assets_cache[user_id]
 
     def _get_dashboard_assets_summary_cached(self, user_id: int) -> dict:
-        """Derive lightweight headline cards from dashboard asset rows."""
+        """Keep headline cards aligned with the latest live snapshot."""
         if user_id not in self._dashboard_assets_summary_cache:
-            assets = self._get_dashboard_assets_cached(user_id)
-            total_cny = sum(
-                asset.get("value_cny", 0.0) for asset in assets
-            )
-            daily_change_cny = sum(
-                asset.get("change_cny", 0.0) for asset in assets
-            )
-            prev_total = total_cny - daily_change_cny
-            daily_change_pct = (
-                (daily_change_cny / prev_total * 100)
-                if prev_total
-                else 0.0
-            )
+            latest_snapshot = self._get_latest_snapshot_cached(user_id) or {}
             self._dashboard_assets_summary_cache[user_id] = {
-                "total_cny": round(total_cny, 2),
-                "daily_change_cny": round(daily_change_cny, 2),
-                "daily_change_pct": round(daily_change_pct, 2),
+                "total_cny": round(
+                    float(latest_snapshot.get("total_cny", 0.0)), 2
+                ),
+                "daily_change_cny": round(
+                    float(latest_snapshot.get("change_cny", 0.0)), 2
+                ),
+                "daily_change_pct": round(
+                    float(latest_snapshot.get("change_pct", 0.0)), 2
+                ),
             }
         return self._dashboard_assets_summary_cache[user_id]
 
