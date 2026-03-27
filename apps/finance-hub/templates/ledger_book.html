@@ -1,0 +1,257 @@
+{% extends 'base.html' %}
+{% block content %}
+<header class="ledger-book-topbar">
+  <a class="btn btn-ghost ledger-book-back" href="/ledger">返回账本</a>
+  <div class="ledger-book-topbar-actions">
+    <button class="btn btn-primary" type="button" onclick="openLedgerModal('entry-modal-{{ book.id }}')">记一笔</button>
+  </div>
+</header>
+
+<section class="ledger-book-mobile-shell">
+  <article class="ledger-book-summary-card ledger-book-summary-card-{{ book.book_type | lower }}">
+    <div class="ledger-book-summary-head">
+      <span class="ledger-book-type">
+        {% if book.book_type == 'MAIN' %}单人{% elif book.book_type == 'TRAVEL' %}AA{% else %}共享{% endif %}
+      </span>
+      <h1>{{ book.name }}</h1>
+      <p>{{ book.location_label }} · {{ book.members | length }} 人 · {{ book.entries | length }} 笔</p>
+    </div>
+    <div class="ledger-book-summary-grid">
+      <div class="ledger-book-balance-card">
+        <span>{{ book.my_spend_label }}</span>
+        <div class="ledger-book-balance-row">
+          <strong>{{ book.my_spend_display }}</strong>
+        </div>
+      </div>
+      <button class="ledger-book-balance-card ledger-book-balance-card-action" type="button" onclick="openLedgerModal('settlement-modal-{{ book.id }}')">
+        <span>应付款项</span>
+        <div class="ledger-book-balance-row">
+          <strong>{{ book.settlement_summary.my_payable_display }}</strong>
+          <div class="ledger-book-balance-extra">
+            <span>待收 {{ book.settlement_summary.my_receivable_display }}</span>
+            <em>明细</em>
+          </div>
+        </div>
+      </button>
+    </div>
+  </article>
+
+  <section class="ledger-book-entry-section">
+    <div class="ledger-panel-head ledger-panel-head-tight">
+      <div>
+        <p class="ledger-panel-kicker">最近账单</p>
+        <h2>账单明细</h2>
+      </div>
+      <span class="ledger-panel-note">{{ book.entries | length }} 笔</span>
+    </div>
+    <div class="ledger-entry-list ledger-entry-list-compact">
+      {% for entry in book.entries %}
+      <article class="ledger-entry-card ledger-entry-card-compact">
+        <div class="ledger-entry-icon">
+          {% with icon=(categories | selectattr('name', 'equalto', entry.category) | map(attribute='icon') | first) %}
+            {% include 'partials/ledger_category_icon.html' %}
+          {% endwith %}
+        </div>
+        <div class="ledger-entry-copy">
+          <div class="ledger-entry-top">
+            <strong>{{ entry.title }}</strong>
+            <span>{{ entry.amount }}</span>
+          </div>
+          <p>{{ entry.category }}{% if entry.subcategory_name %} / {{ entry.subcategory_name }}{% endif %}</p>
+          <em>{{ entry.meta }} · {{ entry.date }}</em>
+        </div>
+      </article>
+      {% else %}
+      <div class="ledger-outline-item ledger-outline-item-compact">
+        <strong>还没有账单</strong>
+        <p>点右上角的“记一笔”，这个账本就会开始参与分摊和结算。</p>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+</section>
+
+<div class="modal-overlay" id="settlement-modal-{{ book.id }}" style="display:none;" onclick="closeLedgerModalOnOverlay(event)">
+  <div class="modal-sheet modal-sheet-ledger-entry">
+    <div class="modal-header">
+      <h2>应付款项</h2>
+      <button class="modal-close" type="button" onclick="closeLedgerModal('settlement-modal-{{ book.id }}')">&times;</button>
+    </div>
+    <div class="ledger-settlement-modal-meta">
+      <div class="ledger-settlement-modal-stat">
+        <span>应付</span>
+        <strong>{{ book.settlement_summary.my_payable_display }}</strong>
+      </div>
+      <div class="ledger-settlement-modal-stat">
+        <span>待收</span>
+        <strong>{{ book.settlement_summary.my_receivable_display }}</strong>
+      </div>
+    </div>
+    <div class="ledger-settlement-list ledger-settlement-list-compact">
+      {% for item in book.settlement_summary["items"] %}
+      <article class="ledger-settlement-item ledger-settlement-item-compact">
+        <div class="ledger-settlement-copy">
+          <strong>{{ item.from }} <span>→</span> {{ item.to }}</strong>
+          <p>{{ item.amount }}</p>
+        </div>
+        <form method="post" action="/ledger/books/{{ book.id }}/settlements/pay">
+          <input type="hidden" name="from_member_id" value="{{ item.from_member_id }}">
+          <input type="hidden" name="to_member_id" value="{{ item.to_member_id }}">
+          <input type="hidden" name="amount" value="{{ item.amount_value }}">
+          <button class="btn btn-ghost" type="submit">结清</button>
+        </form>
+      </article>
+      {% else %}
+      <div class="ledger-outline-item ledger-outline-item-compact">
+        <strong>当前无需结算</strong>
+        <p>大家已经平账，或者这个账本暂时没有共享应付款。</p>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="entry-modal-{{ book.id }}" style="display:none;" onclick="closeLedgerModalOnOverlay(event)">
+  <div class="modal-sheet modal-sheet-ledger-entry">
+    <div class="modal-header">
+      <h2>{{ book.name }}</h2>
+      <button class="modal-close" type="button" onclick="closeLedgerModal('entry-modal-{{ book.id }}')">&times;</button>
+    </div>
+    <form method="post" action="/ledger/books/{{ book.id }}/entries" class="ledger-form ledger-entry-modal-form" data-ledger-entry-form>
+      <div class="form-group">
+        <label>金额</label>
+        <input class="ledger-entry-amount-input" type="number" name="amount" step="0.01" min="0.01" placeholder="0.00" required>
+      </div>
+
+      <div class="form-group">
+        <label>一级分类</label>
+        <input type="hidden" name="category_code" value="{{ categories[0].code }}" data-category-hidden>
+        <div class="ledger-category-choice-grid" data-category-grid data-subcategory-target="entry-subcategory-grid-{{ book.id }}" data-subcategory-hidden="entry-subcategory-hidden-{{ book.id }}">
+          {% for category in categories %}
+          <button
+            type="button"
+            class="ledger-category-choice{% if loop.first %} is-active{% endif %}"
+            data-category-choice
+            data-code="{{ category.code }}"
+            data-subcategories='{{ category.subcategories | tojson | safe }}'
+          >
+            <span class="ledger-category-choice-icon">
+              {% with icon=category.icon %}
+                {% include 'partials/ledger_category_icon.html' %}
+              {% endwith %}
+            </span>
+            <span class="ledger-category-choice-label">{{ category.name }}</span>
+          </button>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>二级分类</label>
+        <input type="hidden" name="subcategory_name" id="entry-subcategory-hidden-{{ book.id }}" value="{{ categories[0].subcategories[0].name }}">
+        <div class="ledger-subcategory-choice-grid" id="entry-subcategory-grid-{{ book.id }}">
+          {% for subcategory in categories[0].subcategories %}
+          <button type="button" class="ledger-subcategory-choice{% if loop.first %} is-active{% endif %}" data-subcategory-choice data-name="{{ subcategory.name }}">
+            <span class="ledger-subcategory-choice-icon">
+              {% with icon=subcategory.icon %}
+                {% include 'partials/ledger_subcategory_icon.html' %}
+              {% endwith %}
+            </span>
+            <span>{{ subcategory.name }}</span>
+          </button>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>付款人</label>
+        <div class="ledger-member-choice-row">
+          {% for member in book.members %}
+          {% if member.user_id %}
+          <label class="ledger-member-choice">
+            <input type="radio" name="payer_user_id" value="{{ member.user_id }}" {% if loop.first %}checked{% endif %}>
+            <span class="ledger-member-choice-ui">
+              <span class="ledger-member-choice-avatar">{{ member.name[0] }}</span>
+              <span class="ledger-member-choice-name">{{ member.name }}</span>
+            </span>
+          </label>
+          {% endif %}
+          {% endfor %}
+        </div>
+      </div>
+
+      {% if book.book_type == 'MAIN' %}
+      <div class="form-group">
+        <label>共享给另一位主账本人</label>
+        <div class="ledger-user-picker" data-user-picker data-single-user data-input-name="share_main_user_id">
+          <input type="hidden" name="share_main_user_id" value="">
+          <input type="text" class="ledger-user-search-input" placeholder="输入用户名搜索">
+          <div class="ledger-user-search-results"></div>
+          <div class="ledger-selected-users"></div>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>共享规则</label>
+        <select name="main_share_mode">
+          <option value="EQUAL">两人均分</option>
+          <option value="SELF_ONLY">仅我承担</option>
+          <option value="OTHER_ONLY">仅对方承担</option>
+        </select>
+      </div>
+      {% else %}
+      <div class="form-group">
+        <label>参与人</label>
+        <div class="ledger-member-choice-row ledger-member-choice-row-participants">
+          {% for member in book.members %}
+          {% if member.user_id %}
+          <label class="ledger-member-choice ledger-member-choice-checkbox">
+            <input type="checkbox" name="participant_user_ids" value="{{ member.user_id }}" checked>
+            <span class="ledger-member-choice-ui">
+              <span class="ledger-member-choice-avatar">{{ member.name[0] }}</span>
+              <span class="ledger-member-choice-name">{{ member.name }}</span>
+            </span>
+          </label>
+          {% endif %}
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="form-group">
+        <label>标题</label>
+        <input type="text" name="title" placeholder="例如：釜山大巴 / 星巴克 / 酒店房费" required>
+      </div>
+
+      <div class="form-group">
+        <label>备注</label>
+        <input type="text" name="note" placeholder="可选，写地点、说明或截图来源">
+      </div>
+
+      <label class="ledger-checkbox-row">
+        <input type="checkbox" name="mark_settled" value="1">
+        <span>创建时直接记为已结清</span>
+      </label>
+
+      <div class="form-group">
+        <label>发生时间</label>
+        <input type="datetime-local" name="occurred_at" data-default-now required>
+      </div>
+
+      <button type="submit" class="btn btn-primary btn-block">保存</button>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+window.ledgerSubcategoryIcons = {
+  {% for category in categories %}
+    {% for subcategory in category.subcategories %}
+    "{{ subcategory.icon }}": `{% with icon=subcategory.icon %}{% include 'partials/ledger_subcategory_icon.html' %}{% endwith %}`,
+    {% endfor %}
+  {% endfor %}
+};
+</script>
+<script src="/static/js/ledger.js?v=3"></script>
+{% endblock %}

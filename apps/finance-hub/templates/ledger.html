@@ -1,0 +1,133 @@
+{% extends 'base.html' %}
+{% block content %}
+<header class="page-header ledger-home-header">
+  <div class="page-header-copy">
+    <p class="eyebrow">Expense Hub</p>
+    <h1 class="page-title">账本列表</h1>
+    <p class="page-subtitle">默认先看主账本，其他账本在创建后出现在这里。</p>
+  </div>
+  <div class="dashboard-actions">
+    <button class="btn btn-primary" type="button" onclick="openLedgerModal('create-book-modal')">+ 新建账本</button>
+  </div>
+</header>
+
+{% if ledger_error %}
+<div class="assets-history-status">
+  <span class="assets-history-status-text">{{ ledger_error }}</span>
+</div>
+{% endif %}
+
+<section class="ledger-book-grid ledger-book-grid-home">
+  {% for book in books %}
+  <article class="ledger-book-card ledger-book-card-{{ book.book_type | lower }} ledger-book-card-home">
+    <div class="ledger-book-top">
+      <div class="ledger-book-headline">
+        <span class="ledger-book-type">
+          {% if book.book_type == 'MAIN' %}单人{% elif book.book_type == 'TRAVEL' %}AA{% else %}共享{% endif %}
+        </span>
+        <h2>{{ book.name }}</h2>
+      </div>
+      <a class="ledger-book-chevron" href="/ledger/books/{{ book.id }}">›</a>
+    </div>
+
+    <div class="ledger-book-middle">
+      <div class="ledger-book-avatars">
+        {% for member in (book.members_preview or []) %}
+        <span class="ledger-book-avatar">{{ member[0] }}</span>
+        {% endfor %}
+        {% if not book.members_preview %}
+        <span class="ledger-book-avatar">{{ book.name[0] }}</span>
+        {% endif %}
+        {% if book.book_type == 'MAIN' %}
+        <button class="ledger-book-plus" type="button" onclick="openRenameModal('{{ book.id }}', '{{ book.name | e }}')">✎</button>
+        {% elif book.member_count and book.member_count < 4 %}
+        <span class="ledger-book-plus">+</span>
+        {% endif %}
+      </div>
+      <div class="ledger-book-amount">
+        <span>{{ book.spend_label or '我的支出' }}</span>
+        <strong>{{ book.my_total_spend_display or '¥ 0.00' }}</strong>
+      </div>
+    </div>
+
+    <div class="ledger-book-footer">
+      <div class="ledger-book-footer-links">
+        <button class="ledger-mini-link" type="button" onclick="openRenameModal('{{ book.id }}', '{{ book.name | e }}')">设置</button>
+        <a class="ledger-mini-link" href="/ledger/books/{{ book.id }}">报表</a>
+      </div>
+      <div class="ledger-book-meta-line">
+        <span>{{ book.member_count }} 人</span>
+      </div>
+    </div>
+  </article>
+  {% endfor %}
+</section>
+
+<div class="modal-overlay" id="create-book-modal" style="display:none;" onclick="closeLedgerModalOnOverlay(event)">
+  <div class="modal-sheet">
+    <div class="modal-header">
+      <h2>新建账本</h2>
+      <button class="modal-close" type="button" onclick="closeLedgerModal('create-book-modal')">&times;</button>
+    </div>
+    <form method="post" action="/ledger/books" class="ledger-form">
+      <div class="form-group">
+        <label>账本类型</label>
+        <select name="book_type" required>
+          <option value="TRAVEL">旅行账本</option>
+          <option value="CUSTOM">其他共享账本</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>账本名称</label>
+        <input type="text" name="name" placeholder="例如：韩国旅行 / 聚餐分账" required>
+      </div>
+      <div class="form-group">
+        <label>账本描述</label>
+        <input type="text" name="description" placeholder="可选">
+      </div>
+      <div class="form-group">
+        <label>国家</label>
+        <input type="text" name="country_name" placeholder="旅行账本建议填写国家">
+      </div>
+      <div class="form-group">
+        <label>省份 / 地区</label>
+        <input type="text" name="region_name" placeholder="可选">
+      </div>
+      <div class="form-group">
+        <label>城市</label>
+        <input type="text" name="city_name" placeholder="可选">
+      </div>
+      <div class="form-group">
+        <label>共享成员</label>
+        <div class="ledger-user-picker" data-user-picker data-input-name="member_user_ids">
+          <input type="hidden" name="member_user_ids" value="">
+          <input type="text" class="ledger-user-search-input" placeholder="输入用户名搜索共享成员">
+          <div class="ledger-user-search-results"></div>
+          <div class="ledger-selected-users"></div>
+        </div>
+      </div>
+      <button type="submit" class="btn btn-primary btn-block">创建账本</button>
+    </form>
+  </div>
+</div>
+
+<div class="modal-overlay" id="rename-book-modal" style="display:none;" onclick="closeLedgerModalOnOverlay(event)">
+  <div class="modal-sheet">
+    <div class="modal-header">
+      <h2>重命名账本</h2>
+      <button class="modal-close" type="button" onclick="closeLedgerModal('rename-book-modal')">&times;</button>
+    </div>
+    <form method="post" action="" class="ledger-form" id="rename-book-form">
+      <div class="form-group">
+        <label>账本名称</label>
+        <input type="text" name="new_name" id="rename-book-input" placeholder="输入新的账本名称" required>
+      </div>
+      <button type="submit" class="btn btn-primary btn-block">保存名称</button>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/ledger.js?v=2"></script>
+{% endblock %}

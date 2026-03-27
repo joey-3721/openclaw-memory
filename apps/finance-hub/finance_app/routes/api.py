@@ -10,6 +10,7 @@ from fastapi import APIRouter, BackgroundTasks, Request
 from fastapi.responses import JSONResponse
 
 from ..services.auth import get_current_user
+from ..services.ledger_service import LedgerService
 from ..services.page_cache_service import PageCacheService
 
 router = APIRouter(prefix="/api")
@@ -52,6 +53,17 @@ def _queue_snapshot_refresh(
 def _invalidate_live_page_caches(user_id: int) -> None:
     """Clear short-lived per-user page caches after any data mutation."""
     PageCacheService().invalidate_user_pages(user_id)
+
+
+@router.get("/ledger/users/search")
+def ledger_user_search(request: Request, q: str = ""):
+    user = _require_user(request)
+    if not user:
+        return _unauthorized()
+    svc = LedgerService()
+    return JSONResponse(
+        {"users": svc.search_users(q, exclude_user_id=user["id"])}
+    )
 
 
 # ── Assets ────────────────────────────────────────────────

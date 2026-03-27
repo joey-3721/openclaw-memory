@@ -15,12 +15,14 @@ from fastapi.responses import (
 from ..config import settings
 from ..db import get_cursor
 from ..services.auth import authenticate_user, get_current_user
+from ..services.ledger_service import LedgerService
 from ..services.page_cache_service import PageCacheService
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 LIVE_PAGE_CACHE_TTL_SECONDS = 60
 PAGE_SHELL_CACHE_TTL_SECONDS = 60
+
 
 
 @router.get("/favicon.ico")
@@ -220,6 +222,240 @@ def assets_page(request: Request):
         _build_html,
     )
     return HTMLResponse(html)
+
+
+@router.get("/ledger")
+def ledger_page(request: Request):
+    current_user = get_current_user(request)
+    if not current_user:
+        return RedirectResponse("/login", status_code=302)
+
+    svc = LedgerService()
+    books = svc.list_books_for_user(current_user["id"])
+    return render_template(
+        request,
+        "ledger.html",
+        {
+            "title": "记账 · Finance Hub",
+            "current_user": current_user,
+            "active_page": "ledger",
+            "books": books,
+            "categories": svc.get_categories(),
+            "ledger_summary": {
+                "book_count": len(books),
+                "travel_count": sum(
+                    1 for book in books if book["book_type"] == "TRAVEL"
+                ),
+                "ai_status": "快捷指令入口可后续接入",
+                "location_status": "旅行账本支持国家 / 城市信息",
+            },
+        },
+    )
+
+
+@router.post("/ledger/books")
+def ledger_create_book(
+    request: Request,
+    book_type: str = Form(...),
+    name: str = Form(...),
+    description: str = Form(""),
+    country_name: str = Form(""),
+    region_name: str = Form(""),
+    city_name: str = Form(""),
+    member_user_ids: str = Form(""),
+):
+    current_user = get_current_user(request)
+    if not current_user:
+        return RedirectResponse("/login", status_code=302)
+
+    svc = LedgerService()
+    try:
+        book_id = svc.create_book(
+            current_user["id"],
+            book_type=book_type,
+            name=name,
+            description=description,
+            country_name=country_name,
+            region_name=region_name,
+            city_name=city_name,
+            member_user_ids=[
+                int(item)
+                for item in member_user_ids.split(",")
+                if item.strip().isdigit()
+            ],
+        )
+        return RedirectResponse(
+            f"/ledger/books/{book_id}", status_code=302
+        )
+    except ValueError as exc:
+        books = svc.list_books_for_user(current_user["id"])
+        return render_template(
+            request,
+            "ledger.html",
+            {
+                "title": "记账 · Finance Hub",
+                "current_user": current_user,
+                "active_page": "ledger",
+                "books": books,
+                "categories": svc.get_categories(),
+                "ledger_summary": {
+                    "book_count": len(books),
+                    "travel_count": sum(
+                        1 for book in books if book["book_type"] == "TRAVEL"
+                    ),
+                    "ai_status": "快捷指令入口可后续接入",
+                    "location_status": "旅行账本支持国家 / 城市信息",
+                },
+                "ledger_error": str(exc),
+            },
+            status_code=400,
+        )
+
+
+@router.get("/ledger/books/{book_id}")
+def ledger_book_page(request: Request, book_id: int):
+    current_user = get_current_user(request)
+    if not current_user:
+        return RedirectResponse("/login", status_code=302)
+
+    svc = LedgerService()
+    try:
+        book = svc.get_book_detail(book_id, current_user["id"])
+    except ValueError:
+        return RedirectResponse("/ledger", status_code=302)
+
+    return render_template(
+        request,
+        "ledger_book.html",
+        {
+            "title": f"{book['name']} · Finance Hub",
+            "current_user": current_user,
+            "active_page": "ledger",
+            "book": book,
+            "categories": svc.get_categories(),
+        },
+    )
+
+
+@router.post("/ledger/books/{book_id}/members")
+def ledger_add_members(
+    request: Request,
+    book_id: int,
+    member_user_ids: str = Form(""),
+):
+    current_user = get_current_user(request)
+    if not current_user:
+        return RedirectResponse("/login", status_code=302)
+    svc = LedgerService()
+    try:
+        svc.add_book_members(
+            book_id,
+            current_user["id"],
+            [
+                int(item)
+                for item in member_user_ids.split(",")
+                if item.strip().isdigit()
+            ],
+        )
+    except ValueError:
+        pass
+    return RedirectResponse(f"/ledger/books/{book_id}", status_code=302)
+
+
+@router.post("/ledger/books/{book_id}/rename")
+def ledger_rename_book(
+    request: Request,
+    book_id: int,
+    new_name: str = Form(...),
+):
+    current_user = get_current_user(request)
+    if not current_user:
+        return RedirectResponse("/login", status_code=302)
+    svc = LedgerService()
+    try:
+        svc.rename_book(book_id, current_user["id"], new_name)
+    except ValueError:
+        pass
+    return RedirectResponse("/ledger", status_code=302)
+
+
+@router.post("/ledger/books/{book_id}/entries")
+def ledger_create_entry(
+    request: Request,
+    book_id: int,
+    title: str = Form(...),
+    amount: str = Form(...),
+    occurred_at: str = Form(...),
+    category_code: str = Form(...),
+    subcategory_name: str = Form(""),
+    note: str = Form(""),
+    payer_user_id: int | None = Form(None),
+    participant_user_ids: list[int] | None = Form(None),
+    share_main_user_id: int | None = Form(None),
+    main_share_mode: str = Form("EQUAL"),
+    mark_settled: bool = Form(False),
+):
+    current_user = get_current_user(request)
+    if not current_user:
+        return RedirectResponse("/login", status_code=302)
+    svc = LedgerService()
+    try:
+        svc.create_entry(
+            book_id,
+            current_user["id"],
+            title=title,
+            amount=amount,
+            occurred_at=occurred_at,
+            category_code=category_code,
+            subcategory_name=subcategory_name,
+            note=note,
+            payer_user_id=payer_user_id,
+            participant_user_ids=participant_user_ids or [],
+            share_main_user_id=share_main_user_id,
+            main_share_mode=main_share_mode,
+            mark_settled=mark_settled,
+        )
+    except ValueError:
+        return RedirectResponse(f"/ledger/books/{book_id}", status_code=302)
+    return RedirectResponse(f"/ledger/books/{book_id}", status_code=302)
+
+
+@router.post("/ledger/books/{book_id}/settle")
+def ledger_settle_book(request: Request, book_id: int):
+    current_user = get_current_user(request)
+    if not current_user:
+        return RedirectResponse("/login", status_code=302)
+    svc = LedgerService()
+    try:
+        svc.settle_book(book_id, current_user["id"])
+    except ValueError:
+        pass
+    return RedirectResponse(f"/ledger/books/{book_id}", status_code=302)
+
+
+@router.post("/ledger/books/{book_id}/settlements/pay")
+def ledger_settle_transfer(
+    request: Request,
+    book_id: int,
+    from_member_id: int = Form(...),
+    to_member_id: int = Form(...),
+    amount: str = Form(...),
+):
+    current_user = get_current_user(request)
+    if not current_user:
+        return RedirectResponse("/login", status_code=302)
+    svc = LedgerService()
+    try:
+        svc.settle_transfer(
+            book_id,
+            current_user["id"],
+            from_member_id=from_member_id,
+            to_member_id=to_member_id,
+            amount=amount,
+        )
+    except ValueError:
+        pass
+    return RedirectResponse(f"/ledger/books/{book_id}", status_code=302)
 
 
 @router.get("/assets/live-content")

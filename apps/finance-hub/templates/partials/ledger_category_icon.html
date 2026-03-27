@@ -1,0 +1,76 @@
+{% if icon == 'dining' %}
+<svg viewBox="0 0 64 64" aria-hidden="true">
+  <defs>
+    <linearGradient id="g-dining" x1="0%" x2="100%" y1="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffe8b0"></stop>
+      <stop offset="100%" stop-color="#ffbf53"></stop>
+    </linearGradient>
+  </defs>
+  <rect x="15" y="18" width="20" height="18" rx="8" fill="url(#g-dining)"></rect>
+  <path d="M40 17v12M45 17v12M50 17v12M45 29v18" fill="none" stroke="#26405a" stroke-linecap="round" stroke-width="3"></path>
+  <path d="M23 40c4-1.6 7.8-1.6 11.5 0" fill="none" stroke="#f58b0b" stroke-linecap="round" stroke-width="3"></path>
+  <circle cx="25" cy="25" r="2.5" fill="#26405a"></circle>
+</svg>
+{% elif icon == 'transport' %}
+<svg viewBox="0 0 64 64" aria-hidden="true">
+  <rect x="13" y="23" width="38" height="16" rx="8" fill="#4f8df6"></rect>
+  <path d="M18 23l6-8h16l7 8" fill="#7bb2ff"></path>
+  <circle cx="23" cy="43" r="4" fill="#ffb029"></circle>
+  <circle cx="42" cy="43" r="4" fill="#ffb029"></circle>
+  <path d="M20 29h24" fill="none" stroke="#d9ecff" stroke-linecap="round" stroke-width="3"></path>
+</svg>
+{% elif icon == 'lodging' %}
+<svg viewBox="0 0 64 64" aria-hidden="true">
+  <path d="M18 28h28a8 8 0 0 1 8 8v9H10v-9a8 8 0 0 1 8-8Z" fill="#ffb64f"></path>
+  <path d="M14 30l18-12 18 12" fill="none" stroke="#26405a" stroke-linecap="round" stroke-linejoin="round" stroke-width="3"></path>
+  <rect x="28" y="33" width="8" height="12" rx="3" fill="#fff3d6"></rect>
+  <circle cx="21" cy="37" r="3" fill="#26405a"></circle>
+  <circle cx="43" cy="37" r="3" fill="#26405a"></circle>
+</svg>
+{% elif icon == 'shopping' %}
+<svg viewBox="0 0 64 64" aria-hidden="true">
+  <path d="M18 24h28l-3 23H21l-3-23Z" fill="#8b5cf6"></path>
+  <path d="M23 24c0-5 4-9 9-9s9 4 9 9" fill="none" stroke="#26405a" stroke-linecap="round" stroke-width="3"></path>
+  <path d="M24 31h16" fill="none" stroke="#eadeff" stroke-linecap="round" stroke-width="3"></path>
+  <circle cx="47" cy="21" r="5" fill="#ffb029"></circle>
+</svg>
+{% elif icon == 'game' %}
+<svg viewBox="0 0 64 64" aria-hidden="true">
+  <path d="M18 26h28a10 10 0 0 1 10 10v2a10 10 0 0 1-10 10H18A10 10 0 0 1 8 38v-2a10 10 0 0 1 10-10Z" fill="#8b5cf6"></path>
+  <path d="M22 36h10M27 31v10" fill="none" stroke="#efe7ff" stroke-linecap="round" stroke-width="4"></path>
+  <circle cx="42" cy="34" r="3" fill="#ffb029"></circle>
+  <circle cx="48" cy="40" r="3" fill="#7bd4ff"></circle>
+</svg>
+{% elif icon == 'entertainment' %}
+<svg viewBox="0 0 64 64" aria-hidden="true">
+  <circle cx="32" cy="32" r="16" fill="#fb7185"></circle>
+  <path d="M25 25l14 7-14 7V25Z" fill="#fff5f7"></path>
+  <circle cx="21" cy="22" r="4" fill="#ffd56c"></circle>
+  <circle cx="43" cy="42" r="4" fill="#ffd56c"></circle>
+</svg>
+{% elif icon == 'medical' %}
+<svg viewBox="0 0 64 64" aria-hidden="true">
+  <rect x="18" y="17" width="28" height="30" rx="12" fill="#7bd4ff"></rect>
+  <path d="M32 23v18M23 32h18" fill="none" stroke="#ffffff" stroke-linecap="round" stroke-width="4"></path>
+  <circle cx="46" cy="22" r="5" fill="#ffb029"></circle>
+</svg>
+{% elif icon == 'service' %}
+<svg viewBox="0 0 64 64" aria-hidden="true">
+  <circle cx="25" cy="22" r="7" fill="#ffb64f"></circle>
+  <circle cx="39" cy="22" r="7" fill="#7bd4ff"></circle>
+  <path d="M18 43c3-8 8.8-12 14-12s11 4 14 12" fill="#fb7185"></path>
+  <path d="M23 31l18 18" fill="none" stroke="#26405a" stroke-linecap="round" stroke-width="3"></path>
+</svg>
+{% elif icon == 'bill' %}
+<svg viewBox="0 0 64 64" aria-hidden="true">
+  <path d="M20 16h24l6 7v23a6 6 0 0 1-6 6H20a6 6 0 0 1-6-6V22l6-6Z" fill="#ffb64f"></path>
+  <path d="M22 28h20M22 35h20M22 42h12" fill="none" stroke="#26405a" stroke-linecap="round" stroke-width="3"></path>
+  <circle cx="45" cy="21" r="5" fill="#7bd4ff"></circle>
+</svg>
+{% else %}
+<svg viewBox="0 0 64 64" aria-hidden="true">
+  <rect x="16" y="18" width="32" height="28" rx="12" fill="#ffb64f"></rect>
+  <path d="M23 27h18M23 35h12" fill="none" stroke="#26405a" stroke-linecap="round" stroke-width="3"></path>
+  <circle cx="44" cy="42" r="5" fill="#7bd4ff"></circle>
+</svg>
+{% endif %}
