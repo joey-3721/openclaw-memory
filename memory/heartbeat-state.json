@@ -2,40 +2,40 @@
   "lastChecks": {
     "recommendation": "2026-03-23 01:17:00",
     "feishu_heartbeat": "2026-03-23 00:10:00",
-    "weather": "2026-04-03 08:30:00"
+    "weather": "2026-04-05 00:30:00"
   },
   "recommendation_count": 143,
-  "last_action": "send weather report for 2026-04-03",
+  "last_action": "send weather report for 2026-04-05",
   "weather": {
-    "lastReportDate": "2026-04-03",
-    "lastReportTs": "2026-04-03T00:30:00+08:00",
-    "lastReportLocalTime": "2026-04-03 00:30",
+    "lastReportDate": "2026-04-05",
+    "lastReportTs": "2026-04-05T00:30:00+08:00",
+    "lastReportLocalTime": "2026-04-05 00:30",
     "snapshots": {
-      "2026-04-03": {
-        "date": "2026-04-03",
+      "2026-04-05": {
+        "date": "2026-04-05",
         "condition": "多云",
-        "temp": 12.2,
-        "feelsLike": 10.5,
-        "humidity": 67,
-        "windSpeed": 5.4,
-        "windDir": "北",
-        "high": 23.6,
-        "low": 11.4,
-        "rainChance": 25,
-        "observedAt": "2026-04-03T08:30:00+08:00"
-      },
-      "2026-04-01": {
-        "date": "2026-04-01",
-        "condition": "晴",
-        "temp": 11.0,
-        "feelsLike": 10.0,
-        "humidity": 35,
-        "windSpeed": 13.0,
-        "windDir": "NE",
+        "temp": 5.0,
+        "feelsLike": 1.0,
+        "humidity": 87,
+        "windSpeed": 21.0,
+        "windDir": "NW",
         "high": 18.0,
-        "low": 11.0,
+        "low": 9.0,
         "rainChance": 0,
-        "observedAt": "2026-04-01T07:41:00+08:00"
+        "observedAt": "2026-04-05T07:39:00+08:00"
+      },
+      "2026-04-04": {
+        "date": "2026-04-04",
+        "condition": "晴",
+        "temp": 9.0,
+        "feelsLike": 9.0,
+        "humidity": 50,
+        "windSpeed": 5.0,
+        "windDir": "SSE",
+        "high": 19.0,
+        "low": 9.0,
+        "rainChance": 0,
+        "observedAt": "2026-04-04T07:54:00+08:00"
       }
     }
   }
